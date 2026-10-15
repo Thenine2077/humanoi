@@ -74,7 +74,7 @@ ros2 run humanoi_teleop keyboard_teleop           # อีกหน้าต่�
 โค้ดแขนอยู่ใน repo **humanoi-ar4-arm** — ต้อง clone ไว้ข้างกันในชื่อโฟลเดอร์ `ar4` เพื่อให้ `sync_to_pi.sh` หาเจอ:
 
 ```bash
-git clone <url ของ humanoi-ar4-arm> ar4      # วางข้าง Humanoi/
+git clone https://github.com/Thenine2077/humanoi-ar4-arm.git ar4   # วางข้าง Humanoi/
 ```
 
 ## หมายเหตุ
