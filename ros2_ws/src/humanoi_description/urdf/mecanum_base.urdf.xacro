@@ -1,0 +1,176 @@
+<?xml version="1.0"?>
+<!-- ฐานหุ่น Humanoi : 4 ล้อ mecanum ขับเคลื่อนแบบ holonomic
+     ค่าทั้งหมดปรับได้ที่บล็อก property ด้านล่าง (ยังเป็นค่าสมมติจนกว่าจะวัดฐานจริง)
+
+     หมายเหตุ sim: ใช้ปลั๊กอิน VelocityControl (ขยับตัวถังตาม /cmd_vel ตรงๆ แบบ kinematic)
+     ไม่ได้ขับผ่านแรงเสียดทานล้อ เพราะล้อทรงกระบอกไม่มีลูกกลิ้ง mecanum จริง จึงสไลด์ข้างไม่ได้
+     ล้อในโมเดลจึงเป็นแค่ visual (ยังไม่หมุนตาม) — odom มาจากตำแหน่งจริงของหุ่น -->
+<robot name="humanoi_base" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ===================== ค่าที่ปรับได้ ===================== -->
+  <xacro:property name="base_x"    value="0.45"/>   <!-- ยาว (หน้า-หลัง) เมตร -->
+  <xacro:property name="base_y"    value="0.35"/>   <!-- กว้าง (ซ้าย-ขวา) เมตร -->
+  <xacro:property name="base_z"    value="0.12"/>   <!-- สูงของกล่องฐาน เมตร -->
+  <xacro:property name="base_mass" value="14.0"/>   <!-- กก. (ประมาณ ฐาน+แบต) -->
+
+  <xacro:property name="wheel_radius" value="0.075"/>  <!-- ล้อ Ø150 mm -->
+  <xacro:property name="wheel_width"  value="0.05"/>
+  <xacro:property name="wheel_mass"   value="0.6"/>
+
+  <!-- ระยะติดตั้งล้อ วัดจากจุดศูนย์กลางฐาน (ครึ่งระยะ) -->
+  <xacro:property name="track_half"     value="0.20"/>  <!-- ครึ่งระยะ ซ้าย-ขวา ระหว่างล้อ -->
+  <xacro:property name="wheelbase_half" value="0.16"/>  <!-- ครึ่งระยะ หน้า-หลัง ระหว่างล้อ -->
+  <xacro:property name="clearance"      value="0.04"/>  <!-- ระยะกล่องฐานลอยเหนือแกนล้อ -->
+  <!-- ======================================================= -->
+
+  <material name="hull">   <color rgba="0.90 0.50 0.10 1"/></material>
+  <material name="rubber"> <color rgba="0.15 0.15 0.15 1"/></material>
+
+  <!-- กรอบอ้างอิงบนพื้น : จุดนี้แตะพื้นพอดี (spawn ที่ -z 0) -->
+  <link name="base_footprint"/>
+
+  <!-- ชื่อ "chassis_link" ไม่ใช่ "base_link" โดยตั้งใจ: แขน AR4 (ar_description/urdf/ar_macro.xacro
+       ของผู้ขาย) ฮาร์ดโค้ดลิงก์รากของมันว่า "base_link" และ joint ยึดว่า "base_joint" ไว้แล้ว
+       และแก้ไฟล์ผู้ขายไม่ได้ ถ้าฐานยังใช้ชื่อเดิมจะชนกันทันทีตอนรวมเป็นหุ่นตัวเดียว
+       เลือกเปลี่ยนฝั่งฐานเพราะถูกกว่ามาก — ชื่อนี้ถูกอ้างแค่ในไฟล์นี้ ส่วน Nav2/SLAM ใช้
+       "base_footprint" ล้วน (ดู humanoi_nav/config/*.yaml) จึงไม่ต้องแตะเลย
+       ในทางกลับกัน ถ้าไปเปลี่ยนชื่อฝั่งแขน จะพัง SRDF + kinematics.yaml + joint_limits.yaml
+       ของผู้ขาย บวก config MoveIt ของเราอีก 2 ไฟล์
+       (ตอนเพิ่มแขนตัวที่ 2 ค่อยกลับมาใส่ prefix ให้แขนทั้งคู่พร้อมกันทีเดียว) -->
+  <joint name="chassis_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child  link="chassis_link"/>
+    <origin xyz="0 0 ${wheel_radius + clearance}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="chassis_link">
+    <visual>
+      <geometry><box size="${base_x} ${base_y} ${base_z}"/></geometry>
+      <material name="hull"/>
+    </visual>
+    <collision>
+      <geometry><box size="${base_x} ${base_y} ${base_z}"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="${base_mass}"/>
+      <inertia
+        ixx="${base_mass*(base_y*base_y + base_z*base_z)/12.0}" ixy="0.0" ixz="0.0"
+        iyy="${base_mass*(base_x*base_x + base_z*base_z)/12.0}" iyz="0.0"
+        izz="${base_mass*(base_x*base_x + base_y*base_y)/12.0}"/>
+    </inertial>
+  </link>
+
+  <!-- ล้อ 1 ตัว : visual + inertial เท่านั้น (ไม่มี collision — ดูหมายเหตุด้านบน)
+       ศูนย์กลางล้ออยู่สูง wheel_radius จากพื้น -> ล้อแตะพื้นพอดี -->
+  <xacro:macro name="wheel" params="name x y">
+    <link name="${name}_wheel">
+      <visual>
+        <origin xyz="0 0 0" rpy="1.5707963 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+        <material name="rubber"/>
+      </visual>
+      <inertial>
+        <mass value="${wheel_mass}"/>
+        <inertia
+          ixx="${wheel_mass*(3*wheel_radius*wheel_radius + wheel_width*wheel_width)/12.0}" ixy="0.0" ixz="0.0"
+          iyy="${wheel_mass*(3*wheel_radius*wheel_radius + wheel_width*wheel_width)/12.0}" iyz="0.0"
+          izz="${wheel_mass*wheel_radius*wheel_radius/2.0}"/>
+      </inertial>
+    </link>
+    <joint name="${name}_wheel_joint" type="continuous">
+      <parent link="chassis_link"/>
+      <child  link="${name}_wheel"/>
+      <origin xyz="${x} ${y} ${-clearance}" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <dynamics damping="0.05" friction="0.0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel name="front_left"  x="${ wheelbase_half}" y="${ track_half}"/>
+  <xacro:wheel name="front_right" x="${ wheelbase_half}" y="${-track_half}"/>
+  <xacro:wheel name="rear_left"   x="${-wheelbase_half}" y="${ track_half}"/>
+  <xacro:wheel name="rear_right"  x="${-wheelbase_half}" y="${-track_half}"/>
+
+  <!-- ============ LiDAR 2D — ตั้งค่าให้ตรงกับ LDROBOT STL-19P ตัวจริง ============
+       ค่าทั้งหมดด้านล่างวัดมาจากลิดาร์จริงที่ต่ออยู่ ไม่ได้ลอกจากสเปกอย่างเดียว
+       (ldlidar_ros2 + ld19.launch.py -> /scan : 501 จุด/รอบ, 0.720°/จุด, 10.000 Hz)
+       เป้าหมายคือให้ซิมกับของจริงป้อนข้อมูลหน้าตาเดียวกันให้ slam_toolbox/Nav2
+       หมายเหตุ: ไดรเวอร์จริงรายงานมุมเป็น 0..360° ส่วน gz ใช้ -180..180° ซึ่งต่างกันแค่
+       จุดอ้างอิง ไม่กระทบ Nav2/slam_toolbox (ทั้งคู่อ่านจาก angle_min/angle_increment) -->
+  <link name="laser_link">
+    <visual>
+      <geometry><cylinder radius="0.035" length="0.04"/></geometry>
+      <material name="rubber"/>
+    </visual>
+    <inertial>
+      <mass value="0.12"/>
+      <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
+    </inertial>
+  </link>
+  <joint name="laser_joint" type="fixed">
+    <parent link="chassis_link"/>
+    <child  link="laser_link"/>
+    <!-- กลางฐาน ค่อนไปหน้า สูงพ้นฝาบน -->
+    <origin xyz="${wheelbase_half} 0 ${base_z/2 + 0.04}" rpy="0 0 0"/>
+  </joint>
+
+  <gazebo reference="laser_link">
+    <sensor name="lidar" type="gpu_lidar">
+      <update_rate>10</update_rate>
+      <topic>scan</topic>
+      <gz_frame_id>laser_link</gz_frame_id>
+      <always_on>1</always_on>
+      <visualize>true</visualize>
+      <lidar>
+        <scan>
+          <horizontal>
+            <!-- 501 = 5000 จุด/วินาที ÷ 10 รอบ/วินาที + 1 (ปลายทั้งสองข้างนับซ้ำที่ 0°/360°)
+                 ได้ความละเอียดเชิงมุม 0.720° เท่าของจริงเป๊ะ -->
+            <samples>501</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.141593</min_angle>
+            <max_angle>3.141593</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <!-- 0.03 m ตามสเปก STL-19P (ของเดิมตั้ง 0.15 มั่วไว้) -->
+          <min>0.03</min>
+          <max>12.0</max>
+          <resolution>0.01</resolution>
+        </range>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- ===================== ปลั๊กอิน Gazebo (gz-sim / Harmonic) ===================== -->
+  <gazebo>
+    <!-- ขยับตัวถังตาม gz.msgs.Twist ที่ /cmd_vel โดยตรง (body frame, holonomic) -->
+    <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl">
+      <topic>cmd_vel</topic>
+    </plugin>
+
+    <!-- odom จากตำแหน่งจริงของหุ่น (3 มิติ = x, y, yaw สำหรับ holonomic) -->
+    <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf</tf_topic>
+      <dimensions>3</dimensions>
+      <odom_publish_frequency>50</odom_publish_frequency>
+    </plugin>
+
+    <!-- เผยแพร่มุมล้อ -> /joint_states (ล้อยังนิ่ง แต่ให้ robot_state_publisher มี TF ครบ)
+         ระบุชื่อ joint ทีละตัวโดยตั้งใจ: ถ้าปล่อยว่าง ปลั๊กอินนี้จะเผยแพร่ "ทุก" joint ของโมเดล
+         ซึ่งพอเอาแขน AR4 มาติดบนฐาน (humanoi_full.urdf.xacro) จะรวม joint_1..joint_6 ไปด้วย
+         แล้วไปชนกับ joint_state_broadcaster ของ gz_ros2_control ที่เผยแพร่ /joint_states
+         เหมือนกัน — สองตัวสลับกันยิงค่าคนละชุด ทำให้ MoveIt เห็นสถานะแขนกระพริบไปมา -->
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+      <joint_name>front_left_wheel_joint</joint_name>
+      <joint_name>front_right_wheel_joint</joint_name>
+      <joint_name>rear_left_wheel_joint</joint_name>
+      <joint_name>rear_right_wheel_joint</joint_name>
+    </plugin>
+  </gazebo>
+
+</robot>

@@ -1,0 +1,9 @@
+# เก็บและ checkout เป็น LF เสมอ — ไฟล์ .sh / launch ถูกส่งไปรันบน Raspberry Pi (Linux) ถ้าเป็น CRLF จะพัง
+* text=auto eol=lf
+*.bat text eol=crlf
+*.pdf binary
+*.xlsx binary
+*.png binary
+*.pgm binary
+*.STL binary
+*.stl binary

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SRDF ของหุ่นรวม (ฐาน mecanum + แขน AR4)
+
+     ส่วนของแขนทั้งหมด (group ar_manipulator, group_state home/upright, disable_collisions
+     ระหว่างลิงก์แขนด้วยกัน) เรียกจาก macro ของผู้ขายตรงๆ ไม่คัดลอกมาซ้ำ ไม่แก้ไฟล์ผู้ขาย
+     ไฟล์นี้เพิ่มเฉพาะสิ่งที่ "เกิดจากการเอาแขนมาวางบนฐาน" เท่านั้น
+
+       xacro humanoi_full.srdf.xacro -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="humanoi">
+
+  <xacro:include filename="$(find ar_moveit_config)/srdf/ar_macro.srdf.xacro"/>
+  <xacro:ar_srdf/>
+
+  <!-- ===== คู่ลิงก์ที่ไม่ต้องเช็คการชน =====
+       ปิดเฉพาะคู่ที่ "ติดกันอยู่แล้วโดยโครงสร้าง" เท่านั้น
+       ตั้งใจ *ไม่* ปิด link_2..link_6 กับ chassis_link/laser_link — อยากให้ MoveIt กันแขน
+       ฟาดลงฝาบนฐานหรือฟาดไลดาร์จริงๆ ซึ่งเป็นประโยชน์หลักอย่างหนึ่งของการรวมโมเดล -->
+  <disable_collisions link1="chassis_link" link2="base_link"  reason="Adjacent"/>
+  <disable_collisions link1="chassis_link" link2="link_1"     reason="Never"/>
+  <disable_collisions link1="chassis_link" link2="laser_link" reason="Adjacent"/>
+  <disable_collisions link1="chassis_link" link2="front_left_wheel"  reason="Adjacent"/>
+  <disable_collisions link1="chassis_link" link2="front_right_wheel" reason="Adjacent"/>
+  <disable_collisions link1="chassis_link" link2="rear_left_wheel"   reason="Adjacent"/>
+  <disable_collisions link1="chassis_link" link2="rear_right_wheel"  reason="Adjacent"/>
+
+  <!-- ===== ท่าที่ตั้งโปรแกรมไว้ล่วงหน้า =====
+       "stow" = ท่าพับเก็บ ต้องเข้าท่านี้ก่อนฐานจะเคลื่อนที่ทุกครั้ง (กันหุ่นคว่ำ / ฟาดของ)
+       humanoi_mission จะบังคับเงื่อนไขนี้เป็น interlock
+
+       ⚠️ ค่าด้านล่างยังเป็นค่าตั้งต้น ต้องเปิด RViz ดูด้วยตาว่าแขนพับเก็บจริงก่อนใช้งาน
+          เครื่องหมายของ joint_2/joint_3 ยังไม่ได้ยืนยันด้วยภาพ -->
+  <group_state name="stow" group="ar_manipulator">
+    <joint name="joint_1" value="0"/>
+    <joint name="joint_2" value="1.40"/>
+    <joint name="joint_3" value="-1.50"/>
+    <joint name="joint_4" value="0"/>
+    <joint name="joint_5" value="0"/>
+    <joint name="joint_6" value="0"/>
+  </group_state>
+
+</robot>

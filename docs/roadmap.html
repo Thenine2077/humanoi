@@ -1,0 +1,435 @@
+<!doctype html><html><head><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"capabilities":{"artifact":"artifact.EF7sW8YL.js","assets":"assets.8Gk803W0.js","comments":"comments.vw5vQdGA.js","db":"db.h-3sndFg.js","downloads":"downloads.C3GSvEDP.js","embed":"embed.CxGAyc-v.js","mcp":"mcp.Bvma3qD7.js","network":"network.B5UA9Su4.js","notifications":"notifications.ssU4jy7G.js","permissions":"permissions.BNySkLV5.js","room":"room.VSdFwTE9.js","sample":"sample.BW2Uysoh.js","self":"artifact.EF7sW8YL.js","user":"user.BpKav-Rf.js"},"transforms":"_transforms.DSB5x63f.js","comments":"_comments.C6E0cR5g.js","translate":"_translate.5HCW4BJh.js"}</script><script>(function(){"use strict";var te=["light","dark","system"],re=/^[A-Za-z0-9_-]{1,64}$/,$=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,ne=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function oe(e){const t=e.toLowerCase();return t.startsWith("data-")||t.startsWith("aria-")||ne.has(t)}var Be="http://www.w3.org/1999/xhtml",se="http://www.w3.org/2000/svg",ae=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),ie=new Set(["script","style"]);function ce(e){const t=e.localName.toLowerCase();return e.namespaceURI==="http://www.w3.org/1999/xhtml"?!ae.has(t):e.namespaceURI===se?!ie.has(t):!1}function M(e,t){return e===t||(e===160||e===32)&&(t===160||t===32)}function le(e,t){const r=e.length,n=t.length;let s=0;for(;s<r&&s<n&&M(e.charCodeAt(s),t.charCodeAt(s));)s++;let o=0;for(;o<r-s&&o<n-s&&M(e.charCodeAt(r-1-o),t.charCodeAt(n-1-o));)o++;return{p:s,s:o}}function ue(e,t){const r=e.firstChild;if(e.childNodes.length!==1||r===null||r.nodeType!==Node.TEXT_NODE){e.textContent=t;return}const n=r.data,s=n.length,o=t.length,{p:i,s:c}=le(n,t);i===s&&c===0&&s===o||r.replaceData(i,s-i-c,t.slice(i,o-c));const h=r.data,p=e.ownerDocument.getSelection?.()??null,w=p!==null&&p.rangeCount>0&&(p.anchorNode===r||p.focusNode===r)?{anchor:p.anchorNode,anchorOffset:p.anchorOffset,focus:p.focusNode,focusOffset:p.focusOffset}:null;let m=-1,g=-1;for(let f=0;f<h.length&&f<t.length;f++){const v=h.charCodeAt(f),b=t.charCodeAt(f);v!==b&&M(v,b)&&(m<0&&(m=f),g=f)}const a=m>=0;if(a&&r.replaceData(m,g-m+1,t.slice(m,g+1)),a&&w!==null&&w.anchor!==null&&w.focus!==null)try{p.setBaseAndExtent(w.anchor,w.anchorOffset,w.focus,w.focusOffset)}catch{}}var fe=new Set(["html","head","body","frameset"]);function de(e){return e.namespaceURI==="http://www.w3.org/1999/xhtml"&&fe.has(e.localName)}function pe(e){if(e===null||typeof e!="object")return!1;const t=e;if(typeof t.target!="string"||!re.test(t.target)||t.text!==void 0&&typeof t.text!="string")return!1;if(t.attrsSet!==void 0){if(t.attrsSet===null||typeof t.attrsSet!="object")return!1;for(const[r,n]of Object.entries(t.attrsSet))if(!$.test(r)||typeof n!="string")return!1}if(t.attrsRemoved!==void 0){if(!Array.isArray(t.attrsRemoved))return!1;for(const r of t.attrsRemoved)if(typeof r!="string"||!$.test(r))return!1}return!0}function me(e,t){if(e===null||typeof e!="object")return!1;const{seq:r,elements:n}=e;if(typeof r!="number"||!Number.isSafeInteger(r)||!Array.isArray(n)||n.length===0||n.length>64)return!1;for(let s=0;s<n.length;s++)if(!t(n[s]))return!1;return!0}function he(e){return e===null||typeof e!="object"?!1:me(e.__frame_patch,pe)}function _e(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function ve(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function ye(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const r=t.theme;return typeof r=="string"&&te.includes(r)}var A=/^[\w.-]+\.js$/;function we(e,t,r){return r?"inert":typeof t=="string"&&A.test(t)?e?[t]:"inert":e?"inert":"framed"}function ge(){return{post(e,t){parent.postMessage(e,t)},on(e){const t=r=>{r.source===parent&&e(r.data,r.origin,r.isTrusted)};return addEventListener("message",t),()=>removeEventListener("message",t)}}}function be(){return{post:()=>{},on:()=>()=>{}}}var j="__frame_scroll",Ee=150,Ae=310,Se=160,Te=3e4;function ke(){let e=0,t=!1,r=!1,n=!1,s=0,o=null;const i=l=>{try{sessionStorage.setItem(j,JSON.stringify({y:l}))}catch{}},c=()=>{if(clearTimeout(e),o===null)return;const l=o;o=null,i(l)},h=()=>{if(t){t=!1;return}r=!0,o=scrollY,clearTimeout(e),e=setTimeout(c,Ee)};try{addEventListener("scroll",h,{passive:!0}),addEventListener("pagehide",c)}catch{}const p=()=>{let l;try{l=sessionStorage.getItem(j)}catch{return null}if(l===null)return null;let _;try{_=JSON.parse(l)}catch{_=null}const d=_?.y;if(!(typeof d=="number"&&Number.isFinite(d)&&d>=0)){try{sessionStorage.removeItem(j)}catch{}return null}return d};let w=!1;const m=l=>{try{const _=scrollY;scrollTo({top:l,left:0,behavior:"instant"}),s=l,n=!0,clearTimeout(e),o=null,i(l);const d=scrollY;d!==_&&(t=!0),d!==l&&!w&&(w=!0,addEventListener("load",()=>{try{if(scrollY===d){const T=p();m(T!==null?T:s)}}catch{}},{once:!0}))}catch{}},g=()=>{try{return!!location.hash}catch{return!0}};let a=!1;const f=()=>{try{if(a||innerWidth>Ae||innerHeight>Se)return;a=!0;const l=Date.now(),_=()=>{try{removeEventListener("resize",_)}catch{}if(Date.now()-l>Te||r||g())return;const d=p();m(d!==null?d:s)};addEventListener("resize",_)}catch{}};let v=!1,b=!1;return{restore(){if(v||(v=!0,g()))return;const l=p();l!==null&&(m(l),f())},promoted(){if(b||(b=!0,g()))return;const l=p();l!==null?(m(l),f()):n&&m(s)}}}function Re(e,t,r,n){let s=null;try{s=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:h=>h})??null}catch{}const o=window.Worker,i=o?.prototype,c=Object.freeze({Worker:o,workerOn:i?.addEventListener,workerPost:i?.postMessage,workerTerminate:i?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,policy:s,origins:t});r(e).then(h=>h?.bootTopLevel?h.bootTopLevel(c,n):n.settle()).catch(()=>n.settle())}var De="modulepreload",Ie=function(e){return"/"+e},Ue={},Le=function(t,r,n){let s=Promise.resolve();function o(i){const c=new Event("vite:preloadError",{cancelable:!0});if(c.payload=i,window.dispatchEvent(c),!c.defaultPrevented)throw i}return s.then(i=>{for(const c of i||[])c.status==="rejected"&&o(c.reason);return t().catch(o)})},Oe=window===top,q=Object.getOwnPropertyDescriptor(window,"claude"),k=we(Oe,window.__FRAME_PREAMBLE?.topLevel,q?.writable===!1),N=typeof k=="object"&&k[0],y=N?be():ge();(function(){const e=Object.defineProperty,t=globalThis,r=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let n=0;for(let s=0;s<r.length;s++){const o=r[s];try{e(t,o,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[o]}catch{}try{e(t,o,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[o]=="function"&&n++}if(n&&k==="framed")try{y.post({__frame_rtc_lockdown_failed:n},"*")}catch{}})();var Pe=1e4,Y=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function X(e){for(const t of Y)if(t.endsWith(":*"))try{const r=new URL(e);if(`${r.protocol}//${r.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var R=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),B=window.__FRAME_PREAMBLE?.transforms,D=window.__FRAME_PREAMBLE?.comments,I=window.__FRAME_PREAMBLE?.translate;function S(e){return Le(()=>import("/_runtime/"+e),void 0)}function G(e,t){return{contract:e.contract,changes:new Set(e.changes??[]),flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:new Map,shellOrigin:t,mount:x,hooks:O,pipe:()=>({wrap:(r,n)=>(...s)=>{try{return n(...s)}catch(o){return Promise.reject(o)}}})}}var L=null,E=null;function V(e,t,r){try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var U=!1,O={editBefore:null,edit:null};function Ce(e,t,r=!1){const n=[];let s;if(r)try{O.editBefore?.(e)}catch{}for(const o of e.elements){const i=document.querySelector(`[data-id="${o.target}"]`);if(!i){s=o.target;break}if([...Object.keys(o.attrsSet??{}),...o.attrsRemoved??[]].some(c=>!oe(c))){s=o.target;break}if(o.text!==void 0&&(!ce(i)||de(i))){s=o.target;break}for(const[c,h]of Object.entries(o.attrsSet??{}))if(!J(i,c)){try{i.setAttribute(c,h)}catch{}Z(i,c,h)}for(const c of o.attrsRemoved??[])J(i,c)||(i.removeAttribute(c),Z(i,c,null));typeof o.text=="string"&&ue(i,o.text),n.push(o.target)}if(r)try{O.edit?.(e.seq,n,s)}catch{}if(s!==void 0){y.post({__frame_patch_miss:{seq:e.seq}},t);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:e.seq,targets:n}}))}catch{}}function Z(e,t,r){if(!(e instanceof HTMLInputElement))return;const n=t.toLowerCase();n==="checked"?e.checked=r!==null:n==="value"&&e.type!=="file"&&(e.value=r??"")}function J(e,t){const r=t.toLowerCase(),n=e;return r==="data-id"||(r==="value"||r==="checked")&&(n.__artifactSecret===!0||/^(password|hidden|file)$/.test(n.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${e.getAttribute("autocomplete")??""} ${n.autocomplete??""}`))}function Q(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,U=!0):U&&(delete t.dataset.theme,t.style.colorScheme="",U=!1)}var P=new Map;function Me(){let e;const t={u:new Promise(r=>{e=r}),r:r=>{t.done=!0,e(r)},done:!1,nulled:!1};return t}function F(){for(const e of P.values())e.done||(e.nulled=!0,e.r(null))}var je=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),x=(e,t)=>{const r=P.get(e);if(!r||r.done){r?.nulled&&E&&y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:e}},E);return}const n=typeof t=="function"?Object.setPrototypeOf(t,je):Object.assign(Object.create(null),t);typeof n.then=="function"&&delete n.then,r.r(Object.freeze(n))};function ee(){const e=q?.value??{};V(window,"claude",e);for(const t of Object.keys(R)){if(e[t]!==void 0){V(e,t,e[t]);continue}P.set(t,Me())}if(e.use===void 0){const t=r=>{if(typeof r!="string"||!Object.hasOwn(R,r))return Promise.resolve(null);const n=P.get(r);return n?n.u:Promise.resolve(e[r]??null)};try{Object.defineProperty(e,"use",{value:t,writable:!0,configurable:!0,enumerable:!1})}catch{}}}if(k==="framed"){const e=B&&A.test(B)?S(B).catch(()=>{}):Promise.resolve(void 0),t=a=>{if(a.type==="auxclick"&&a.button!==1)return;const f=a.target,v=f&&f.closest?f.closest("a[href],area[href]"):null;if(!v)return;const b=v.getAttribute("href");if(!b)return;let l;try{l=new URL(b,document.baseURI)}catch{return}if((l.protocol==="http:"||l.protocol==="https:")&&l.origin!==location.origin){a.preventDefault();const _=(v.getAttribute("target")??"").toLowerCase(),d=a.type==="auxclick"||a.metaKey||a.ctrlKey||a.shiftKey||a.altKey||!["","_self","_top","_parent"].includes(_);y.post({__frame_nav:!0,url:l.href,newTab:d},"*")}};addEventListener("click",t,!0),addEventListener("auxclick",t,!0);const r={},n=a=>{a.isTrusted&&(r.pointer=!0)},s=a=>{a.isTrusted&&(r.click=!0)};addEventListener("pointermove",n,{capture:!0,passive:!0}),addEventListener("click",s,{capture:!0,passive:!0}),e.then(a=>{a?.wireNav&&(a.wireNav(),removeEventListener("click",t,!0),removeEventListener("auxclick",t,!0),removeEventListener("pointermove",n,!0),removeEventListener("click",s,!0),a.wireEngagement?.(r))});let o=null;try{o=ke()}catch{}ee();let i=null,c=null,h=0;const p=y.on((a,f)=>{X(f)&&_e(a)&&(i=a.__frame_init,E=f,p(),clearTimeout(h),c?.())});y.post({__frame_connect:!0},"*");const w=new Promise(a=>{c=a,h=setTimeout(()=>{p(),a()},Pe)}),m=document.readyState==="loading"?new Promise(a=>document.addEventListener("DOMContentLoaded",()=>a(),{once:!0})):Promise.resolve();m.then(()=>{try{o?.restore()}catch{}});const g={cb:null};y.on((a,f)=>{if(X(f)&&ve(a)){try{o?.promoted()}catch{}g.cb?.()}}),w.then(async()=>{if(!i||!E){F();return}Q(i.theme);const a=E;let f=!1,v=!1;y.on((u,z,C)=>{if(z!==a)return;ye(u)&&Q(u.__frame_theme.theme),he(u)&&Ce(u.__frame_patch,a,C);const H=u?.__fc_mode;H&&typeof H=="object"&&!f&&D&&A.test(D)&&(f=!0,S(D).then(K=>K.install?.(a,H.on===!0)).catch(()=>{}));const W=u?.__ft_cmd;W&&typeof W=="object"&&!v&&I&&A.test(I)&&(v=!0,S(I).then(K=>K.install?.(a,W)).catch(()=>{}))});const b=Object.keys(i.capabilities??{}).filter(u=>Object.hasOwn(R,u)).map(u=>[u,R[u]]).filter(u=>typeof u[1]=="string"&&A.test(u[1])),l=await Promise.allSettled(b.map(([,u])=>S(u))),_=await e,d=E;if(_?.buildBoot||y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),_?.buildBoot)try{L=_.buildBoot(i,_.TRANSFORMS??{},{shellOrigin:d,mount:x,hooks:O},u=>y.post({__frame_cap_telemetry:u},d))}catch{y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},d),L=G(i,d)}else L=G(i,d);const T=u=>y.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:u}},d),Ne=L;l.forEach((u,z)=>{const C=b[z][0];if(u.status!=="fulfilled"){T(C);return}try{u.value?.install?.(Ne)}catch{T(C)}}),F(),await m,y.post({__frame_ready:!0},E),e.then(u=>u?.installSizeReporter?.(d,g))})}else N&&(ee(),Re(N,Y,S,{settle:F,mount:x}))})();</script><!-- /frame-runtime --><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found]){display:none!important}</style></head><body>
+<title>Mecanum AGV Roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#EBEEF1;
+    --surface:#FFFFFF;
+    --surface-2:#F4F6F8;
+    --ink:#141A20;
+    --muted:#5D6875;
+    --faint:#8C97A3;
+    --line:#C8D0D8;
+    --line-soft:#DDE3E9;
+    --now:#0B7480;
+    --next:#B4560B;
+    --later:#6C3FCF;
+    --now-bg:#E2F1F2;
+    --next-bg:#F9EBDD;
+    --later-bg:#EFE9FB;
+    --shadow:0 1px 2px rgba(20,26,32,.06), 0 8px 24px -16px rgba(20,26,32,.28);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F1419; --surface:#161D25; --surface-2:#1C242D;
+      --ink:#E3E9EF; --muted:#93A0AD; --faint:#6C7987;
+      --line:#2C3742; --line-soft:#232C35;
+      --now:#3FC5CF; --next:#EE9A42; --later:#AE90F5;
+      --now-bg:#123134; --next-bg:#33220E; --later-bg:#231C38;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F1419; --surface:#161D25; --surface-2:#1C242D;
+    --ink:#E3E9EF; --muted:#93A0AD; --faint:#6C7987;
+    --line:#2C3742; --line-soft:#232C35;
+    --now:#3FC5CF; --next:#EE9A42; --later:#AE90F5;
+    --now-bg:#123134; --next-bg:#33220E; --later-bg:#231C38;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:"IBM Plex Sans Thai","IBM Plex Sans",system-ui,sans-serif;
+    font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1060px;margin:0 auto;padding:44px 24px 80px;display:flex;flex-direction:column;gap:40px}
+
+  header{border-bottom:2px solid var(--ink);padding-bottom:26px}
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--muted);margin:0 0 10px;
+  }
+  h1{
+    font-family:"Chakra Petch","IBM Plex Sans Thai",sans-serif;font-weight:700;
+    font-size:clamp(30px,4.6vw,46px);line-height:1.06;margin:0;letter-spacing:-.012em;text-wrap:balance;
+  }
+  .concept{margin:16px 0 0;font-size:17px;max-width:62ch;color:var(--ink)}
+  .facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+  .chip{
+    font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+    border:1px solid var(--line);border-radius:2px;padding:5px 9px;
+    background:var(--surface);color:var(--muted);white-space:nowrap;
+  }
+
+  h2{
+    font-family:"Chakra Petch","IBM Plex Sans Thai",sans-serif;font-weight:600;
+    font-size:23px;margin:0 0 4px;letter-spacing:-.005em;
+  }
+  .sec-note{margin:0 0 20px;color:var(--muted);font-size:14px;max-width:64ch}
+  section{display:flex;flex-direction:column}
+
+  /* ---- principle callout ---- */
+  .principle{
+    background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--now);
+    border-radius:2px;padding:18px 22px;box-shadow:var(--shadow);
+  }
+  .principle p{margin:0;font-size:16px}
+  .principle strong{font-weight:600}
+
+  /* ---- owned inventory ---- */
+  .owned{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+  .own{background:var(--surface);border:1px solid var(--line);border-radius:2px;padding:15px 17px;box-shadow:var(--shadow)}
+  .own h3{font-family:"Chakra Petch",sans-serif;font-size:15px;font-weight:600;margin:0 0 6px}
+  .own dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:12.5px}
+  .own dt{color:var(--faint);font-family:"IBM Plex Mono",monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;padding-top:3px}
+  .own dd{margin:0;color:var(--muted)}
+  .own .flag{margin:9px 0 0;font-size:12.5px;color:var(--next);border-top:1px dashed var(--line-soft);padding-top:8px}
+
+  /* ---- timeline ---- */
+  .timeline{display:flex;flex-direction:column;gap:0}
+  .tl{display:grid;grid-template-columns:96px 1fr;gap:0}
+  .tl-rail{position:relative;display:flex;flex-direction:column;align-items:center;padding-top:4px}
+  .tl-rail::before{
+    content:"";position:absolute;top:0;bottom:0;width:2px;background:var(--line-soft);
+  }
+  .tl:first-child .tl-rail::before{top:26px}
+  .tl:last-child .tl-rail::before{bottom:auto;height:26px}
+  .node{
+    position:relative;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;
+    font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:17px;
+    background:var(--surface);border:2px solid var(--line);color:var(--muted);
+  }
+  .tl-body{padding:0 0 34px 22px}
+  .tl-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:4px}
+  .tl-head h3{font-family:"Chakra Petch","IBM Plex Sans Thai",sans-serif;font-size:19px;font-weight:600;margin:0}
+  .badge{
+    font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;text-transform:uppercase;
+    padding:3px 8px;border-radius:2px;
+  }
+  .dur{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);margin-left:auto}
+  .goal{margin:0 0 14px;color:var(--muted);max-width:66ch}
+  .tl-grid{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;
+    background:var(--line-soft);border:1px solid var(--line-soft);border-radius:2px;overflow:hidden;
+  }
+  .tl-grid > div{background:var(--surface);padding:13px 16px}
+  .tl-grid h4{
+    font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+    font-weight:500;color:var(--faint);margin:0 0 6px;
+  }
+  .tl-grid p{margin:0;font-size:13.5px}
+  .tl-grid ul{margin:0;padding-left:16px;font-size:13.5px}
+  .tl-grid li{margin-bottom:2px}
+  .cost{font-family:"IBM Plex Mono",monospace;font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
+
+  /* stage tinting */
+  .s-now  .node{border-color:var(--now);color:var(--now);background:var(--now-bg)}
+  .s-now  .badge{background:var(--now-bg);color:var(--now)}
+  .s-next .node{border-color:var(--next);color:var(--next);background:var(--next-bg)}
+  .s-next .badge{background:var(--next-bg);color:var(--next)}
+  .s-later .node{border-color:var(--later);color:var(--later);background:var(--later-bg)}
+  .s-later .badge{background:var(--later-bg);color:var(--later)}
+
+  /* ---- tables ---- */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:2px;box-shadow:var(--shadow);overflow:hidden}
+  .tscroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;min-width:640px;font-size:13.5px}
+  thead th{
+    font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    font-weight:500;color:var(--muted);text-align:left;padding:12px 16px;border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  tbody td{padding:12px 16px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  td.num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  td.name{font-weight:600}
+  td.why{color:var(--muted);font-size:13px}
+  tr.total td{background:var(--surface-2);font-weight:600;border-top:1px solid var(--line)}
+  tr.grand td{background:var(--ink);color:var(--bg);font-weight:600}
+  .stagetag{
+    display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.09em;
+    text-transform:uppercase;padding:2px 6px;border-radius:2px;white-space:nowrap;
+  }
+  .g-now{background:var(--now-bg);color:var(--now)}
+  .g-next{background:var(--next-bg);color:var(--next)}
+  .g-later{background:var(--later-bg);color:var(--later)}
+  del{color:var(--faint);text-decoration-thickness:1px}
+
+  /* ---- open items ---- */
+  .open{display:grid;gap:12px}
+  .oi{
+    background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--next);
+    border-radius:2px;padding:15px 18px;box-shadow:var(--shadow);
+  }
+  .oi h3{font-family:"Chakra Petch","IBM Plex Sans Thai",sans-serif;font-size:15.5px;font-weight:600;margin:0 0 5px}
+  .oi p{margin:0;font-size:13.5px;color:var(--muted)}
+  .oi p + p{margin-top:7px;color:var(--ink)}
+  .oi b{font-weight:600}
+
+  footer{font-size:12px;color:var(--faint);text-align:center;font-family:"IBM Plex Mono",monospace;padding-top:8px}
+  code{font-family:"IBM Plex Mono",monospace;font-size:12.5px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:2px;padding:1px 5px}
+  a{color:var(--now)}
+  a:focus-visible{outline:2px solid var(--now);outline-offset:2px}
+
+  @media (max-width:600px){
+    .tl{grid-template-columns:56px 1fr}
+    .node{width:38px;height:38px;font-size:15px}
+    .tl-body{padding-left:16px}
+    .dur{margin-left:0;width:100%}
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Project Brief · ปรับปรุง 31 ส.ค. 2026</p>
+    <h1>AGV ล้อ Mecanum พร้อมแขนกล AR4</h1>
+    <p class="concept">
+      หุ่นยนต์ฐานเคลื่อนที่ 4 ล้อ mecanum เคลื่อนที่ได้ทุกทิศทาง บังคับด้วยรีโมทเป็นหลัก
+      ด้านบนติดตั้งแขนกล AR4 ที่ทำงานตามท่าที่บันทึกไว้ล่วงหน้า
+      สร้างแบบไล่ระดับ 4 ขั้น — ให้หุ่นวิ่งได้จริงก่อน แล้วค่อยเติมความฉลาดทีละชั้น
+    </p>
+    <div class="facts">
+      <span class="chip">4 × มอเตอร์ 24 V · 110 RPM</span>
+      <span class="chip">1.5 A ต่อล้อ</span>
+      <span class="chip">ROS 2 Jazzy (ขั้นสุดท้าย)</span>
+      <span class="chip">งบรวม ~141,000 ฿</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="principle">
+      <p><strong>หลักคิดของโครงการ:</strong> ความเสี่ยงที่ใหญ่ที่สุดไม่ใช่ซอฟต์แวร์ แต่คือ<em>ไม่รู้ว่ามอเตอร์ที่มีอยู่ทำงานได้จริงแค่ไหน</em> — แบกน้ำหนักไหวไหม กินกระแสเท่าไหร่ ความเร็วพอไหม แผนนี้จึงเอาคำตอบเหล่านั้นมาไว้สัปดาห์แรก และเลื่อน Raspberry Pi, LiDAR, กล้อง และ ROS ออกไปให้ไกลที่สุดเท่าที่จะทำได้ ทุกอย่างที่ซื้อในขั้นแรกใช้ต่อได้จนจบโครงการ ไม่มีอะไรทิ้ง</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>ของที่มีอยู่แล้ว</h2>
+    <p class="sec-note">สามอย่างนี้เป็นตัวตั้งของทั้งโครงการ — ทุกการเลือกอุปกรณ์ที่เหลือถูกกำหนดโดยข้อจำกัดของสามอย่างนี้</p>
+    <div class="owned">
+      <div class="own">
+        <h3>มอเตอร์ ZKE2032-2K-R36</h3>
+        <dl>
+          <dt>จำนวน</dt><dd>4 ตัว</dd>
+          <dt>แรงดัน</dt><dd>24 V DC brushed</dd>
+          <dt>รอบ</dt><dd>110 RPM ที่เพลาขาออก · เกียร์ 36:1</dd>
+          <dt>กระแส</dt><dd>สูงสุด 1.5 A ต่อตัว</dd>
+        </dl>
+        <p class="flag">ท้ายมอเตอร์เป็นฝาเหล็กปั๊มปิดสนิท ไม่มีเพลาโผล่ และไม่มี encoder ติดมา</p>
+      </div>
+      <div class="own">
+        <h3>ล้อ Mecanum</h3>
+        <dl>
+          <dt>จำนวน</dt><dd>4 ล้อ</dd>
+          <dt>ผลลัพธ์</dt><dd>เดินหน้า ถอย เดินข้าง หมุนรอบตัว ได้ทุกทิศ</dd>
+        </dl>
+        <p class="flag">ล้อ mecanum ไถลด้านข้างตลอดเวลาโดยธรรมชาติ — odometry จากล้อขับจะไม่แม่นไม่ว่าจะติด encoder ดีแค่ไหน</p>
+      </div>
+      <div class="own">
+        <h3>แขนกล AR4</h3>
+        <dl>
+          <dt>ควบคุม</dt><dd>Teensy 4.1 (แขน) + Arduino Nano (gripper)</dd>
+          <dt>ซอฟต์แวร์</dt><dd>ar4_ros_driver — ทดสอบบน ROS 2 Jazzy</dd>
+          <dt>โหมดใช้งาน</dt><dd>เล่นท่า pre-program ผ่าน MoveIt</dd>
+        </dl>
+        <p class="flag">แขนยื่นออกด้านข้างขณะฐานเคลื่อนที่ = เสี่ยงพลิกคว่ำ ต้องล็อกให้พับเก็บตอนวิ่ง</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>แผนดำเนินงาน 4 ขั้น</h2>
+    <p class="sec-note">แต่ละขั้นต้องผ่านเกณฑ์ทดสอบก่อนขึ้นขั้นถัดไป สีบอกลำดับความเร่งด่วน — ฟ้าคือทำตอนนี้ ส้มคือถัดไป ม่วงคือทีหลัง</p>
+
+    <div class="timeline">
+
+      <div class="tl s-now">
+        <div class="tl-rail"><div class="node">0</div></div>
+        <div class="tl-body">
+          <div class="tl-head">
+            <h3>พิสูจน์มอเตอร์</h3>
+            <span class="badge">ทำตอนนี้</span>
+            <span class="dur">1–2 วัน</span>
+          </div>
+          <p class="goal">ต่อรีซีฟเวอร์เข้าไดรเวอร์ตรงๆ ในโหมด RC ยังไม่มีไมโครคอนโทรลเลอร์ ไม่มีโค้ดสักบรรทัด — ทดสอบได้ทันทีที่ของมาถึง</p>
+          <div class="tl-grid">
+            <div><h4>เพิ่มอะไร</h4><ul><li>MDDS10 × 2 (โหมด RC)</li><li>FS-i6X + FS-iA10B</li><li>แบต 24 V + E-Stop</li></ul></div>
+            <div><h4>ได้อะไร</h4><p>รู้ทิศหมุน แรงบิดพอไหม กระแสจริงเท่าไหร่ ความเร็วเท่าไหร่</p></div>
+            <div><h4>เกณฑ์ผ่าน</h4><p>สั่งเดินหน้า ถอย หยุด ได้ถูกต้องทุกครั้ง ทั้ง 4 มอเตอร์</p></div>
+            <div><h4>งบ</h4><p class="cost">รวมกับขั้น 1</p></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl s-now">
+        <div class="tl-rail"><div class="node">1</div></div>
+        <div class="tl-body">
+          <div class="tl-head">
+            <h3>บังคับได้ครบทุกทิศ</h3>
+            <span class="badge">เป้าหมายหลัก</span>
+            <span class="dur">~1 สัปดาห์</span>
+          </div>
+          <p class="goal">ESP32 เข้ามาคั่นกลาง อ่าน iBUS จากรีซีฟเวอร์ คำนวณ mecanum mixing แล้วสั่ง MDDS30 ทั้งสองบอร์ดผ่าน UART เส้นเดียว — ยังไม่มี Raspberry Pi ไม่มี encoder ไม่มี ROS</p>
+          <div class="tl-grid">
+            <div><h4>เพิ่มอะไร</h4><ul><li>ESP32-WROOM-32</li><li>Firmware: iBUS → mixing → Serial Packetized</li><li>โครงฐาน + ระบบไฟครบ</li></ul></div>
+            <div><h4>ได้อะไร</h4><p>หุ่นวิ่งได้จริงบนพื้น เดินหน้า ถอย <b>เดินข้าง</b> หมุนรอบตัว พร้อม failsafe</p></div>
+            <div><h4>เกณฑ์ผ่าน</h4><p>ปล่อยปุ่ม deadman = หยุดทันที · ปิดรีโมท = หยุดใน 0.5 วิ · กด E-Stop = ตัดไฟมอเตอร์</p></div>
+            <div><h4>งบขั้น 0–1</h4><p class="cost">~25,300 ฿</p></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl s-next">
+        <div class="tl-rail"><div class="node">2</div></div>
+        <div class="tl-body">
+          <div class="tl-head">
+            <h3>รู้ว่าตัวเองอยู่ตรงไหน</h3>
+            <span class="badge">ถัดไป</span>
+            <span class="dur">1–2 สัปดาห์</span>
+          </div>
+          <p class="goal">เติมระบบวัดระยะทาง — แนวทางที่นำอยู่คือ dead-wheel odometry pod เพราะมอเตอร์ไม่มีทางติด encoder ได้ และล้อ mecanum ให้ค่าไม่แม่นอยู่แล้ว</p>
+          <div class="tl-grid">
+            <div><h4>เพิ่มอะไร</h4><ul><li>Odometry pod × 2–3 (ล้อ omni อิสระ + encoder + สปริงกด)</li><li>IMU สำหรับมุมหัน</li></ul></div>
+            <div><h4>ได้อะไร</h4><p>ตำแหน่ง x, y, θ ที่เชื่อถือได้ และควบคุมความเร็วแบบวงปิดที่ระดับตัวหุ่น</p></div>
+            <div><h4>เกณฑ์ผ่าน</h4><p>วิ่งเป็นสี่เหลี่ยมกลับมาจุดเดิม คลาดเคลื่อนน้อยกว่า 5%</p></div>
+            <div><h4>งบ</h4><p class="cost">~4,500 ฿</p></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl s-later">
+        <div class="tl-rail"><div class="node">3</div></div>
+        <div class="tl-body">
+          <div class="tl-head">
+            <h3>ROS 2 และแขนกล</h3>
+            <span class="badge">ทีหลัง</span>
+            <span class="dur">6–10 สัปดาห์</span>
+          </div>
+          <p class="goal">Raspberry Pi เข้ามาเป็นสมอง ESP32 กลายเป็น micro-ROS node แล้วต่อ LiDAR กล้อง และแขน AR4 เข้าระบบเดียวกัน</p>
+          <div class="tl-grid">
+            <div><h4>เพิ่มอะไร</h4><ul><li>Raspberry Pi 5 + ROS 2 Jazzy</li><li>LiDAR + Depth camera</li><li>AR4 + MoveIt + ท่า pre-program</li><li>Foxglove สำหรับสั่งงานผ่านเว็บ</li></ul></div>
+            <div><h4>ได้อะไร</h4><p>TF tree ต่อเนื่องจากล้อถึงปลายแขน · เว็บดูภาพและกดเรียกท่าแขน · พร้อมต่อยอด Nav2</p></div>
+            <div><h4>เกณฑ์ผ่าน</h4><p>แขนทำงานได้ขณะฐานถูกล็อกไม่ให้เคลื่อนที่ · สวิตช์ RC ยัง override ได้ทุกเมื่อ</p></div>
+            <div><h4>งบ</h4><p class="cost">~34,400 ฿ + AR4</p></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>บันทึกการตัดสินใจ</h2>
+    <p class="sec-note">ทุกข้อมีทางเลือกที่ถูกปฏิเสธ — บันทึกไว้เพื่อกลับมาทบทวนได้เมื่อเงื่อนไขเปลี่ยน</p>
+    <div class="card"><div class="tscroll">
+      <table>
+        <thead><tr><th>ประเด็น</th><th>เลือก</th><th>เหตุผล</th><th>ที่ไม่เลือก</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="name">ROS distribution</td>
+            <td>ROS 2 Jazzy</td>
+            <td class="why">อายุถึง พ.ค. 2029 · AR4 driver ทดสอบบน Jazzy โดยตรง · sensor driver มี binary ครบ</td>
+            <td class="why"><del>Humble</del> จะ EOL พ.ค. 2027 · <del>Lyrical</del> ใหม่เกินไป แพ็กเกจยังไม่ port</td>
+          </tr>
+          <tr>
+            <td class="name">Motor driver</td>
+            <td>Cytron MDDS10 × 2</td>
+            <td class="why">7–35 V ปลอดภัยกับแบตที่ชาร์จเต็ม 29.2 V · 10 A/ช่อง เผื่อจาก 1.5 A ถึง 6.7 เท่า · logic 1.3–5 V ต่อ ESP32 ตรง · UART เส้นเดียวคุมได้ 2 บอร์ด</td>
+            <td class="why"><del>MDDS30</del> ใหญ่เกิน 20 เท่า · <del>BTS7960</del> พิกัด 27 V ต่ำกว่าแรงดันชาร์จเต็ม · <del>RoboClaw</del> จ่ายค่า PID+encoder ที่ไม่ได้ใช้ · <del>ODrive/VESC</del> สำหรับ BLDC</td>
+          </tr>
+          <tr>
+            <td class="name">ตัวประมวลผลชั้นล่าง</td>
+            <td>ESP32-WROOM-32</td>
+            <td class="why">มี PCNT นับ encoder ด้วยฮาร์ดแวร์ 8 ชุด · micro-ROS มี branch Jazzy · โค้ดเป็นของเราทั้งหมด</td>
+            <td class="why"><del>Arduino Uno/Nano</del> interrupt ไม่พอและช้าเกิน · <del>ESP32-C3</del> ไม่มี PCNT</td>
+          </tr>
+          <tr>
+            <td class="name">รีโมท</td>
+            <td>FlySky FS-i6X + FS-iA10B</td>
+            <td class="why">10 ช่องพอดีกับที่ต้องใช้ · iBUS เข้า ESP32 สายเดียว · <b>ต่อ ESP32 ตรง จึงบังคับได้แม้ Pi ค้าง</b> · มี failsafe ในฮาร์ดแวร์</td>
+            <td class="why"><del>Gamepad อย่างเดียว</del> ตายพร้อม Pi · <del>WiFi/เว็บ</del> latency ไม่แน่นอน ใช้ขับหุ่นไม่ปลอดภัย · <del>ELRS</del> ระยะเกินจำเป็น ต้องเขียน parser ใหม่</td>
+          </tr>
+          <tr>
+            <td class="name">Odometry</td>
+            <td>Dead-wheel pod <span class="stagetag g-next">ยังไม่สรุป</span></td>
+            <td class="why">มอเตอร์ไม่มีทางติด encoder ได้เลย · ล้อ mecanum ไถลตลอด ค่าจากล้อขับไม่แม่นอยู่ดี · pod ไม่รับแรงบิดจึงไม่ไถล</td>
+            <td class="why"><del>เจาะฝาท้ายมอเตอร์</del> โดมคือเบ้าลูกปืน เจาะแล้วเพลาเสียการรองรับ · <del>Hollow-shaft ที่เพลาขาออก</del> ไม่มีพื้นที่ · <del>สายพานไทม์มิ่ง</del> รอยืนยันพื้นที่</td>
+          </tr>
+          <tr>
+            <td class="name">ลำดับการสร้าง</td>
+            <td>ฮาร์ดแวร์ก่อน ROS ทีหลัง</td>
+            <td class="why">ตอบคำถามที่เสี่ยงที่สุด (มอเตอร์ไหวไหม) ภายในสัปดาห์แรก · เลื่อนค่าใช้จ่าย 39,000 ฿ ออกไป · ของที่ซื้อขั้นแรกใช้ต่อได้หมด</td>
+            <td class="why"><del>ตั้ง ROS ให้ครบก่อน</del> ใช้เวลาหลายสัปดาห์กว่าจะรู้ว่ามอเตอร์พอหรือไม่</td>
+          </tr>
+        </tbody>
+      </table>
+    </div></div>
+  </section>
+
+  <section>
+    <h2>อุปกรณ์และงบประมาณ</h2>
+    <p class="sec-note">แยกตามขั้น — ซื้อเฉพาะขั้นที่กำลังทำ ราคาประมาณการตลาดไทย ส.ค. 2026</p>
+    <div class="card"><div class="tscroll">
+      <table>
+        <thead><tr><th>ขั้น</th><th>รายการ</th><th>สเปก</th><th style="text-align:right">ราคา (฿)</th></tr></thead>
+        <tbody>
+          <tr><td><span class="stagetag g-now">0–1</span></td><td class="name">Motor driver</td><td class="why">Cytron MDDS10 × 2 · 7–35 V · 10 A/ช่อง</td><td class="num">3,600</td></tr>
+          <tr><td><span class="stagetag g-now">0–1</span></td><td class="name">Microcontroller</td><td class="why">ESP32-WROOM-32 DevKit</td><td class="num">300</td></tr>
+          <tr><td><span class="stagetag g-now">0–1</span></td><td class="name">รีโมท + รีซีฟเวอร์</td><td class="why">FlySky FS-i6X + FS-iA10B · 10 ช่อง iBUS</td><td class="num">3,000</td></tr>
+          <tr><td><span class="stagetag g-now">0–1</span></td><td class="name">แบตเตอรี่</td><td class="why">LiFePO4 24 V 10 Ah + BMS · วิ่งได้ ~1.7 ชม.</td><td class="num">5,000</td></tr>
+          <tr><td><span class="stagetag g-now">0–1</span></td><td class="name">เครื่องชาร์จ</td><td class="why">24 V LiFePO4</td><td class="num">2,500</td></tr>
+          <tr><td><span class="stagetag g-now">0–1</span></td><td class="name">DC-DC</td><td class="why">24 V → 5 V · 6 A</td><td class="num">700</td></tr>
+          <tr><td><span class="stagetag g-now">0–1</span></td><td class="name">E-Stop</td><td class="why">Mushroom switch + contactor 24 V</td><td class="num">1,200</td></tr>
+          <tr><td><span class="stagetag g-now">0–1</span></td><td class="name">ระบบป้องกัน</td><td class="why">เบรกเกอร์ 30 A + ฟิวส์ + ขั้ว XT60/Anderson</td><td class="num">1,200</td></tr>
+          <tr><td><span class="stagetag g-now">0–1</span></td><td class="name">สายไฟ</td><td class="why">AWG14 + terminal + สาย shielded</td><td class="num">800</td></tr>
+          <tr><td><span class="stagetag g-now">0–1</span></td><td class="name">โครงสร้างฐาน</td><td class="why">อลูมิเนียมโปรไฟล์ + แผ่นยึดมอเตอร์ตัดเลเซอร์</td><td class="num">7,000</td></tr>
+          <tr class="total"><td></td><td colspan="2">รวมขั้น 0–1 — หุ่นวิ่งได้ด้วยรีโมท</td><td class="num">25,300</td></tr>
+
+          <tr><td><span class="stagetag g-next">2</span></td><td class="name">Odometry pod</td><td class="why">ล้อ omni + encoder + แขนสปริง × 3</td><td class="num">4,000</td></tr>
+          <tr><td><span class="stagetag g-next">2</span></td><td class="name">อะไหล่ยึด</td><td class="why">แผ่นยึด + สปริง + สกรู</td><td class="num">500</td></tr>
+          <tr class="total"><td></td><td colspan="2">รวมขั้น 2 — รู้ตำแหน่งตัวเอง</td><td class="num">4,500</td></tr>
+
+          <tr><td><span class="stagetag g-later">3</span></td><td class="name">คอมพิวเตอร์</td><td class="why">Raspberry Pi 5 8GB + NVMe 512GB + HAT + active cooler</td><td class="num">7,200</td></tr>
+          <tr><td><span class="stagetag g-later">3</span></td><td class="name">USB + เครือข่าย</td><td class="why">Powered USB hub 3.0 + WiFi 6 dongle</td><td class="num">2,300</td></tr>
+          <tr><td><span class="stagetag g-later">3</span></td><td class="name">LiDAR</td><td class="why">RPLIDAR A2M12 (ทางเลือกถูก LD19 ~3,500 ฿)</td><td class="num">12,000</td></tr>
+          <tr><td><span class="stagetag g-later">3</span></td><td class="name">Depth camera</td><td class="why">Intel RealSense D435i</td><td class="num">12,000</td></tr>
+          <tr><td><span class="stagetag g-later">3</span></td><td class="name">IMU</td><td class="why">BNO055</td><td class="num">900</td></tr>
+          <tr class="total"><td></td><td colspan="2">รวมขั้น 3 — ROS 2 และเซนเซอร์</td><td class="num">34,400</td></tr>
+
+          <tr><td><span class="stagetag g-later">3</span></td><td class="name">แขนกล AR4</td><td class="why">AR4 MK3 kit + Arduino Nano + servo gripper + DC-DC แยกวงจร</td><td class="num">76,900</td></tr>
+
+          <tr class="grand"><td></td><td colspan="2">รวมทั้งโครงการ</td><td class="num">141,100</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+  </section>
+
+  <section>
+    <h2>เรื่องที่ยังค้าง</h2>
+    <p class="sec-note">สามข้อนี้ต้องเคลียร์ก่อนสั่งของขั้นถัดไป</p>
+    <div class="open">
+      <div class="oi">
+        <h3>1. กระแส 1.5 A เป็นค่าอะไร</h3>
+        <p>ถ้าเป็นกระแสขณะวิ่งมีโหลด → stall จะราว 8–12 A · ถ้าเป็นกระแสตอนวิ่งเปล่า → มีโหลดจริงอาจถึง 5 A และ stall 15–25 A</p>
+        <p><b>ต้องทำ:</b> วัดกระแสตอนหุ่นประกอบเสร็จมีน้ำหนักจริง โดยเฉพาะตอนออกตัว ตอนไถลด้านข้าง และตอนขึ้นทางลาด — MDDS10 ครอบคลุมทั้งสองกรณี แต่ตัวเลขนี้กำหนดขนาดฟิวส์และแบต</p>
+      </div>
+      <div class="oi">
+        <h3>2. วิธีวัด odometry ยังไม่สรุป</h3>
+        <p>ท้ายมอเตอร์ปิดสนิท เพลาขาออกไม่มีพื้นที่ — ทางที่เหลือคือ dead-wheel pod หรือสายพานไทม์มิ่งจากอะแดปเตอร์เพลา</p>
+        <p><b>ต้องทำ:</b> วัดช่องว่างระหว่างหน้าเกียร์กับดุมล้อ และเส้นผ่านศูนย์กลางอะแดปเตอร์เพลาสีเงิน เพื่อตัดสินว่าใส่พูลเลย์ได้หรือต้องไป pod</p>
+      </div>
+      <div class="oi">
+        <h3>3. ขนาดจริงของฐาน</h3>
+        <p>ตัวเลขที่ใช้คำนวณตอนนี้เป็นสมมติฐาน ล้อ Ø150 mm</p>
+        <p><b>ต้องทำ:</b> วัดเส้นผ่านศูนย์กลางล้อ ระยะห่างล้อซ้าย–ขวา และระยะหน้า–หลัง — สามค่านี้เข้าสูตร mecanum mixing และการคำนวณ odometry โดยตรง</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>เอกสารทำงาน · แก้ไขได้ตามผลทดสอบจริง</footer>
+</div>
+
+</body></html>

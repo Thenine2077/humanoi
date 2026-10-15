@@ -1,0 +1,307 @@
+<title>Humanoi Roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#ECEFEF; --surface:#FFFFFF; --surface-2:#F3F6F6;
+    --ink:#131C1B; --muted:#57635F; --faint:#8B9794;
+    --line:#CFD7D6; --line-soft:#E1E6E5;
+    --teal:#0AA39E; --teal-bg:#DDF0EF;
+    --amber:#BC6E17; --amber-bg:#F6E9D6;
+    --violet:#6B4CC6; --violet-bg:#E9E3F7;
+    --ok:#2C845A;
+    --shadow:0 1px 2px rgba(19,28,27,.05), 0 14px 34px -20px rgba(19,28,27,.30);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0C1213; --surface:#141C1E; --surface-2:#192224;
+      --ink:#DEE5E4; --muted:#93A09D; --faint:#5E6C69;
+      --line:#283234; --line-soft:#1E2829;
+      --teal:#31C3BD; --teal-bg:#0E2C2A;
+      --amber:#DB8C2E; --amber-bg:#2E230E;
+      --violet:#A88FEE; --violet-bg:#211A35;
+      --ok:#54B682;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 36px -22px rgba(0,0,0,.85);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0C1213; --surface:#141C1E; --surface-2:#192224;
+    --ink:#DEE5E4; --muted:#93A09D; --faint:#5E6C69;
+    --line:#283234; --line-soft:#1E2829;
+    --teal:#31C3BD; --teal-bg:#0E2C2A;
+    --amber:#DB8C2E; --amber-bg:#2E230E;
+    --violet:#A88FEE; --violet-bg:#211A35;
+    --ok:#54B682;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 36px -22px rgba(0,0,0,.85);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:
+      radial-gradient(circle at 1px 1px, var(--line-soft) 1px, transparent 0) 0 0/22px 22px,
+      var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans Thai","IBM Plex Sans",system-ui,sans-serif;
+    font-size:15.5px; line-height:1.65; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px; margin:0 auto; padding:48px 22px 64px}
+
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:500;
+    letter-spacing:.18em; text-transform:uppercase; color:var(--teal); margin:0 0 12px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .eyebrow::before{content:"";width:16px;height:1px;background:var(--teal)}
+  h1{
+    font-family:"Chakra Petch",sans-serif; font-weight:700; line-height:1.14;
+    font-size:clamp(1.7rem,1.15rem + 2.4vw,2.5rem); margin:0 0 14px; text-wrap:balance;
+    letter-spacing:-.01em;
+  }
+  .lede{font-size:1.02rem; color:var(--muted); max-width:56ch; margin:0 0 26px}
+
+  .chips{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:36px}
+  .chip{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; padding:5px 10px;
+    border:1px solid var(--line); border-radius:2px; background:var(--surface);
+    color:var(--muted); white-space:nowrap;
+  }
+
+  /* ---------- progress hero ---------- */
+  .progress-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:6px;
+    box-shadow:var(--shadow); padding:24px 26px; margin-bottom:44px;
+  }
+  .progress-top{display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:10px 20px; margin-bottom:18px}
+  .progress-num{display:flex; align-items:baseline; gap:8px}
+  .progress-num b{font-family:"Chakra Petch",sans-serif; font-weight:700; font-size:2.3rem; font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+  .progress-num span{font-family:"IBM Plex Mono",monospace; font-size:.85rem; color:var(--muted)}
+  .progress-now{
+    display:flex; align-items:center; gap:7px;
+    font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--teal);
+    padding:5px 10px 5px 8px; border:1px solid var(--teal); border-radius:20px; background:var(--teal-bg);
+  }
+  .dot-pulse{width:7px; height:7px; border-radius:50%; background:var(--teal); flex:none; position:relative}
+  .dot-pulse::after{
+    content:""; position:absolute; inset:-5px; border-radius:50%; border:1.5px solid var(--teal);
+    animation:pulse 1.8s ease-out infinite;
+  }
+  @keyframes pulse{0%{transform:scale(.5);opacity:.9}100%{transform:scale(2.1);opacity:0}}
+  @media (prefers-reduced-motion:reduce){.dot-pulse::after{animation:none;opacity:.35}}
+
+  .bars{display:flex; gap:5px; height:10px; margin-bottom:10px}
+  .bar-seg{height:100%; border-radius:3px; background:var(--surface-2); border:1px solid var(--line-soft); position:relative; overflow:hidden}
+  .bar-fill{position:absolute; inset:0 auto 0 0; border-radius:2px}
+  .bar-legend{display:flex; justify-content:space-between; font-family:"IBM Plex Mono",monospace; font-size:10px; color:var(--faint); letter-spacing:.03em}
+
+  /* ---------- spine ---------- */
+  .stage{margin-bottom:8px}
+  .stage-head{
+    display:flex; align-items:center; gap:12px; margin:0 0 16px;
+  }
+  .stage-tick{
+    font-family:"IBM Plex Mono",monospace; font-size:10px; color:var(--faint);
+    writing-mode:vertical-rl; letter-spacing:.1em;
+  }
+  .stage-title{display:flex; flex-direction:column; gap:2px}
+  .stage-title b{font-family:"Chakra Petch",sans-serif; font-weight:600; font-size:1.08rem}
+  .stage-title span{font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--muted); letter-spacing:.04em}
+  .stage-status{
+    margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:10px;
+    letter-spacing:.09em; text-transform:uppercase; padding:3px 9px; border-radius:20px;
+    border:1px solid var(--line); color:var(--faint);
+  }
+  .stage-status.done{color:var(--ok); border-color:var(--ok)}
+  .stage-status.active{color:var(--teal); border-color:var(--teal)}
+
+  .track{position:relative; padding-left:30px; margin-bottom:40px}
+  .track::before{
+    content:""; position:absolute; left:9px; top:4px; bottom:4px; width:2px;
+    background:var(--line);
+  }
+  .track.sim::before{background:linear-gradient(var(--teal) 0 78%, var(--line) 78%)}
+
+  .node{position:relative; padding:0 0 20px; display:flex; flex-direction:column; gap:2px}
+  .node:last-child{padding-bottom:2px}
+  .node::before{
+    content:""; position:absolute; left:-30px; top:3px; width:11px; height:11px;
+    border-radius:50%; background:var(--surface); border:2px solid var(--line); z-index:1;
+  }
+  .node.done::before{background:var(--ok); border-color:var(--ok)}
+  .node.now::before{background:var(--teal); border-color:var(--teal)}
+  .node.now{margin-bottom:4px}
+  .node-id-row{display:flex; align-items:center; gap:9px}
+  .node-id{font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:12px; letter-spacing:.05em; color:var(--faint); font-variant-numeric:tabular-nums}
+  .node.done .node-id{color:var(--ok)}
+  .node.now .node-id{color:var(--teal)}
+  .node-tag{
+    font-family:"IBM Plex Mono",monospace; font-size:9.5px; text-transform:uppercase; letter-spacing:.08em;
+    padding:1px 7px; border-radius:20px; color:var(--teal); border:1px solid var(--teal); background:var(--teal-bg);
+  }
+  .node p{margin:1px 0 0; font-size:.92rem; color:var(--ink)}
+  .node .sub{margin:2px 0 0; font-size:.82rem; color:var(--faint)}
+  .node .sub code{font-family:"IBM Plex Mono",monospace; font-size:.95em}
+
+  .track.real .node::before{border-color:var(--line)}
+  .track.arm .node::before{border-color:var(--line)}
+
+  /* ---------- closing ---------- */
+  .thesis{
+    border-top:1px solid var(--line); padding-top:26px; margin-top:8px;
+  }
+  .thesis p{font-size:1rem; color:var(--muted); max-width:58ch; margin:0 0 6px}
+  .thesis p b{color:var(--ink); font-weight:600}
+  footer{
+    font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--faint);
+    margin-top:22px;
+  }
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">Humanoi · Roadmap</p>
+  <h1>จากคีย์บอร์ดสั่งล้อ ถึงแขนกลสองข้างทำงานเอง</h1>
+  <p class="lede">
+    โรดแมป 18 ขั้นของฐานเคลื่อนที่ 4 ล้อ mecanum ที่จะติดแขนกล AR4 สองแขนไว้ด้านบน —
+    พิสูจน์ทุกพฤติกรรมในซิมก่อน แล้วค่อยย้ายลงฮาร์ดแวร์จริงทีละชั้น
+  </p>
+  <div class="chips">
+    <span class="chip">ROS 2 Jazzy</span>
+    <span class="chip">Gazebo Harmonic</span>
+    <span class="chip">มอเตอร์ mecanum ×4</span>
+    <span class="chip">แขน AR4 ×2</span>
+  </div>
+
+  <div class="progress-card">
+    <div class="progress-top">
+      <div class="progress-num"><b>7</b><span>/ 18 ขั้นผ่านแล้ว</span></div>
+      <div class="progress-now"><span class="dot-pulse"></span>M8 กำลังทดสอบ</div>
+    </div>
+    <div class="bars">
+      <div class="bar-seg" style="flex:10"><div class="bar-fill" style="width:70%;background:var(--teal)"></div></div>
+      <div class="bar-seg" style="flex:4"></div>
+      <div class="bar-seg" style="flex:4"></div>
+    </div>
+    <div class="bar-legend"><span>ซอฟต์แวร์ / ซิม — M1–M10</span><span>ฐานจริง — M11–M14</span><span>แขน + รวมร่าง — M15–M18</span></div>
+  </div>
+
+  <!-- ================= STAGE 1 — sim ================= -->
+  <div class="stage">
+    <div class="stage-head">
+      <div class="stage-title">
+        <b>ซอฟต์แวร์ / จำลอง</b>
+        <span>M1 – M10 · พิสูจน์ pipeline ทั้งหมดในซิมก่อนแตะฮาร์ดแวร์</span>
+      </div>
+      <span class="stage-status active">กำลังทำ</span>
+    </div>
+    <div class="track sim">
+      <div class="node done">
+        <div class="node-id-row"><span class="node-id">M01</span></div>
+        <p>คีย์บอร์ด → หุ่น mecanum ใน Gazebo ขยับถูกทิศทุกปุ่ม ปล่อยปุ่ม 0.5 วิ = หยุด</p>
+      </div>
+      <div class="node done">
+        <div class="node-id-row"><span class="node-id">M02</span></div>
+        <p>ขับสี่เหลี่ยม 2×2 ม. กลับจุดเดิม — odom คลาดเคลื่อน &lt; 5%</p>
+      </div>
+      <div class="node done">
+        <div class="node-id-row"><span class="node-id">M03</span></div>
+        <p>serial ↔ Arduino MEGA relay H-bridge 1 มอเตอร์ · watchdog 500ms · dead-time</p>
+        <p class="sub">M3b — ขยับเป็น 4 ล้อ mecanum, relay 8 ตัว, มิกซ์ทิศถูกสูตรครบ</p>
+      </div>
+      <div class="node done">
+        <div class="node-id-row"><span class="node-id">M04</span></div>
+        <p>Gazebo + มอเตอร์จริง สั่งจากคีย์บอร์ดตัวเดียว เดินหน้า/ถอยพร้อมกัน</p>
+      </div>
+      <div class="node done">
+        <div class="node-id-row"><span class="node-id">M05</span></div>
+        <p>LiDAR จำลอง 360° / 12 ม. ในโลกห้อง 10×8 ม. + สิ่งกีดขวาง</p>
+      </div>
+      <div class="node done">
+        <div class="node-id-row"><span class="node-id">M06</span></div>
+        <p><code>slam_toolbox</code> สร้างแผนที่ 199×159 พิกเซล @ 5 ซม.</p>
+      </div>
+      <div class="node done">
+        <div class="node-id-row"><span class="node-id">M07</span></div>
+        <p>Nav2 (AMCL + planner + controller) วางเส้นทางไป goal สำเร็จ</p>
+      </div>
+      <div class="node now">
+        <div class="node-id-row"><span class="node-id">M08</span><span class="node-tag">ตอนนี้</span></div>
+        <p>หลบสิ่งกีดขวางที่ไม่อยู่ในแผนที่ — costmap จาก <code>/scan</code> reroute เอง</p>
+        <p class="sub">ทดสอบ 2 แบบ: กล่องนิ่งวางขวาง และคนเดินตัดหน้าวนซ้ำอัตโนมัติ</p>
+      </div>
+      <div class="node">
+        <div class="node-id-row"><span class="node-id">M09</span></div>
+        <p>Nav2 holonomic เต็มรูปแบบ (MPPI เปิด vy) — สไลด์เข้า goal ไม่ต้องหมุนก่อน</p>
+      </div>
+      <div class="node">
+        <div class="node-id-row"><span class="node-id">M10</span></div>
+        <p><code>humanoi_mission</code> orchestrator — ลาดตระเวน waypoint วนลูปเอง</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= STAGE 2 — real base ================= -->
+  <div class="stage">
+    <div class="stage-head">
+      <div class="stage-title">
+        <b>ฐานจริงนำทาง</b>
+        <span>M11 – M14 · ย้าย pipeline เดียวกันลงฮาร์ดแวร์จริง</span>
+      </div>
+      <span class="stage-status">รอฮาร์ดแวร์</span>
+    </div>
+    <div class="track real">
+      <div class="node">
+        <div class="node-id-row"><span class="node-id">M11</span></div>
+        <p><code>rf2o</code> laser odometry บนฐานจริง (มอเตอร์ยังไม่มี encoder)</p>
+      </div>
+      <div class="node">
+        <div class="node-id-row"><span class="node-id">M12</span></div>
+        <p>ESP32 + Cytron MDDS10 ×2 — คุมความเร็ว 4 ล้อจาก ROS ได้จริง (ไม่ใช่ลูกบิด)</p>
+      </div>
+      <div class="node">
+        <div class="node-id-row"><span class="node-id">M13</span></div>
+        <p>Nav2 บนฐานจริงในห้องจริง — หลบสิ่งกีดขวางจริงได้เหมือนในซิม</p>
+      </div>
+      <div class="node">
+        <div class="node-id-row"><span class="node-id">M14</span></div>
+        <p>dead-wheel pod ×2–3 + IMU → EKF ผสาน odometry ให้แม่นตอนวิ่งเร็ว/สไลด์</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= STAGE 3 — arms ================= -->
+  <div class="stage">
+    <div class="stage-head">
+      <div class="stage-title">
+        <b>แขน AR4 + รวมร่าง</b>
+        <span>M15 – M18 · ปลายทาง — ฐาน + แขน ×2 ทำงานร่วมกัน</span>
+      </div>
+      <span class="stage-status">รอฮาร์ดแวร์</span>
+    </div>
+    <div class="track arm">
+      <div class="node">
+        <div class="node-id-row"><span class="node-id">M15</span></div>
+        <p>แขน AR4 ในซิม (MoveIt 2) ติดบน <code>base_link</code> เล่นท่า pre-program ได้</p>
+      </div>
+      <div class="node">
+        <div class="node-id-row"><span class="node-id">M16</span></div>
+        <p>ฐาน + แขน ในซิมเดียว — <b style="font-family:inherit">interlock</b>: แขนต้องพับก่อนฐานวิ่ง</p>
+      </div>
+      <div class="node">
+        <div class="node-id-row"><span class="node-id">M17</span></div>
+        <p>แขน AR4 จริง (Teensy 4.1 + <code>ar4_ros_driver</code>) + gripper แยก</p>
+      </div>
+      <div class="node">
+        <div class="node-id-row"><span class="node-id">M18</span></div>
+        <p>Raspberry Pi 5 คุม mission ผสาน Nav2 + MoveIt · RC override ได้ตลอดเวลา</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="thesis">
+    <p><b>ทำไมต้องเรียงแบบนี้:</b> ฐานเคลื่อนที่ต้องนำทางได้เองก่อน แขนถึงจะมีที่ยืนให้ทำงาน — ทุกขั้นพิสูจน์ในซิมก่อนเสมอ ก่อนย้ายลงฮาร์ดแวร์จริงทีละชั้น เพื่อลดความเสี่ยงตอนแขนกับฐานต้องทำงานพร้อมกัน</p>
+  </div>
+
+  <footer>เอกสารเต็ม + ขั้นตอนทดสอบ: docs/plan.md · docs/RUN.md</footer>
+
+</div>

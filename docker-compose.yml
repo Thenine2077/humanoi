@@ -1,0 +1,20 @@
+# รันบน Raspberry Pi:  cd ~/Humanoi && docker compose up -d --build
+# เข้าไปใช้ ROS:       docker exec -it humanoi_ros bash
+services:
+  ros:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: humanoi-ros:jazzy
+    container_name: humanoi_ros
+    network_mode: host      # topic เห็นกันกับเครื่องอื่นในวงแลน และ foxglove ที่พอร์ต 8765
+    ipc: host
+    privileged: true        # ใช้พอร์ต USB ได้ทุกตัว (Mega, lidar, บอร์ดมือ) แม้เสียบทีหลัง
+    volumes:
+      - /dev:/dev
+      - ./ros2_ws:/humanoi_ws   # โค้ดกับผล build อยู่บน Pi ไม่หายตอนลบ container
+    environment:
+      - ROS_DOMAIN_ID=0
+    restart: unless-stopped
+    stdin_open: true
+    tty: true

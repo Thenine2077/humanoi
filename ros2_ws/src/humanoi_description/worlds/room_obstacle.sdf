@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+<!-- เหมือน room.sdf ทุกอย่าง + กล่องใหม่ 1 ก้อนที่ "ไม่อยู่ในแผนที่" (room.pgm ถูกสร้างจาก room.sdf
+     ก่อนกล่องนี้ถูกเพิ่ม) ใช้ทดสอบ M8 — หลบสิ่งกีดขวางที่ global/local costmap เห็นจาก /scan
+     แต่ static map ไม่รู้จัก
+
+     box_new วางขวางเส้นตรงจากจุดสปอว์นหุ่น (0,0) ไปทาง +x (เส้นทางที่ NavFn วางแผนตรงๆ
+     ถ้าไม่มีสิ่งกีดขวาง) แต่ห้องกว้างพอให้อ้อมได้ทั้งด้านบน/ล่าง -->
+<sdf version="1.10">
+  <world name="humanoi_room_obstacle">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"      name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"  name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system"            name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-sensors-system"            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.8 0.9 1</background>
+      <grid>true</grid>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.4 0.4 0.4 1</specular>
+      <direction>-0.4 0.2 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry>
+          <material><ambient>0.8 0.8 0.8 1</ambient><diffuse>0.8 0.8 0.8 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ผนัง 4 ด้าน : ห้อง 10 (x) x 8 (y) ผนังสูง 1 m หนา 0.15 m -->
+    <model name="walls">
+      <static>true</static>
+      <link name="link">
+        <collision name="n"><pose> 0  4 0.5 0 0 0</pose><geometry><box><size>10.15 0.15 1</size></box></geometry></collision>
+        <visual    name="nv"><pose> 0  4 0.5 0 0 0</pose><geometry><box><size>10.15 0.15 1</size></box></geometry><material><diffuse>0.7 0.7 0.72 1</diffuse></material></visual>
+        <collision name="s"><pose> 0 -4 0.5 0 0 0</pose><geometry><box><size>10.15 0.15 1</size></box></geometry></collision>
+        <visual    name="sv"><pose> 0 -4 0.5 0 0 0</pose><geometry><box><size>10.15 0.15 1</size></box></geometry><material><diffuse>0.7 0.7 0.72 1</diffuse></material></visual>
+        <collision name="e"><pose> 5  0 0.5 0 0 0</pose><geometry><box><size>0.15 8 1</size></box></geometry></collision>
+        <visual    name="ev"><pose> 5  0 0.5 0 0 0</pose><geometry><box><size>0.15 8 1</size></box></geometry><material><diffuse>0.7 0.7 0.72 1</diffuse></material></visual>
+        <collision name="w"><pose>-5  0 0.5 0 0 0</pose><geometry><box><size>0.15 8 1</size></box></geometry></collision>
+        <visual    name="wv"><pose>-5  0 0.5 0 0 0</pose><geometry><box><size>0.15 8 1</size></box></geometry><material><diffuse>0.7 0.7 0.72 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="box_1">
+      <static>true</static>
+      <pose>2.0 1.5 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.8 0.8 0.8</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.8 0.8 0.8</size></box></geometry><material><diffuse>0.85 0.4 0.2 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="box_2">
+      <static>true</static>
+      <pose>-1.5 -1.0 0.4 0 0 0.5</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>1.2 0.5 0.8</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1.2 0.5 0.8</size></box></geometry><material><diffuse>0.3 0.5 0.7 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="pillar">
+      <static>true</static>
+      <pose>-2.5 2.2 0.6 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.25</radius><length>1.2</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.25</radius><length>1.2</length></cylinder></geometry><material><diffuse>0.5 0.5 0.5 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- ===== กล่องใหม่ (M8) — ไม่มีใน room.pgm ===== -->
+    <model name="box_new">
+      <static>true</static>
+      <pose>2.3 0.3 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.6 0.6 0.8</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.6 0.6 0.8</size></box></geometry><material><diffuse>0.9 0.1 0.1 1</diffuse></material></visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

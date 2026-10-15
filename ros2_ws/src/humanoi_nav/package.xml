@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>humanoi_nav</name>
+  <version>0.0.1</version>
+  <description>SLAM + Nav2 config/launch สำหรับฐาน mecanum ของหุ่น Humanoi</description>
+  <maintainer email="nayzalovehrk@gmail.com">User</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>navigation2</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>humanoi_description</exec_depend>
+  <exec_depend>rf2o_laser_odometry</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

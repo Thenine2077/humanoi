@@ -1,0 +1,48 @@
+# ค่าทับ (override) สำหรับเดโม "ลิดาร์จริง + หุ่นในซิม" — ต้องโหลด "ทีหลัง" nav2.yaml
+# ROS 2 จะรวมพารามิเตอร์ระดับใบ (leaf) ให้: ค่าในไฟล์นี้ชนะ ที่ไม่ได้เขียนใช้ของ nav2.yaml
+# ใช้กับ humanoi_nav/launch/lidar_demo.launch.py เท่านั้น ไม่กระทบ nav2.launch.py เดิม
+#
+# ต่างจาก nav2.yaml 2 เรื่อง:
+#
+# 1) ไม่มีแผนที่ ไม่มี AMCL — อ้างอิงทุกอย่างกับ odom
+#    ลิดาร์จริงวางนิ่งอยู่บนโต๊ะ สิ่งที่มันเห็นไม่มีทางตรงกับ maps/room.pgm AMCL จะเหวี่ยง
+#    ตำแหน่งหุ่นมั่วไปหมด global costmap จึงเป็นแบบ rolling window ใน odom แทน static map
+#
+# 2) mark สิ่งกีดขวางเฉพาะระยะใกล้ (obstacle_max_range 1.0 m)
+#    สิ่งที่ลิดาร์จริงเห็น "ติดไปกับหุ่นในซิม" (laser_link ขี่อยู่บนหุ่น) ผนังที่ห่างลิดาร์บนโต๊ะ
+#    2 m จะโผล่ห่างหุ่น 2 m ทุกทิศตลอดเวลาไม่ว่าจะขับไปไหน = คุกที่วิ่งตามรถ
+#    จำกัดให้ mark แค่ของใกล้ (มือที่ยื่นเข้ามา) แต่ยังใช้ลำแสงยาว 4 m "ล้าง" ช่องที่เคย mark
+#    ไว้ เวลาเอามือออก ลำแสงที่วิ่งผ่านไปชนผนังข้างหลังจะลบรอยมือทิ้งเอง
+#    ถ้ารอบลิดาร์รก (มีจอ/ของวางใกล้กว่า 1 m) ให้ลดค่านี้ลงเหลือ 0.6 หรือเคลียร์โต๊ะ
+
+bt_navigator:
+  ros__parameters:
+    global_frame: odom
+
+behavior_server:
+  ros__parameters:
+    global_frame: odom
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      obstacle_layer:
+        scan:
+          obstacle_max_range: 1.0
+          raytrace_max_range: 4.0
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      global_frame: odom
+      rolling_window: true
+      width: 8
+      height: 8
+      # นอกระยะที่ลิดาร์เคยเห็นให้ถือว่าว่าง ไม่งั้น planner จะวางเส้นทางผ่านไม่ได้เลย
+      track_unknown_space: false
+      # ตัด static_layer ทิ้ง (ไม่มีแผนที่) — ค่า static_layer ใน nav2.yaml ยังอยู่แต่ไม่ถูกใช้
+      plugins: ["obstacle_layer", "inflation_layer"]
+      obstacle_layer:
+        scan:
+          obstacle_max_range: 1.0
+          raytrace_max_range: 4.0

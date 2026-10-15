@@ -1,0 +1,115 @@
+<?xml version="1.0"?>
+<!-- หุ่น Humanoi ตัวเต็ม = ฐาน mecanum + แขน AR4 หนึ่งข้างบนฝาบน (ไมล์สโตน M16)
+
+     ประกอบจากของที่มีอยู่แล้วทั้งหมด ไม่แก้ไฟล์ผู้ขายแม้แต่ไฟล์เดียว:
+       - mecanum_base.urdf.xacro    (ของเรา — ฐาน ล้อ ไลดาร์ ปลั๊กอิน gz ของฐาน)
+       - ar_description/ar_macro.xacro  (ของผู้ขาย — ลิงก์/ข้อต่อ/เมช AR4 อ่านอย่างเดียว)
+
+     เรื่องชื่อลิงก์: ar_macro.xacro ฮาร์ดโค้ดลิงก์รากเป็น "base_link" + joint "base_joint"
+     และไม่มีพารามิเตอร์ prefix ให้ ฐานจึงถูกเปลี่ยนไปใช้ "chassis_link"/"chassis_joint" แทน
+     (เหตุผลเต็มอยู่ในคอมเมนต์ของ mecanum_base.urdf.xacro) แขนคงชื่อเดิมทุกอย่าง
+     SRDF/kinematics/joint_limits ของผู้ขายจึงใช้ต่อได้ตรงๆ ไม่ต้องแก้
+
+       xacro humanoi_full.urdf.xacro arm_controllers:=/path/to/arm_controllers.yaml
+
+     ⚠️ ข้อจำกัดที่รู้อยู่: ฐานยังขับด้วยปลั๊กอิน VelocityControl แบบ kinematic (ล้อไม่มี
+        collision ไม่หมุนจริง) ฐานจึงไม่มีปฏิกิริยาต่อน้ำหนักแขนเลย — ยื่นแขนสุดแขนก็ไม่เอียง
+        ไม่คว่ำ ใช้ดู "ท่าหยิบของ" และระยะเอื้อมได้ แต่ยังตอบเรื่องเสถียรภาพ/การคว่ำไม่ได้
+        ต้องรอเฟสล้อจริง (ros2_control ต่อล้อ + ลูกกลิ้ง mecanum) -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="humanoi">
+
+  <xacro:arg name="arm_controllers" default=""/>
+
+  <!-- ตำแหน่งติดตั้งแขนบนฝาบนของฐาน (แก้ได้เมื่อวัดฐานจริง) -->
+  <xacro:property name="arm_mount_x" value="-0.08"/>
+  <xacro:property name="arm_mount_y" value="0.0"/>
+  <xacro:property name="arm_mount_z" value="0.06"/>   <!-- = base_z/2 คือผิวฝาบน -->
+
+  <xacro:include filename="$(find humanoi_description)/urdf/mecanum_base.urdf.xacro"/>
+  <xacro:include filename="$(find ar_description)/urdf/ar_macro.xacro"/>
+
+  <!-- แขนเกาะฝาบนของฐาน — ar_robot รับ parent + *origin มาอยู่แล้ว ไม่ต้องดัดแปลงอะไร
+       วางค่อนไปด้านหลังเล็กน้อยเพื่อลดการบังไลดาร์ที่อยู่หน้าฐาน (x = +0.16)
+       หมายเหตุ: ยังบังอยู่บางส่วนอยู่ดี ตอนทำ Nav2 จริงต้องยกไลดาร์ให้สูงกว่าฐานแขน
+       หรือใส่ตัวกรองมุมใน laser_filters ไม่งั้น costmap จะเห็นแขนตัวเองเป็นสิ่งกีดขวาง -->
+  <xacro:ar_robot parent="chassis_link">
+    <origin xyz="${arm_mount_x} ${arm_mount_y} ${arm_mount_z}" rpy="0 0 0"/>
+  </xacro:ar_robot>
+
+  <!-- ===================== ros2_control ของแขน =====================
+       สำเนาจาก ar_gz_bringup/urdf/ar_gz.urdf.xacro ที่ยืนยันแล้วว่าใช้งานได้จริง
+       (เขียนเองแทนการเรียก xacro:ar_ros2_control ของผู้ขาย เพราะไฟล์นั้น limit เขียนเป็น
+        "{-170*pi/180}" ขาด "$" นำหน้า gz_ros2_control จึง parse ไม่ผ่าน และไม่ได้ตั้ง
+        position_proportional_gain ทำให้ใช้ default 0.1 ซึ่งอ่อนเกินจะต้านแรงโน้มถ่วง
+        แขนค่อยๆห้อยลงจนสุด hard-stop)
+       initial_value ของ joint_2/joint_5 ตั้งตามท่าพักจริงของแขนหลัง calibrate -->
+  <ros2_control name="ar" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      <param name="serial_port">None</param>
+      <param name="calibrate">False</param>
+      <param name="position_proportional_gain">20.0</param>
+    </hardware>
+    <joint name="joint_1">
+      <command_interface name="position">
+        <param name="min">-2.967060</param>
+        <param name="max">2.967060</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+    </joint>
+    <joint name="joint_2">
+      <command_interface name="position">
+        <param name="min">-0.733038</param>
+        <param name="max">1.570796</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">-0.1019</param>
+      </state_interface>
+    </joint>
+    <joint name="joint_3">
+      <command_interface name="position">
+        <param name="min">-1.553343</param>
+        <param name="max">0.907571</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+    </joint>
+    <joint name="joint_4">
+      <command_interface name="position">
+        <param name="min">-2.879793</param>
+        <param name="max">2.879793</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+    </joint>
+    <joint name="joint_5">
+      <command_interface name="position">
+        <param name="min">-1.832596</param>
+        <param name="max">1.832596</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">-0.9103</param>
+      </state_interface>
+    </joint>
+    <joint name="joint_6">
+      <command_interface name="position">
+        <param name="min">-2.705260</param>
+        <param name="max">2.705260</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+    </joint>
+  </ros2_control>
+
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg arm_controllers)</parameters>
+    </plugin>
+  </gazebo>
+
+</robot>

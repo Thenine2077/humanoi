@@ -1,0 +1,605 @@
+<title>Humanoi Control Stack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#ECEFEF; --surface:#FFFFFF; --surface-2:#F3F6F6; --surface-3:#E9EEEE;
+    --ink:#131C1B; --muted:#57635F; --faint:#8B9794;
+    --line:#CFD7D6; --line-soft:#E0E5E4;
+    --flow:#0AA39E; --flow-bg:#DDF0EF;
+    --real:#BC6E17; --real-bg:#F6E9D6;
+    --plan:#6B4CC6; --plan-bg:#E9E3F7;
+    --ok:#2C845A;
+    --shadow:0 1px 2px rgba(19,28,27,.05), 0 10px 30px -18px rgba(19,28,27,.28);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0D1315; --surface:#151D1F; --surface-2:#1A2426; --surface-3:#20292B;
+      --ink:#DCE4E3; --muted:#93A09D; --faint:#647271;
+      --line:#293436; --line-soft:#202A2B;
+      --flow:#33C5BF; --flow-bg:#0F302E;
+      --real:#DE8E2C; --real-bg:#31250F;
+      --plan:#A88FEE; --plan-bg:#221B37;
+      --ok:#53B37D;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -20px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0D1315; --surface:#151D1F; --surface-2:#1A2426; --surface-3:#20292B;
+    --ink:#DCE4E3; --muted:#93A09D; --faint:#647271;
+    --line:#293436; --line-soft:#202A2B;
+    --flow:#33C5BF; --flow-bg:#0F302E;
+    --real:#DE8E2C; --real-bg:#31250F;
+    --plan:#A88FEE; --plan-bg:#221B37;
+    --ok:#53B37D;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -20px rgba(0,0,0,.9);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"IBM Plex Sans Thai","IBM Plex Sans",system-ui,sans-serif;
+    font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px; margin:0 auto; padding:40px 22px 72px; display:flex; flex-direction:column; gap:44px}
+
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:500;
+    letter-spacing:.16em; text-transform:uppercase; color:var(--flow); margin:0 0 10px;
+  }
+  h1{
+    font-family:"Chakra Petch",sans-serif; font-weight:700; line-height:1.12;
+    font-size:clamp(1.55rem,1.1rem + 2vw,2.2rem); margin:0 0 12px; text-wrap:balance;
+  }
+  h2{
+    font-family:"Chakra Petch",sans-serif; font-weight:600; font-size:1.18rem;
+    margin:0 0 4px; text-wrap:balance;
+  }
+  .lede{font-size:1.02rem; color:var(--muted); max-width:64ch; margin:0}
+  .sec-note{color:var(--muted); font-size:.92rem; margin:2px 0 20px; max-width:70ch}
+
+  header .facts{display:flex; flex-wrap:wrap; gap:8px; margin-top:20px}
+  .chip{
+    font-family:"IBM Plex Mono",monospace; font-size:11.5px; padding:5px 10px;
+    border:1px solid var(--line); border-radius:2px; background:var(--surface);
+    color:var(--muted); white-space:nowrap;
+  }
+
+  /* ---------- diagram ---------- */
+  .diagram-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:4px;
+    box-shadow:var(--shadow); padding:18px 18px 8px;
+  }
+  .modes{display:flex; gap:6px; margin-bottom:6px}
+  .modes button{
+    font-family:"Chakra Petch",sans-serif; font-weight:600; font-size:.82rem;
+    letter-spacing:.02em; padding:7px 14px; border-radius:2px; cursor:pointer;
+    border:1px solid var(--line); background:var(--surface-2); color:var(--muted);
+    transition:background .15s,color .15s,border-color .15s;
+  }
+  .modes button[aria-pressed="true"]{
+    background:var(--flow-bg); color:var(--flow); border-color:var(--flow);
+  }
+  .modes button:focus-visible{outline:2px solid var(--flow); outline-offset:2px}
+  .legend{
+    display:flex; flex-wrap:wrap; gap:14px; padding:8px 2px 14px;
+    font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--muted);
+  }
+  .legend span{display:inline-flex; align-items:center; gap:6px}
+  .legend i{width:16px; height:3px; border-radius:2px; display:inline-block}
+  .diagram-scroll{overflow-x:auto}
+  svg.flow{width:100%; height:auto; min-width:760px; display:block}
+
+  svg .box{fill:var(--surface-2); stroke:var(--line); stroke-width:1.2}
+  svg .box.plan{fill:var(--plan-bg); stroke:var(--plan)}
+  svg .box.flow{fill:var(--flow-bg); stroke:var(--flow)}
+  svg .box.real{fill:var(--real-bg); stroke:var(--real)}
+  svg .box.sim{fill:var(--surface-3); stroke:var(--line)}
+  svg .box.ghost{fill:none; stroke:var(--faint); stroke-dasharray:4 4}
+  svg .t-title{fill:var(--ink); font-family:"Chakra Petch",sans-serif; font-weight:600; font-size:13px}
+  svg .t-sub{fill:var(--muted); font-family:"IBM Plex Mono",monospace; font-size:9.5px}
+  svg .t-sub.ghost{fill:var(--faint)}
+  svg .t-topic{fill:var(--muted); font-family:"IBM Plex Mono",monospace; font-size:10px}
+  svg .t-band{fill:var(--faint); font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.14em}
+
+  svg .edge{fill:none; stroke-width:2; stroke-linecap:round}
+  svg .edge.core{stroke:var(--flow)}
+  svg .edge.real{stroke:var(--real)}
+  svg .edge.nav{stroke:var(--plan)}
+  svg .edge.fb{stroke:var(--flow); stroke-width:1.6}
+  svg .edge.animated{stroke-dasharray:2 7; animation:march 850ms linear infinite}
+  @keyframes march{to{stroke-dashoffset:-18}}
+  @media (prefers-reduced-motion:reduce){svg .edge.animated{animation:none}}
+
+  .flow[data-mode="teleop"] .m-nav{opacity:.12}
+  .flow[data-mode="nav"] .m-teleop{opacity:.12}
+
+  /* ---------- node reference ---------- */
+  .bands{display:flex; flex-direction:column; gap:14px}
+  .band{
+    background:var(--surface); border:1px solid var(--line); border-radius:4px;
+    box-shadow:var(--shadow); overflow:hidden;
+  }
+  .band-head{
+    display:flex; align-items:baseline; gap:10px; padding:12px 16px;
+    border-bottom:1px solid var(--line-soft); background:var(--surface-2);
+  }
+  .band-head b{font-family:"Chakra Petch",sans-serif; font-size:.98rem}
+  .band-head span{font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--faint); letter-spacing:.1em; text-transform:uppercase}
+  .band-dot{width:9px; height:9px; border-radius:50%; flex:none; align-self:center}
+  .rows{display:flex; flex-direction:column}
+  .row{
+    display:grid; grid-template-columns:220px 1fr; gap:16px;
+    padding:13px 16px; border-top:1px solid var(--line-soft);
+  }
+  .row:first-child{border-top:none}
+  .row .n{display:flex; flex-direction:column; gap:3px}
+  .row .n b{font-family:"IBM Plex Mono",monospace; font-weight:500; font-size:12.5px; color:var(--ink)}
+  .row .n em{font-style:normal; font-size:10.5px; color:var(--faint); font-family:"IBM Plex Mono",monospace}
+  .row .d{font-size:.9rem; color:var(--muted)}
+  .row .d code{
+    font-family:"IBM Plex Mono",monospace; font-size:.82em; background:var(--surface-2);
+    border:1px solid var(--line-soft); border-radius:2px; padding:1px 4px; color:var(--ink);
+    white-space:nowrap;
+  }
+
+  /* ---------- milestones ---------- */
+  .roadmap{display:flex; flex-direction:column; gap:28px}
+  .phase{display:flex; flex-direction:column; gap:11px; border-left:2px solid var(--line); padding-left:18px}
+  .phase-head{display:flex; align-items:center; flex-wrap:wrap; gap:10px}
+  .phase-head b{font-family:"Chakra Petch",sans-serif; font-size:1.02rem}
+  .ph-tag{
+    font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--faint); padding:3px 8px;
+    border:1px solid var(--line); border-radius:2px;
+  }
+  .ph-tag.now{color:var(--flow); border-color:var(--flow)}
+  .ph-tag.done{color:var(--ok); border-color:var(--ok)}
+  .miles{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:10px}
+  .mile{
+    background:var(--surface); border:1px solid var(--line); border-radius:3px;
+    padding:12px 14px; display:flex; flex-direction:column; gap:5px;
+  }
+  .mile.done{border-left:3px solid var(--ok)}
+  .mile.next{border-left:3px solid var(--flow)}
+  .mile .m-id{
+    display:flex; align-items:center; gap:7px;
+    font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--faint);
+  }
+  .mile .m-id b{color:var(--ink); font-weight:600; letter-spacing:.1em}
+  .mile.done .tick{color:var(--ok)}
+  .mile.next .tick{color:var(--flow)}
+  .mile p{margin:0; font-size:.88rem; color:var(--muted); line-height:1.45}
+
+  /* ---------- split cols ---------- */
+  .split{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  .panel{
+    background:var(--surface); border:1px solid var(--line); border-radius:4px;
+    box-shadow:var(--shadow); padding:16px 18px;
+  }
+  .panel h3{
+    font-family:"Chakra Petch",sans-serif; font-size:.95rem; margin:0 0 10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .panel h3 .k{width:9px; height:9px; border-radius:2px; flex:none}
+  .panel ul{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px}
+  .panel li{font-size:.9rem; color:var(--muted); padding-left:16px; position:relative}
+  .panel li::before{content:"›"; position:absolute; left:0; color:var(--faint)}
+  .panel li b{color:var(--ink); font-weight:600}
+
+  .layers{display:flex; flex-direction:column; gap:0}
+  .layer{
+    display:grid; grid-template-columns:130px 1fr; gap:16px; padding:13px 0;
+    border-top:1px solid var(--line-soft);
+  }
+  .layer:first-child{border-top:none}
+  .layer b{font-family:"Chakra Petch",sans-serif; font-size:.9rem}
+  .layer span{font-size:.88rem; color:var(--muted)}
+  .layer em{display:block; font-style:normal; font-family:"IBM Plex Mono",monospace; font-size:10px; color:var(--faint); margin-top:2px}
+
+  .note{
+    background:var(--real-bg); border:1px solid var(--real); border-radius:4px;
+    padding:14px 18px; font-size:.9rem; color:var(--ink);
+  }
+  .note b{font-family:"Chakra Petch",sans-serif}
+
+  footer{
+    font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--faint);
+    text-align:center; border-top:1px solid var(--line-soft); padding-top:20px;
+  }
+
+  @media (max-width:720px){
+    .row{grid-template-columns:1fr; gap:4px}
+    .split{grid-template-columns:1fr}
+    .layer{grid-template-columns:1fr; gap:2px}
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Humanoi · ระบบซอฟต์แวร์ฐาน mecanum</p>
+    <h1>โหนดทั้งหมด และเส้นทางข้อมูลระหว่างกัน</h1>
+    <p class="lede">
+      หุ่นยนต์ฐาน 4 ล้อ mecanum (ต่อด้วยแขน AR4 ภายหลัง) — คีย์บอร์ดหรือ Nav2 ส่งคำสั่งผ่านหัวข้อกลาง
+      <code style="font-family:'IBM Plex Mono',monospace">/cmd_vel</code>
+      เข้าทั้งหุ่นจำลองใน Gazebo และมอเตอร์จริงผ่าน Arduino พร้อมกัน
+    </p>
+    <div class="facts">
+      <span class="chip">ROS 2 Jazzy</span>
+      <span class="chip">Gazebo Harmonic</span>
+      <span class="chip">WSL Ubuntu 24.04</span>
+      <span class="chip">/cmd_vel = geometry_msgs/Twist</span>
+      <span class="chip">/scan · 360° · 10 Hz</span>
+      <span class="chip">map 199×159 @ 5 cm</span>
+      <span class="chip">Arduino MEGA · relay ×8 · pin 22–29</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>แผนผังการทำงาน</h2>
+    <p class="sec-note">สลับโหมดเพื่อดูว่าใครเป็นคนสั่ง — เส้นประวิ่งคือทิศทางที่ข้อความไหล เส้นสีฟ้าคือ ROS หัวข้อ ส้มคือไฟฟ้าจริง</p>
+
+    <div class="diagram-card">
+      <div class="modes" role="group" aria-label="เลือกโหมดการทำงาน">
+        <button id="btn-teleop" aria-pressed="true">Teleop · คีย์บอร์ด</button>
+        <button id="btn-nav" aria-pressed="false">Navigation · Nav2</button>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--plan)"></i> ผู้สั่ง (Nav2)</span>
+        <span><i style="background:var(--flow)"></i> ROS หัวข้อ / TF</span>
+        <span><i style="background:var(--real)"></i> ฮาร์ดแวร์จริง</span>
+      </div>
+
+      <div class="diagram-scroll">
+      <svg class="flow" data-mode="teleop" viewBox="0 0 1060 566" role="img"
+           aria-label="แผนผังโหนด: keyboard_teleop และ Nav2 ส่ง /cmd_vel เข้า Gazebo และ relay_bridge; relay_bridge ส่ง serial ไป Arduino MEGA ไป relay ไป DC motor; Gazebo ส่ง /scan และ /odom กลับไป slam_toolbox และ Nav2">
+
+        <!-- band labels -->
+        <text class="t-band" x="28" y="28">ผู้สั่ง</text>
+        <text class="t-band" x="300" y="28">หัวข้อกลาง</text>
+        <text class="t-band" x="560" y="28">ปลายทาง — ซิม + ของจริง</text>
+
+        <!-- ===== edges (drawn first, under boxes) ===== -->
+        <!-- E1 keyboard -> hub -->
+        <path class="edge core animated m-teleop" d="M196,74 C 250,74 250,168 298,176" marker-end="url(#ar-core)"/>
+        <!-- E2 nav -> hub -->
+        <path class="edge nav animated m-nav" d="M196,196 C 250,196 250,196 298,192" marker-end="url(#ar-nav)"/>
+        <!-- E3 hub -> gazebo -->
+        <path class="edge core animated m-core" d="M432,172 C 490,150 500,128 558,120" marker-end="url(#ar-core)"/>
+        <text class="t-topic" x="452" y="128">/cmd_vel</text>
+        <!-- E4 hub -> relay_bridge -->
+        <path class="edge core animated m-core" d="M432,200 C 490,240 500,270 558,278" marker-end="url(#ar-core)"/>
+        <text class="t-topic" x="446" y="264">/cmd_vel</text>
+        <!-- E5 relay_bridge -> mega -->
+        <path class="edge real animated m-core" d="M651,306 L 651,328" marker-end="url(#ar-real)"/>
+        <text class="t-topic" x="660" y="322">USB serial · "W F B F B"</text>
+        <!-- E6 mega -> relays -->
+        <path class="edge real animated m-core" d="M651,376 L 651,390" marker-end="url(#ar-real)"/>
+        <text class="t-topic" x="660" y="388">GPIO 22–29</text>
+        <!-- E7 relays -> motors -->
+        <path class="edge real animated m-core" d="M651,426 L 651,440" marker-end="url(#ar-real)"/>
+        <text class="t-topic" x="660" y="438">± 24 V</text>
+        <!-- E8 gazebo sensors -> bottom bus -> nav -->
+        <path class="edge fb animated m-nav" d="M792,198 C 792,300 792,420 792,528 L 120,528 C 96,528 96,420 96,300 L 96,262" marker-end="url(#ar-fb)"/>
+        <text class="t-topic" x="360" y="546">/scan · /odom · /tf · /map</text>
+        <!-- E9 bottom bus -> slam -->
+        <path class="edge fb animated m-nav" d="M470,528 C 430,528 400,510 388,478" marker-end="url(#ar-fb)"/>
+        <!-- E10 slam -> nav -->
+        <path class="edge fb animated m-nav" d="M300,452 C 240,452 210,320 176,286" marker-end="url(#ar-fb)"/>
+        <text class="t-topic" x="196" y="360">/map</text>
+
+        <defs>
+          <marker id="ar-core" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--flow)"/></marker>
+          <marker id="ar-real" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--real)"/></marker>
+          <marker id="ar-nav" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--plan)"/></marker>
+          <marker id="ar-fb" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--flow)"/></marker>
+        </defs>
+
+        <!-- ===== nodes ===== -->
+        <!-- keyboard_teleop -->
+        <g class="m-teleop">
+          <rect class="box" x="28" y="46" width="168" height="54" rx="3"/>
+          <text class="t-title" x="42" y="72">keyboard_teleop</text>
+          <text class="t-sub" x="42" y="88">humanoi_teleop</text>
+        </g>
+        <!-- Nav2 -->
+        <g class="m-nav">
+          <rect class="box plan" x="28" y="128" width="168" height="150" rx="3"/>
+          <text class="t-title" x="42" y="152">Nav2</text>
+          <text class="t-sub" x="42" y="170">humanoi_nav</text>
+          <text class="t-sub" x="42" y="192">· planner_server</text>
+          <text class="t-sub" x="42" y="208">· controller_server</text>
+          <text class="t-sub" x="42" y="224">· bt_navigator</text>
+          <text class="t-sub" x="42" y="240">· behavior_server</text>
+          <text class="t-sub" x="42" y="256">· amcl · map_server</text>
+        </g>
+        <!-- mission (future) -->
+        <g>
+          <rect class="box ghost" x="28" y="300" width="168" height="42" rx="3"/>
+          <text class="t-title" x="42" y="320" style="fill:var(--faint)">mission node</text>
+          <text class="t-sub ghost" x="42" y="335">ยังไม่มี — ตัดสินใจระดับงาน</text>
+        </g>
+
+        <!-- /cmd_vel hub -->
+        <g class="m-core">
+          <rect class="box flow" x="300" y="150" width="132" height="72" rx="36"/>
+          <text class="t-title" x="366" y="182" text-anchor="middle">/cmd_vel</text>
+          <text class="t-sub" x="366" y="199" text-anchor="middle">Twist</text>
+          <text class="t-sub" x="366" y="212" text-anchor="middle">vx · vy · ωz</text>
+        </g>
+
+        <!-- slam_toolbox -->
+        <g class="m-nav">
+          <rect class="box" x="300" y="424" width="150" height="54" rx="3"/>
+          <text class="t-title" x="314" y="450">slam_toolbox</text>
+          <text class="t-sub" x="314" y="466">สร้าง /map + TF map→odom</text>
+        </g>
+
+        <!-- Gazebo Sim -->
+        <g class="m-core">
+          <rect class="box sim" x="558" y="42" width="472" height="156" rx="3"/>
+          <text class="t-title" x="574" y="66">Gazebo Sim · โลก room</text>
+          <rect class="box flow" x="574" y="80" width="180" height="40" rx="2"/>
+          <text class="t-sub" x="584" y="98" style="fill:var(--ink)">VelocityControl</text>
+          <text class="t-sub" x="584" y="112">ขยับตัวถังตาม twist</text>
+          <rect class="box" x="768" y="80" width="246" height="40" rx="2"/>
+          <text class="t-sub" x="778" y="98" style="fill:var(--ink)">OdometryPublisher → /odom + TF</text>
+          <text class="t-sub" x="778" y="112">ตำแหน่งจริงของหุ่น (ground truth)</text>
+          <rect class="box" x="574" y="134" width="180" height="40" rx="2"/>
+          <text class="t-sub" x="584" y="152" style="fill:var(--ink)">gpu_lidar → /scan</text>
+          <text class="t-sub" x="584" y="166">360° · 12 m · 10 Hz</text>
+          <rect class="box" x="768" y="134" width="246" height="40" rx="2"/>
+          <text class="t-sub" x="778" y="152" style="fill:var(--ink)">robot_state_publisher → /tf</text>
+          <text class="t-sub" x="778" y="166">base_footprint → base_link → ล้อ → laser</text>
+        </g>
+
+        <!-- relay_bridge -->
+        <g class="m-core">
+          <rect class="box real" x="560" y="250" width="182" height="56" rx="3"/>
+          <text class="t-title" x="574" y="273">relay_bridge</text>
+          <text class="t-sub" x="574" y="290">humanoi_base · mecanum mixing</text>
+          <text class="t-sub" x="574" y="302">twist → เครื่องหมาย 4 ล้อ</text>
+        </g>
+        <!-- Arduino -->
+        <g class="m-core">
+          <rect class="box real" x="560" y="328" width="182" height="48" rx="3"/>
+          <text class="t-title" x="574" y="350">Arduino MEGA 2560</text>
+          <text class="t-sub" x="574" y="366">watchdog 500ms · dead-time 500ms</text>
+        </g>
+        <!-- relays -->
+        <g class="m-core">
+          <rect class="box real" x="560" y="390" width="182" height="36" rx="3"/>
+          <text class="t-title" x="574" y="412">relay ×8 — ทิศทาง FWD / REV</text>
+        </g>
+        <!-- motors -->
+        <g class="m-core">
+          <rect class="box real" x="560" y="440" width="182" height="40" rx="3"/>
+          <text class="t-title" x="574" y="460">DC motor ×4 · ล้อ mecanum</text>
+          <text class="t-sub" x="574" y="474">ความเร็ว = ลูกบิด PWM governor</text>
+        </g>
+
+      </svg>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>โหนดแต่ละตัวทำอะไร</h2>
+    <p class="sec-note">อินเทอร์เฟซกลางคือ <code style="font-family:'IBM Plex Mono',monospace">/cmd_vel</code> — เปลี่ยนผู้สั่งหรือปลายทางได้โดยตัวอื่นไม่ต้องแก้</p>
+
+    <div class="bands">
+
+      <div class="band">
+        <div class="band-head"><span class="band-dot" style="background:var(--plan)"></span><b>ผู้สั่ง</b><span>commanders</span></div>
+        <div class="rows">
+          <div class="row">
+            <div class="n"><b>keyboard_teleop</b><em>humanoi_teleop</em></div>
+            <div class="d">อ่านคีย์ <code>w/s</code> หน้า-หลัง · <code>a/d</code> สไลด์ · <code>q/e</code> หมุน → publish <code>/cmd_vel</code> ที่ 20 Hz เป็น heartbeat · ปล่อยปุ่มเกิน 0.5 วิ = สั่งหยุดเอง</div>
+          </div>
+          <div class="row">
+            <div class="n"><b>square_drive</b><em>humanoi_teleop</em></div>
+            <div class="d">ขับสี่เหลี่ยมแบบ open-loop สั่ง <code>/cmd_vel</code> ตามเวลา แล้วอ่าน <code>/odom</code> วัดความคลาดเคลื่อน — ใช้ทดสอบ M2</div>
+          </div>
+          <div class="row">
+            <div class="n"><b>Nav2 stack</b><em>humanoi_nav</em></div>
+            <div class="d">planner หาเส้นทาง global (NavFn) · controller ตามเส้นทาง + หลบใกล้ตัว (RPP) · bt_navigator เป็น behavior tree (replan / กู้ / retry) · behavior_server ท่ากู้ (spin, backup) · amcl localize ในแผนที่ · สุดท้าย publish <code>/cmd_vel</code></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-dot" style="background:var(--flow)"></span><b>ปลายทางฝั่งซิม</b><span>gazebo</span></div>
+        <div class="rows">
+          <div class="row">
+            <div class="n"><b>VelocityControl</b><em>gz-sim plugin</em></div>
+            <div class="d">รับ <code>/cmd_vel</code> ขยับตัวถังหุ่นตาม twist ตรงๆ แบบ kinematic (holonomic — สไลด์ข้างได้) ไม่ผ่านฟิสิกส์ล้อ</div>
+          </div>
+          <div class="row">
+            <div class="n"><b>OdometryPublisher</b><em>gz-sim plugin</em></div>
+            <div class="d">publish <code>/odom</code> + broadcast TF <code>odom→base_footprint</code> จากตำแหน่งจริงของหุ่นในซิม</div>
+          </div>
+          <div class="row">
+            <div class="n"><b>gpu_lidar</b><em>gz-sim sensor</em></div>
+            <div class="d">publish <code>/scan</code> — LiDAR 2D 360° ระยะ 12 m 10 Hz จำลอง RPLIDAR / LD19</div>
+          </div>
+          <div class="row">
+            <div class="n"><b>robot_state_publisher</b><em>ros</em></div>
+            <div class="d">อ่าน URDF → broadcast TF ทุกข้อต่อ <code>base_footprint → base_link → ล้อ → laser_link</code></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-dot" style="background:var(--flow)"></span><b>สร้าง / ใช้แผนที่</b><span>mapping</span></div>
+        <div class="rows">
+          <div class="row">
+            <div class="n"><b>slam_toolbox</b><em>online async</em></div>
+            <div class="d">ระหว่างสำรวจ: รับ <code>/scan</code> + TF → สร้าง occupancy grid → publish <code>/map</code> + TF <code>map→odom</code> · เซฟด้วย <code>map_saver_cli</code></div>
+          </div>
+          <div class="row">
+            <div class="n"><b>map_server</b><em>nav2</em></div>
+            <div class="d">ตอนนำทาง: โหลด <code>maps/room.pgm</code> ที่เซฟไว้ → publish <code>/map</code> แบบ latched</div>
+          </div>
+          <div class="row">
+            <div class="n"><b>amcl</b><em>nav2</em></div>
+            <div class="d">particle filter — จับคู่ <code>/scan</code> กับ <code>/map</code> → แก้ TF <code>map→odom</code> ให้หุ่นรู้ว่าตัวเองอยู่ตรงไหน (โมเดล OmniMotionModel)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-dot" style="background:var(--real)"></span><b>ฮาร์ดแวร์จริง</b><span>bench</span></div>
+        <div class="rows">
+          <div class="row">
+            <div class="n"><b>relay_bridge</b><em>humanoi_base</em></div>
+            <div class="d">รับ <code>/cmd_vel</code> → mecanum mixing เป็นความเร็วเป้าหมาย 4 ล้อ → เอาเครื่องหมายส่งเป็น <code>W&nbsp;F&nbsp;B&nbsp;F&nbsp;B</code> ทาง USB serial · publish <code>/motor_command</code> <code>/wheel_target</code> ไว้ debug · ไม่มีบอร์ดก็รัน dry-run ได้</div>
+          </div>
+          <div class="row">
+            <div class="n"><b>relay_motor_mega_4wd.ino</b><em>Arduino MEGA</em></div>
+            <div class="d">รับ <code>W f f f f</code> / <code>S</code> / <code>P</code> · state machine + dead-time แยกต่อล้อ · watchdog: ขาด heartbeat 500 ms = หยุดทั้ง 4 · LED pin 13 บอกสถานะ</div>
+          </div>
+          <div class="row">
+            <div class="n"><b>relay ×8 → PWM governor → motor ×4</b><em>pin 22–29</em></div>
+            <div class="d">relay 2 ตัว/ล้อ ทำ H-bridge กลับทิศ · governor 1 ตัวป้อนทั้ง 4 มอเตอร์ ความเร็วตั้งด้วยลูกบิด (ยังคุมจาก ROS ไม่ได้จนกว่าจะเปลี่ยนเป็น Cytron MDDS10)</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>ความคืบหน้า — ตั้งแต่ตอนนี้จนแขน AR4 ทำงานร่วมกับฐาน</h2>
+    <p class="sec-note">แต่ละขั้นต้องผ่านเกณฑ์ทดสอบก่อนขึ้นขั้นถัดไป · M1–M10 ทำในซิมได้เลย · M11–M14 ≈ roadmap Stage 1–2 (รอฮาร์ดแวร์ฐาน) · M15–M18 ≈ Stage 3 (Pi + AR4)</p>
+
+    <div class="roadmap">
+
+      <div class="phase">
+        <div class="phase-head"><b>ผ่านแล้ว</b><span class="ph-tag done">M1–M7 · 2026-09-07</span></div>
+        <div class="miles">
+          <div class="mile done"><span class="m-id"><span class="tick">●</span><b>M1–M2</b></span><p>คีย์บอร์ด → หุ่นซิมขยับถูกทิศ · odometry แม่น &lt; 5%</p></div>
+          <div class="mile done"><span class="m-id"><span class="tick">●</span><b>M3 · M3b</b></span><p>มอเตอร์จริง 1 → 4 ตัว mecanum ผ่าน ROS · relay 8 · watchdog</p></div>
+          <div class="mile done"><span class="m-id"><span class="tick">●</span><b>M4</b></span><p>Gazebo + มอเตอร์จริง สั่งจากคีย์บอร์ดเดียว sync กัน</p></div>
+          <div class="mile done"><span class="m-id"><span class="tick">●</span><b>M5–M6</b></span><p>LiDAR จำลอง · SLAM สร้าง + เซฟแผนที่ 199×159</p></div>
+          <div class="mile done"><span class="m-id"><span class="tick">●</span><b>M7</b></span><p>Nav2 ขับไป goal วาง global path หลบสิ่งกีดขวางในแผนที่</p></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-head"><b>ทำอยู่ + ถัดไป — ซิม</b><span class="ph-tag now">M8–M10</span></div>
+        <div class="miles">
+          <div class="mile next"><span class="m-id"><span class="tick">○</span><b>M8</b> กำลังทดสอบ</span><p>หลบสิ่งกีดขวางที่ไม่มีในแผนที่ — local/global costmap จาก <code>/scan</code> reroute เอง สองสถานการณ์: กล่องนิ่ง (<code>room_obstacle.sdf</code>) และคนเดินตัดหน้าวนซ้ำ (<code>room_walker.sdf</code> + <code>walker_patrol</code>, link ตั้ง kinematic กันล้มตอนหยุดกะทันหัน)</p></div>
+          <div class="mile"><span class="m-id"><span class="tick">○</span><b>M9</b></span><p>Nav2 holonomic — controller MPPI เปิด <code>vy</code> → สไลด์เข้า goal / ผ่านช่องแคบ ไม่ต้องหมุนก่อน</p></div>
+          <div class="mile"><span class="m-id"><span class="tick">○</span><b>M10</b></span><p><code>humanoi_mission</code> orchestrator — เรียก Nav2 actions: ลาดตระเวน waypoint วนลูป · ข้าม waypoint ถ้าติดเกิน N วิ · จบงานกลับจุดเริ่ม</p></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-head"><b>หุ่นฐานจริงนำทาง</b><span class="ph-tag">M11–M14 · Stage 1–2</span></div>
+        <div class="miles">
+          <div class="mile"><span class="m-id"><span class="tick">○</span><b>M11</b></span><p>odometry หุ่นจริง — <code>rf2o</code> laser odometry → <code>/odom</code> + TF บนฐานจริง (ยังไม่ต้องมี encoder)</p></div>
+          <div class="mile"><span class="m-id"><span class="tick">○</span><b>M12</b></span><p>motor driver จริง — เปลี่ยน relay → ESP32 + Cytron MDDS10 ×2 · <code>/cmd_vel</code> → 4 wheel PWM (คุมความเร็วได้) · mixing ย้ายไปเฟิร์มแวร์</p></div>
+          <div class="mile"><span class="m-id"><span class="tick">○</span><b>M13</b></span><p>Nav2 บนฐานจริง — LiDAR จริง (LD19) + ESP32 + laser odom → SLAM + Nav2 → หุ่นจริงขับไป goal ในห้องจริง หลบสิ่งกีดขวาง</p></div>
+          <div class="mile"><span class="m-id"><span class="tick">○</span><b>M14</b></span><p>odometry แม่นขึ้น — dead-wheel pod ×2–3 + IMU → <code>robot_localization</code> EKF fuse → เชื่อถือได้ตอนวิ่งเร็ว/สไลด์</p></div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-head"><b>แขน AR4 + รวมร่าง</b><span class="ph-tag">M15–M18 · Stage 3</span></div>
+        <div class="miles">
+          <div class="mile"><span class="m-id"><span class="tick">○</span><b>M15</b></span><p>แขน AR4 ในซิม — URDF AR4 ติดบน <code>base_link</code> · MoveIt 2 · เล่นท่า pre-program · TF ต่อเนื่อง ล้อ→ปลายแขน</p></div>
+          <div class="mile"><span class="m-id"><span class="tick">○</span><b>M16</b></span><p>ฐาน + แขน ในซิมเดียว — ขับฐานไป station → หยุดนิ่ง → แขนหยิบ/วาง → ขับต่อ · <b>interlock</b>: แขนต้องพับ (stow) ก่อนฐานเคลื่อน · ฐานต้องนิ่งก่อนแขนทำงาน</p></div>
+          <div class="mile"><span class="m-id"><span class="tick">○</span><b>M17</b></span><p>แขน AR4 จริง — Teensy 4.1 + <code>ar4_ros_driver</code> + MoveIt คุมแขนจริง (ฐานจอดนิ่ง) · gripper = Arduino Nano</p></div>
+          <div class="mile"><span class="m-id"><span class="tick">○</span><b>M18</b></span><p><b>Humanoi ทำงานร่วมกัน</b> — Raspberry Pi 5 เป็นสมอง · <code>humanoi_mission</code> ร้อย Nav2 + MoveIt เข้าด้วยกัน · interlock ฮาร์ดแวร์ · RC override ตลอดเวลา · Foxglove สั่งผ่านเว็บ</p></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>ซิม กับ ของจริง</h2>
+    <p class="sec-note">ฝั่งซิมสมบูรณ์แล้ว ฝั่งของจริงยังมีช่องว่างที่ roadmap วางไว้เติมภายหลัง</p>
+    <div class="split">
+      <div class="panel">
+        <h3><span class="k" style="background:var(--flow)"></span>ในซิม (Gazebo) — มีครบ</h3>
+        <ul>
+          <li><b>ตัวหุ่น + ล้อ + LiDAR</b> จาก URDF</li>
+          <li><b>Odometry</b> ground-truth จาก OdometryPublisher</li>
+          <li><b>การเคลื่อนที่</b> kinematic — holonomic เต็ม สไลด์ข้างได้</li>
+          <li><b>โลก</b> ห้อง 10×8 m + กล่อง 3 ชิ้น (<code>room.sdf</code>)</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3><span class="k" style="background:var(--real)"></span>ของจริง — ยังขาด</h3>
+        <ul>
+          <li><b>Odometry</b> — มอเตอร์ไม่มี encoder ยังไม่มีแหล่ง <code>/odom</code></li>
+          <li><b>คุมความเร็ว</b> — relay คุมแค่ทิศ ความเร็วหมุนลูกบิด (รอ Cytron MDDS10)</li>
+          <li><b>LiDAR จริง</b> · <b>Raspberry Pi 5</b> · <b>IMU</b> (roadmap Stage 3)</li>
+          <li><b>รีโมท RC</b> FlySky — ตอนนี้แทนด้วยคีย์บอร์ด</li>
+          <li><b>แขน AR4</b> ×2 (Teensy 4.1 + MoveIt) + <b>safety interlock</b> แขนพับก่อนฐานวิ่ง — M15–M18</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>เขียนพฤติกรรมการตัดสินใจได้ที่ไหน</h2>
+    <p class="sec-note">Nav2 เปิดให้แทรกตรรกะได้หลายชั้น — ตรรกะระดับงานควรอยู่ชั้นบนสุด ไม่ยัดใน BT ของ Nav2</p>
+    <div class="panel">
+      <div class="layers">
+        <div class="layer">
+          <b>Behavior Tree</b>
+          <span>แก้ไฟล์ XML ที่ <code>bt_navigator</code> รัน — จัดเรียง node ใหม่ (เช่น "แบตต่ำ → กลับ dock"), เพิ่ม timeout/retry, หรือเขียน BT node เอง (C++)
+          <em>เครื่องมือ: Groot2</em></span>
+        </div>
+        <div class="layer">
+          <b>Plugin</b>
+          <span>เขียนแทนได้ทุกจุด: planner · controller · behavior (ท่ากู้) · costmap layer (โซนห้ามเข้า / โซนช้า) · progress &amp; goal checker · waypoint task executor
+          <em>ทำงานตอนถึงแต่ละ waypoint</em></span>
+        </div>
+        <div class="layer">
+          <b>Orchestrator</b>
+          <span>โหนดแยกที่เรียก action ของ Nav2 (<code>NavigateToPose</code> · <code>FollowWaypoints</code>) — เป็น state machine หรือ BT ของตัวเอง จัดการ "จะไปไหน ทำอะไร เมื่อไหร่" + สั่งแขน AR4
+          <em>แพ็กเกจ humanoi_mission (ยังไม่สร้าง)</em></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="note">
+      <b>ก้าวถัดไปฝั่งของจริง — odometry.</b>
+      อินเทอร์เฟซคือ <code style="font-family:'IBM Plex Mono',monospace">/odom</code> + TF <code style="font-family:'IBM Plex Mono',monospace">odom→base_footprint</code> — ท้ายน้ำไม่ต้องแก้
+      ทางเลือก: (1) <b>laser odometry</b> จาก LiDAR อย่างเดียว ไม่แตะฮาร์ดแวร์ ทดสอบ Nav2 บนหุ่นจริงได้ทันที ·
+      (2) <b>dead-wheel pod</b> — ล้อ omni อิสระ + encoder ไม่ไถลเหมือนล้อ mecanum (roadmap Stage 2) ·
+      (3) fuse ทั้งคู่ + IMU ด้วย <code style="font-family:'IBM Plex Mono',monospace">robot_localization</code> EKF
+    </div>
+  </section>
+
+  <footer>Humanoi · เอกสารทำงาน · ผ่าน M1–M7 จาก 18 ขั้น · M8 กำลังทดสอบ · ปลายทาง = ฐาน mecanum + AR4 ×2 ทำงานร่วมกัน</footer>
+
+</div>
+
+<script>
+  (function(){
+    var flow = document.querySelector('svg.flow');
+    var bT = document.getElementById('btn-teleop');
+    var bN = document.getElementById('btn-nav');
+    function set(mode){
+      flow.setAttribute('data-mode', mode);
+      var t = mode === 'teleop';
+      bT.setAttribute('aria-pressed', t ? 'true' : 'false');
+      bN.setAttribute('aria-pressed', t ? 'false' : 'true');
+    }
+    bT.addEventListener('click', function(){ set('teleop'); });
+    bN.addEventListener('click', function(){ set('nav'); });
+  })();
+</script>

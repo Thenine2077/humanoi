@@ -1,0 +1,121 @@
+<?xml version="1.0"?>
+<!-- เหมือน room.sdf ทุกอย่าง (สิ่งกีดขวางเดิมตรงกับ maps/room.pgm ทุกจุด — ไม่ต้อง SLAM ใหม่)
+     + โมเดล "walker" (ทรงกระบอกแทนคน) 1 ตัว คุมความเร็วผ่าน /walker/cmd_vel (เหมือนหุ่นคุมผ่าน /cmd_vel)
+     ใช้จำลองสถานการณ์ "goal คงที่ แล้วมีคนเดินตัดผ่านเส้นทางกลางอากาศ" (M8 ส่วนเสริม — dynamic obstacle)
+
+     walker เริ่มอยู่ฝั่งใต้ (y=-2.5) ไม่ขวางทางตอนแรก แล้วค่อยสั่งให้เดินขึ้นเหนือ (+y) ตัดผ่าน
+     เส้นทาง (0,0)->(4,0) ตอนหุ่นกำลังวิ่งอยู่ — ดูขั้นตอนสั่งใน docs/RUN.md -->
+<sdf version="1.10">
+  <world name="humanoi_room_walker">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"      name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"  name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system"            name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-sensors-system"            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.8 0.9 1</background>
+      <grid>true</grid>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.4 0.4 0.4 1</specular>
+      <direction>-0.4 0.2 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry>
+          <material><ambient>0.8 0.8 0.8 1</ambient><diffuse>0.8 0.8 0.8 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ผนัง 4 ด้าน : ห้อง 10 (x) x 8 (y) ผนังสูง 1 m หนา 0.15 m -->
+    <model name="walls">
+      <static>true</static>
+      <link name="link">
+        <collision name="n"><pose> 0  4 0.5 0 0 0</pose><geometry><box><size>10.15 0.15 1</size></box></geometry></collision>
+        <visual    name="nv"><pose> 0  4 0.5 0 0 0</pose><geometry><box><size>10.15 0.15 1</size></box></geometry><material><diffuse>0.7 0.7 0.72 1</diffuse></material></visual>
+        <collision name="s"><pose> 0 -4 0.5 0 0 0</pose><geometry><box><size>10.15 0.15 1</size></box></geometry></collision>
+        <visual    name="sv"><pose> 0 -4 0.5 0 0 0</pose><geometry><box><size>10.15 0.15 1</size></box></geometry><material><diffuse>0.7 0.7 0.72 1</diffuse></material></visual>
+        <collision name="e"><pose> 5  0 0.5 0 0 0</pose><geometry><box><size>0.15 8 1</size></box></geometry></collision>
+        <visual    name="ev"><pose> 5  0 0.5 0 0 0</pose><geometry><box><size>0.15 8 1</size></box></geometry><material><diffuse>0.7 0.7 0.72 1</diffuse></material></visual>
+        <collision name="w"><pose>-5  0 0.5 0 0 0</pose><geometry><box><size>0.15 8 1</size></box></geometry></collision>
+        <visual    name="wv"><pose>-5  0 0.5 0 0 0</pose><geometry><box><size>0.15 8 1</size></box></geometry><material><diffuse>0.7 0.7 0.72 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="box_1">
+      <static>true</static>
+      <pose>2.0 1.5 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.8 0.8 0.8</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.8 0.8 0.8</size></box></geometry><material><diffuse>0.85 0.4 0.2 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="box_2">
+      <static>true</static>
+      <pose>-1.5 -1.0 0.4 0 0 0.5</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>1.2 0.5 0.8</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1.2 0.5 0.8</size></box></geometry><material><diffuse>0.3 0.5 0.7 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="pillar">
+      <static>true</static>
+      <pose>-2.5 2.2 0.6 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.25</radius><length>1.2</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.25</radius><length>1.2</length></cylinder></geometry><material><diffuse>0.5 0.5 0.5 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- ===== walker (M8 เสริม) — "คน" ทรงกระบอก คุมความเร็วเองผ่าน /walker/cmd_vel
+         เริ่มที่ (2.0, -2.5) ยืนนิ่ง ไม่ขวางทาง จนกว่าจะสั่งให้เดิน (ดู docs/RUN.md) ===== -->
+    <model name="walker">
+      <static>false</static>
+      <pose>2.0 -2.5 0.85 0 0 0</pose>
+      <link name="link">
+        <!-- kinematic = เคลื่อนที่ตามคำสั่งความเร็วตรงๆ ไม่โดนแรงโน้มถ่วง/แรงกระแทกจากพื้น
+             (ทรงสูงบางแบบนี้ ถ้าเป็น dynamic เต็มรูปแบบ พอสั่งหยุดกะทันหันจะล้มคว่ำ) -->
+        <kinematic>true</kinematic>
+        <inertial>
+          <mass>70.0</mass>
+          <inertia><ixx>20.0</ixx><ixy>0</ixy><ixz>0</ixz><iyy>20.0</iyy><iyz>0</iyz><izz>3.0</izz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><cylinder><radius>0.2</radius><length>1.7</length></cylinder></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.2</radius><length>1.7</length></cylinder></geometry>
+          <material><ambient>0.9 0.6 0.05 1</ambient><diffuse>0.9 0.6 0.05 1</diffuse></material>
+        </visual>
+      </link>
+      <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl">
+        <topic>walker/cmd_vel</topic>
+      </plugin>
+    </model>
+
+  </world>
+</sdf>
