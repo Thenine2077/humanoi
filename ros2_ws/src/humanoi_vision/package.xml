@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>humanoi_vision</name>
+  <version>0.0.1</version>
+  <description>YOLO บนการ์ด Hailo-10H ตรวจจับวัตถุจากภาพสีของกล้อง Astra Pro บนหุ่น Humanoi</description>
+  <maintainer email="nayzalovehrk@gmail.com">User</maintainer>
+  <license>MIT</license>
+
+  <!-- ตัวคิดบนการ์ด Hailo (scripts/hailo_yolo_server.py) รันบน Raspberry Pi OS นอก container -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>vision_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>humanoi_description</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

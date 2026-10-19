@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# เปิด MoveIt + RViz ของแขน AR4 บนหน้าจอ Pi (ดูและคลิกผ่าน Raspberry Pi Connect)
-# รันบน Pi นอก container:  bash ~/Humanoi/scripts/arm_moveit.sh
+# เปิด MoveIt + RViz ของแขน AR4 สองตัวบนหน้าจอ Pi (ดูและคลิกผ่าน Raspberry Pi Connect)
+# รันบน Pi นอก container:  bash ~/Humanoi/scripts/arm_moveit.sh   (หรือ arm moveit)
 #
-# ต้องเปิดระบบแขน (ar_hardware.launch.py) ไว้ก่อน — กด Plan & Execute ใน RViz แล้ว "แขนจริง" ขยับ
+# ต้องเปิดระบบแขน (arm start = ar_dual dual_hardware.launch.py) ไว้ก่อน
+# ใน RViz: Planning Group เลือก left_arm / right_arm / both_arms -> ลากลูกบอลหรือแท็บ Joints -> Plan & Execute
+# = "แขนจริง" ขยับ (MoveIt เช็กการชนแขนกับแขน และแขนกับเสา/หัว/กล้องให้ตอน Plan)
 # ปิด: Ctrl+C ในหน้าต่างนี้ (ระบบแขนกับ arm_program ยังเปิดอยู่ต่อ)
 set -euo pipefail
 
@@ -11,5 +13,4 @@ set -euo pipefail
 docker cp "$HOME/.Xauthority" humanoi_ros:/root/.Xauthority
 
 exec docker exec -it -e DISPLAY=:0 -e XAUTHORITY=/root/.Xauthority humanoi_ros /entrypoint.sh \
-  ros2 launch ar_gz_bringup ar_moveit_jazzy.launch.py \
-  rviz_config:=/humanoi_ws/src/ar_gz_bringup/config/ar_moveit.rviz
+  ros2 launch ar_dual dual_moveit.launch.py

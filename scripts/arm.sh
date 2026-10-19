@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
-# arm — คำสั่งลัดคุมแขน AR4 บน Raspberry Pi (รันนอก container ได้เลย ไม่ต้อง docker exec เอง)
+# arm — คำสั่งลัดคุมแขน AR4 สองตัว (ซ้าย = แขน 1, ขวา = แขน 2) บน Raspberry Pi (รันนอก container ได้เลย)
 # ติดตั้งเป็นคำสั่ง `arm` ด้วย alias ใน ~/.bashrc:  alias arm='bash ~/Humanoi/scripts/arm.sh'
 # ดูคำสั่งทั้งหมด:  arm help      คู่มือเต็ม: docs/AR4_ARM_COMMANDS.md
+# ระบบสองแขน = แพ็กเกจ ar_dual (โมเดลรวมสองแขน + เสา, ros2_control Teensy สองตัว, MoveIt เช็กการชน)
 set -uo pipefail
 
 C=humanoi_ros
-PORT=/dev/serial/by-id/usb-Teensyduino_USB_Serial_13173040-if00
+# พอร์ต Teensy: หาเองทุกครั้งโดยถามชื่อแขนที่เก็บไว้ในบอร์ด (เฟิร์มแวร์ AR4_ROS2_seq v2 + ar_dual/scripts/ar_ports.py)
+# — ย้ายสาย USB ไปพอร์ตไหนของ Pi ก็ได้ (ปิดไฟแขนก่อนถอด/เสียบเสมอ) · ตั้งชื่อครั้งแรก/หลังเปลี่ยนบอร์ด: arm identify
+# (Teensy สองตัวรายงานหมายเลข USB ซ้ำกัน 13173040 /dev/serial/by-id จึงแยกไม่ได้ ส่วน by-path ผูกกับพอร์ต)
+# บังคับพอร์ตเองได้: LEFT_TEENSY=/dev/serial/by-path/... RIGHT_TEENSY=... arm start
+# Nano (CH340) ก็ไม่มีหมายเลขเฉพาะ — ยังไม่ได้ใช้ใน ROS (มือจับ) ยังไม่ได้ทำให้หาเอง
+LEFT_TEENSY="${LEFT_TEENSY:-}"
+RIGHT_TEENSY="${RIGHT_TEENSY:-}"
 MEGA=/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_858303033393517150C0-if00
+# ลำดับข้อต่อตอน calibrate (เฟิร์มแวร์ AR4_ROS2_seq เลือกข้อได้) — ว่าง = ต้องใส่เองทุกครั้ง
+# ตั้งหลังไล่ลองทีละข้อแล้วว่ามือที่ติดปลายแขนไม่ชน เช่น "6 5 4 1 2 3" (เลขติดกัน เช่น "456" = พร้อมกัน)
+LEFT_CAL_ORDER=""
+RIGHT_CAL_ORDER=""
 
 ros() { docker exec "$C" /entrypoint.sh "$@"; }          # คำสั่งสั้น ไม่ต้องโต้ตอบ
 ros_tty() { docker exec -it "$C" /entrypoint.sh "$@"; }  # คำสั่งที่เปิดค้าง กด Ctrl+C ได้
@@ -19,15 +30,35 @@ need_container() {
   fi
 }
 
-need_free_arm() {  # กันเปิดระบบแขนซ้อนสองชุด (เคยทำให้ข้อความกับ Teensy ปนกันจนแขนขยับมั่ว)
+need_no_system() {  # กันเปิดระบบแขนซ้อนสองชุด / calibrate ขณะระบบแขนถือพอร์ตอยู่ (เคยทำให้แขนขยับมั่ว)
   if is_running ros2_control_node; then
     echo "✗ ระบบแขนเปิดอยู่แล้ว — ห้ามเปิดซ้อน ปิดหน้าต่างเดิมด้วย Ctrl+C หรือสั่ง: arm off"
     exit 1
   fi
-  if [ ! -e "$PORT" ]; then
-    echo "✗ ไม่เจอ Teensy ($PORT) — เสียบ USB ของแขนเข้า Pi และเปิดไฟแขนก่อน"
+}
+
+resolve_ports() {  # เติม LEFT_TEENSY / RIGHT_TEENSY จากชื่อแขนในบอร์ด (ระบบแขนต้องปิดอยู่ บอร์ดถึงตอบ)
+  [ -n "$LEFT_TEENSY" ] && [ -n "$RIGHT_TEENSY" ] && return
+  local out
+  out=$(ros ros2 run ar_dual ar_ports.py) || true
+  [ -n "$LEFT_TEENSY" ] || LEFT_TEENSY=$(sed -n 's/.*left=\([^ ]*\).*/\1/p' <<< "$out")
+  [ -n "$RIGHT_TEENSY" ] || RIGHT_TEENSY=$(sed -n 's/.*right=\([^ ]*\).*/\1/p' <<< "$out")
+}
+
+need_port() {  # need_port <พอร์ต> <ชื่อแขน>
+  if [ -z "$1" ] || [ ! -e "$1" ]; then
+    echo "✗ หาบอร์ด Teensy แขน$2 ไม่เจอ — เสียบ USB + เปิดไฟแขน แล้วดู: arm ports"
+    echo "  (บอร์ดที่ยังไม่ตั้งชื่อ: arm identify · บอร์ดที่ค้างใน calibrate ต้องปิด-เปิดไฟแขนก่อน)"
     exit 1
   fi
+}
+
+arm_name() {  # left|1|ซ้าย -> left · right|2|ขวา -> right
+  case "${1:-}" in
+    left|l|1|ซ้าย) echo left ;;
+    right|r|2|ขวา) echo right ;;
+    *) echo "" ;;
+  esac
 }
 
 need_player() {
@@ -46,8 +77,13 @@ need_container
 case "$cmd" in
   status)
     echo "สถานะ:"
-    if [ -e "$PORT" ]; then echo "  ✓ Teensy เสียบอยู่"; else echo "  ✗ Teensy ไม่ได้เสียบ"; fi
-    show ros2_control_node "ระบบแขน          (arm start / arm calibrate)"
+    if is_running ros2_control_node; then
+      echo "  (ระบบแขนใช้พอร์ต Teensy อยู่ — ดูบอร์ดได้หลัง arm off ด้วย arm ports)"
+    else
+      ros ros2 run ar_dual ar_ports.py --list | sed 's/^/  /'
+    fi
+    show "ar_dual.*dual_hardware" "ระบบสองแขน      (arm start)"
+    show "ar_hardware_interface ar_hardware.launch" "ระบบแขนเดี่ยวแบบเก่า (ควรปิด: arm off)"
     show "lib/ar_program/arm_program" "ตัวเล่นโปรแกรม     (arm player)"
     show move_group "MoveIt + RViz      (arm moveit)"
     show "lib/humanoi_base/rc_arm_trigger" "สวิตช์รีโมท        (arm remote)"
@@ -58,25 +94,94 @@ case "$cmd" in
     fi
     ;;
 
+  ports)
+    need_no_system
+    ros ros2 run ar_dual ar_ports.py --list
+    ;;
+
+  name)
+    arm=$(arm_name "${2:-}")
+    [ $# -ge 2 ] && [ -n "$arm" ] || { echo "ใช้: arm name <พอร์ต จาก arm ports> <left|right>   (ตั้งชื่อแขนเก็บในบอร์ด ทำครั้งเดียว)"; exit 1; }
+    need_no_system
+    ros ros2 run ar_dual ar_ports.py --name "$1" "$arm"
+    ;;
+
+  identify)  # ตั้งชื่อบอร์ดโดยดูว่าแขนไหนขยับ — แทนการถอดสาย USB (ห้ามถอด/เสียบขณะไฟแขนเปิด)
+    need_no_system
+    if [ $# -ge 1 ]; then
+      ros_tty ros2 run ar_dual ar_ports.py --wiggle "$1"
+    else
+      ros_tty ros2 run ar_dual ar_ports.py --identify
+    fi
+    ;;
+
+  dir)
+    arm=$(arm_name "${1:-}")
+    [ -n "$arm" ] && [ $# -ge 2 ] || { cat <<'EOF'
+ใช้: arm dir <left|right> <6 หลัก J1..J6>   ตั้งข้อที่มอเตอร์หมุนกลับด้าน (1 = กลับ) เก็บในบอร์ด
+  เช่น  arm dir right 000010   = J5 แขนขวากลับทิศ · arm dir right 000000 = ปกติทุกข้อ
+  ใช้เมื่อ calibrate แล้วข้อนั้นหมุนหนีสวิตช์ (ขึ้น FAIL) — ตั้งแล้วต้อง calibrate ข้อนั้นใหม่
+EOF
+      exit 1; }
+    need_no_system
+    resolve_ports
+    port=$LEFT_TEENSY; [ "$arm" = right ] && port=$RIGHT_TEENSY
+    need_port "$port" "$arm"
+    ros ros2 run ar_dual ar_ports.py --dir "$port" "$2"
+    ;;
+
   calibrate)
-    need_free_arm
-    cat <<'EOF'
-=== CALIBRATE — แขนจะหมุนทุกแกนไปชนสวิตช์ แล้วกลับท่าพัก (ราว 2 นาที) ===
- • รอบแขนต้องโล่ง สาย USB หย่อนพ้นรัศมีแขน (ฐาน J1 หมุนไปถึง −170°)
- • log จะเงียบ หรือขึ้น error/Failed to acquire lock ก็ได้ — ช่างมัน
- • ห้ามกด Ctrl+C จนกว่าแขนจะ "หยุดนิ่งที่ท่าพัก"
- • แขนนิ่งแล้ว: กด Ctrl+C แล้วสั่ง  arm start
+    arm=$(arm_name "${1:-}")
+    [ -n "$arm" ] || { echo "ใช้: arm calibrate <left|right> [ลำดับข้อ เช่น 6 5 4 1 2 3 | all]   (ทีละแขน)"; exit 1; }
+    shift
+    need_no_system
+    resolve_ports
+    port=$LEFT_TEENSY; [ "$arm" = right ] && port=$RIGHT_TEENSY
+    th=ซ้าย; [ "$arm" = right ] && th=ขวา
+    order=("$@")
+    if [ ${#order[@]} -eq 0 ]; then  # ลำดับที่ใช้ได้แล้วของแต่ละแขน (ตั้งหลังไล่ลองทีละข้อว่ามือไม่ชน)
+      default=$LEFT_CAL_ORDER; [ "$arm" = right ] && default=$RIGHT_CAL_ORDER
+      if [ -z "$default" ]; then
+        cat <<EOF
+ยังไม่ได้ตั้งลำดับ calibrate ของแขน$th — ใส่ลำดับข้อเอง เช่น
+  arm calibrate $arm 5            ข้อเดียว (ไล่ลองทีละข้อว่าข้อไหนพามือไปชน)
+  arm calibrate $arm 6 5 4 1 2 3  ทีละข้อตามลำดับ
+  arm calibrate $arm all          6 ข้อพร้อมกันแบบต้นฉบับ (มือที่ติดปลายแขนอาจชน)
+ได้ลำดับที่ปลอดภัยแล้ว ตั้งเป็นค่าเริ่มได้ที่ LEFT_CAL_ORDER / RIGHT_CAL_ORDER ใน scripts/arm.sh
+EOF
+        exit 1
+      fi
+      read -r -a order <<< "$default"
+    fi
+    need_port "$port" "$th"
+    cat <<EOF
+=== CALIBRATE แขน$th — ลำดับ: ${order[*]} ===
+ • แต่ละข้อหมุนไปชนสวิตช์ ถอยออก แล้วกลับท่าพัก ก่อนไปข้อถัดไป (ข้อที่ไม่ได้ทำไม่ขยับ)
+ • ดูให้แน่ใจว่าแขนที่ขยับคือแขน$th (ครั้งแรกหลังย้ายสาย) — ไม่ใช่ หรือมือจะชน ให้ปิดไฟแขนทันที
+ • รอบแขนต้องโล่ง สาย USB หย่อนพ้นรัศมีแขน (J1 หมุนไปถึง −170°) อีกแขนต้องไม่อยู่ในทาง
+ • ถ้า USB หลุดกลางทางไม่เป็นไร — แขนทำต่อเอง โปรแกรมจะรอจนเสร็จ
 EOF
     read -r -p "พร้อมแล้วกด Enter (ยกเลิกกด Ctrl+C) " _
-    ros_tty ros2 launch ar_hardware_interface ar_hardware.launch.py serial_port:="$PORT" calibrate:=True
-    echo
-    echo "ถ้าแขนนิ่งที่ท่าพักแล้ว สั่งต่อ:  arm start"
+    ros_tty ros2 run ar_dual ar_calibrate.py "$port" "${order[@]}" \
+      && echo "เสร็จแล้ว — calibrate ข้ออื่น/อีกแขน หรือเปิดระบบ: arm start"
     ;;
 
   start)
-    need_free_arm
-    echo "เปิดระบบแขน (ไม่ calibrate) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
-    ros_tty ros2 launch ar_hardware_interface ar_hardware.launch.py serial_port:="$PORT" calibrate:=False
+    need_no_system
+    left_hw=real; right_hw=real
+    case "${1:-}" in
+      "") ;;
+      left|l|1|ซ้าย) right_hw=mock ;;
+      right|r|2|ขวา) left_hw=mock ;;
+      *) echo "ใช้: arm start [left|right]   (ไม่ใส่ = สองแขน, left/right = แขนเดียว อีกแขนเป็นแบบจำลอง)"; exit 1 ;;
+    esac
+    resolve_ports
+    [ "$left_hw" = real ] && need_port "$LEFT_TEENSY" ซ้าย
+    [ "$right_hw" = real ] && need_port "$RIGHT_TEENSY" ขวา
+    echo "เปิดระบบแขน (ซ้าย=$left_hw ${LEFT_TEENSY:+@ $LEFT_TEENSY} · ขวา=$right_hw ${RIGHT_TEENSY:+@ $RIGHT_TEENSY})"
+    echo "ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C · แขนต้อง calibrate แล้ว ไม่งั้นตำแหน่งที่ระบบเห็นจะผิด"
+    ros_tty ros2 launch ar_dual dual_hardware.launch.py left_port:="${LEFT_TEENSY:-none}" \
+      right_port:="${RIGHT_TEENSY:-none}" left_hw:=$left_hw right_hw:=$right_hw
     ;;
 
   player)
@@ -117,8 +222,9 @@ EOF
 
   run|goto)
     if [ "$cmd" = goto ]; then
-      [ $# -ge 1 ] || { echo "ใช้: arm goto <ชื่อท่า>   (พาแขนไปท่าเดียว ดูชื่อด้วย arm list)"; exit 1; }
-      target="@$1"; what="ไปท่า '$1'"
+      arm=$(arm_name "${1:-}")
+      [ -n "$arm" ] && [ $# -ge 2 ] || { echo "ใช้: arm goto <left|right> <ชื่อท่า>   (ดูชื่อด้วย arm list)"; exit 1; }
+      target="@$arm:$2"; what="แขน $arm ไปท่า '$2'"
     else
       [ $# -ge 1 ] || { echo "ใช้: arm run <ชื่อโปรแกรม>   (ดูชื่อด้วย arm list)"; exit 1; }
       target="$1"; what="เล่นโปรแกรม '$1'"
@@ -132,26 +238,38 @@ EOF
     ;;
 
   stop)
-    ros ros2 topic pub --once /arm/stop std_msgs/msg/Empty "{}" >/dev/null && echo "ส่งคำสั่งหยุดแล้ว"
+    ros ros2 topic pub --once /arm/stop std_msgs/msg/Empty "{}" >/dev/null && echo "ส่งคำสั่งหยุดแล้ว (ทุกแขน)"
     ;;
 
   list)
     ros ros2 run ar_program teach --list
     ;;
 
+  show)
+    [ $# -ge 1 ] || { echo "ใช้: arm show <ชื่อโปรแกรม>   (ดูเป็นตาราง ขั้น | แขนซ้าย | แขนขวา)"; exit 1; }
+    ros ros2 run ar_program teach --show "$1"
+    ;;
+
   teach)
-    [ $# -ge 1 ] || { echo "ใช้: arm teach <ชื่อท่า>   (บันทึกท่าปัจจุบันของแขน)"; exit 1; }
-    ros ros2 run ar_program teach "$1"
+    arm=$(arm_name "${1:-}")
+    [ -n "$arm" ] && [ $# -ge 2 ] || { echo "ใช้: arm teach <left|right> <ชื่อท่า>   (บันทึกท่าปัจจุบันของแขนนั้น)"; exit 1; }
+    ros ros2 run ar_program teach "$2" --arm "$arm"
     ;;
 
   program)
-    [ $# -ge 2 ] || { echo "ใช้: arm program <ชื่อโปรแกรม> <ท่า1> <ท่า2> wait=1.0 <ท่า3> ..."; exit 1; }
+    [ $# -ge 2 ] || { cat <<'EOF'
+ใช้: arm program <ชื่อโปรแกรม> <ขั้น1> <ขั้น2> ...
+  แต่ละขั้น = <ท่าแขนซ้าย>/<ท่าแขนขวา>   ใช้ - ถ้าแขนนั้นอยู่นิ่งในขั้นนั้น   wait=วินาที = รอ
+  เช่น  arm program pick2 act1/act1 act2/- act3/act2 -/act3 wait=1.0 rest/rest
+EOF
+      exit 1; }
     ros ros2 run ar_program teach --program "$@"
     ;;
 
   delete)
-    [ $# -ge 1 ] || { echo "ใช้: arm delete <ชื่อท่า>"; exit 1; }
-    ros ros2 run ar_program teach --delete "$1"
+    arm=$(arm_name "${1:-}")
+    [ -n "$arm" ] && [ $# -ge 2 ] || { echo "ใช้: arm delete <left|right> <ชื่อท่า>"; exit 1; }
+    ros ros2 run ar_program teach --delete "$2" --arm "$arm"
     ;;
 
   delete-program)
@@ -161,8 +279,8 @@ EOF
 
   off)
     echo "ปิดทุกอย่างของแขน (แขนค้างที่ท่าปัจจุบัน)..."
-    for p in "ros2 launch ar_program" "ros2 launch ar_gz_bringup" "ros2 launch ar_hardware_interface" \
-             "lib/humanoi_base/rc_arm_trigger"; do
+    for p in "ros2 launch ar_program" "ros2 launch ar_dual" "ros2 launch ar_gz_bringup" \
+             "ros2 launch ar_hardware_interface" "lib/humanoi_base/rc_arm_trigger" "ar_calibrate.py"; do
       docker exec "$C" pkill -INT -f "$p" 2>/dev/null
     done
     for _ in $(seq 1 15); do
@@ -177,28 +295,44 @@ EOF
 
   help|*)
     cat <<'EOF'
-arm — คำสั่งลัดแขน AR4 (รันบน Pi นอก container)
+arm — คำสั่งลัดแขน AR4 สองตัว (รันบน Pi นอก container) · left = แขน 1 (ซ้ายเมื่อมองจากตัวหุ่น), right = แขน 2
+
+ บอร์ดแขน (หาพอร์ตเองจากชื่อที่เก็บในบอร์ด — ย้ายสาย USB ได้)
+   arm ports                   ดูบอร์ด Teensy ทุกตัว: พอร์ต ชื่อแขน ข้อที่ตั้งกลับทิศ
+   arm identify                ตั้งชื่อบอร์ด (ครั้งแรก / หลังเปลี่ยนบอร์ด): ข้อ 6 หมุนไป-กลับ 10° ทีละบอร์ด
+                               ดูว่าแขนไหนขยับแล้วตอบ l = ซ้าย / r = ขวา — ไม่ต้องถอดสาย
+   arm identify <left|right>   หมุนข้อ 6 ของแขนชื่อนั้น เช็กว่าชื่อตรงกับแขนจริง
+   arm name <พอร์ต> <left|right>  ตั้งชื่อแขนให้บอร์ดตรงๆ (ถ้ารู้พอร์ตอยู่แล้ว)
+   arm dir <left|right> <J1..J6>   ตั้งข้อที่มอเตอร์หมุนกลับด้าน เช่น arm dir right 000010
+   ห้ามถอด/เสียบ USB ของแขนขณะไฟแขนเปิด — ปิดไฟแขนก่อนเสมอ (Pi 5 เคยเสียจากเรื่องนี้)
 
  เริ่มใช้งาน (คำสั่งที่เปิดค้าง ให้ใช้หน้าต่างละคำสั่ง)
-   arm status               ดูว่าอะไรเปิดอยู่บ้าง
-   arm calibrate            calibrate (ต้องทำหลังปิดไฟแขน/ถอด USB/แขนชน/สายพานรูด)
-   arm start                เปิดระบบแขน (หน้าต่าง 1 — เปิดค้าง)
-   arm player [speed]       เปิดตัวเล่นโปรแกรม (หน้าต่าง 2 — เปิดค้าง) ค่าเริ่ม 0.19
-   arm moveit               เปิด MoveIt + RViz บนจอ Pi (รันในเทอร์มินัลบนเดสก์ท็อป Pi)
-   arm remote [โปรแกรม]      สั่งจากรีโมท: SWB โยกลง = เล่นโปรแกรม (ค่าเริ่ม 1), SWD โยกลง = หยุด (เปิดค้าง)
+   arm status                  ดูว่าอะไรเปิดอยู่บ้าง
+   arm calibrate <left|right> [ข้อ...]  calibrate ทีละแขน ทีละข้อตามลำดับ เช่น 6 5 4 1 2 3 (หรือ all = พร้อมกัน)
+                               ต้องทำหลังปิดไฟแขน/ถอด USB/แขนชน/สายพานรูด
+   arm start [left|right]      เปิดระบบแขน (หน้าต่าง 1 — เปิดค้าง) ไม่ใส่ = สองแขน
+   arm player [speed]          เปิดตัวเล่นโปรแกรม (หน้าต่าง 2 — เปิดค้าง) ค่าเริ่ม 0.19
+   arm moveit                  MoveIt + RViz สองแขน บนจอ Pi — Planning Group เลือก left_arm/right_arm/both_arms
+   arm remote [โปรแกรม]         สั่งจากรีโมท: SWB โยกลง = เล่นโปรแกรม (ค่าเริ่ม 1), SWD โยกลง = หยุด (เปิดค้าง)
 
- ใช้งาน (หน้าต่างไหนก็ได้)
-   arm run <โปรแกรม>         เล่นโปรแกรม รอจนจบแล้วบอกผล
-   arm stop                 หยุดโปรแกรมกลางคัน
-   arm list                 ดูท่าและโปรแกรมทั้งหมด
-   arm teach <ท่า>          บันทึกท่าปัจจุบันของแขน
-   arm program <ชื่อ> <ท่า...>  สร้างโปรแกรม เช่น arm program pick rest above wait=1.0 rest
-   arm goto <ท่า>           พาแขนไปท่าเดียว (ใช้ตอนแก้ท่า: goto -> ปรับใน MoveIt -> teach ชื่อเดิม)
-   arm delete <ท่า>         ลบท่า (ต้องไม่มีโปรแกรมไหนใช้อยู่)
-   arm delete-program <ชื่อ>  ลบโปรแกรม (ท่าในโปรแกรมยังอยู่)
+ สอนท่า / สร้างโปรแกรม (หน้าต่างไหนก็ได้)
+   arm teach <left|right> <ท่า>       บันทึกท่าปัจจุบันของแขนนั้น (ชื่อท่าซ้ำกันข้ามแขนได้)
+   arm program <ชื่อ> <ขั้น...>        แต่ละขั้น <ท่าซ้าย>/<ท่าขวา> ใช้ - = แขนนั้นอยู่นิ่ง, wait=วินาที
+                                      เช่น arm program pick2 act1/act1 act2/- act3/act2 -/act3
+   arm show <ชื่อ>                    ดูโปรแกรมเป็นตาราง ขั้น | แขนซ้าย | แขนขวา
+   arm list                           ดูท่าทุกแขนและโปรแกรมทั้งหมด
+   arm delete <left|right> <ท่า>      ลบท่า (ต้องไม่มีโปรแกรมไหนใช้อยู่)
+   arm delete-program <ชื่อ>           ลบโปรแกรม (ท่าในโปรแกรมยังอยู่)
+
+ เล่น
+   arm run <โปรแกรม>                  เล่นโปรแกรม รอจนจบแล้วบอกผล (ทุกขั้น แขนที่มีท่าเริ่มและถึงพร้อมกัน)
+   arm goto <left|right> <ท่า>        พาแขนเดียวไปท่าเดียว (ใช้ตอนแก้ท่า: goto -> ปรับใน MoveIt -> teach ชื่อเดิม)
+   arm stop                           หยุดโปรแกรมกลางคัน (ทุกแขน)
 
  ปิด
-   arm off                  ปิดทุกอย่างของแขน
+   arm off                            ปิดทุกอย่างของแขน
+
+ ไม่มีการเช็คการชนตอน arm run/goto (รวมสองแขนชนกันเอง) — ทดสอบโปรแกรมใหม่ด้วย speed ต่ำก่อนเสมอ
 EOF
     ;;
 esac

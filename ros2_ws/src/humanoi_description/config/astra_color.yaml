@@ -1,0 +1,22 @@
+# ค่าเลนส์กล้องสี Astra Pro — สร้างโดย humanoi_vision calibrate_color 2026-10-15 06:13 UTC จาก 30 ภาพ
+# ใช้ค่านี้ 15 ต.ค. หลังตรวจด้วย check_depth_scale: กระดาษเลื่อน 22.0 cm (ภาพสี) vs 21.8 cm (depth) = สเกลตรงกัน +0.9% · ภาพสีห่างกว่า depth ~3.2 cm คงที่ (จุดศูนย์เหลื่อม) · rms 0.895 px · ช่อง 28.2 mm
+image_width: 640
+image_height: 480
+camera_name: rgb_camera
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [631.976933, 0.000000, 321.588382, 0.000000, 633.190379, 229.811870, 0.000000, 0.000000, 1.000000]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.177552, -0.212350, 0.000000, 0.000000, 0.000000]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [631.976933, 0.000000, 321.588382, 0.000000, 0.000000, 633.190379, 229.811870, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Checkerboard 9x6 25 mm</title>
+<!--
+  ตารางหมากรุกสำหรับ calibrate เลนส์กล้องสีของ Astra Pro (humanoi_vision calibrate_color)
+  10 x 7 ช่อง = มุมด้านใน 9 x 6, ช่องละ 25 mm, กระดาษ A4 แนวนอน
+  สร้าง PDF: msedge --headless --no-pdf-header-footer --print-to-pdf=checkerboard_9x6_25mm.pdf checkerboard_9x6_25mm.html
+-->
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  html, body { margin: 0; padding: 0; }
+  body { width: 297mm; height: 210mm; position: relative; font-family: "Leelawadee UI", "Tahoma", sans-serif; }
+  svg { position: absolute; left: 23.5mm; top: 10mm; width: 250mm; height: 175mm; }
+  .note { position: absolute; left: 23.5mm; top: 188mm; width: 250mm; font-size: 9pt; line-height: 1.45; color: #222; }
+  .note b { font-weight: 700; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 10 7" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="10" height="7" fill="#fff"/>
+  <g fill="#000" id="squares"></g>
+</svg>
+<div class="note">
+  <b>Checkerboard 9×6 (มุมด้านใน) · ช่องละ 25 mm</b> — พิมพ์แบบ <b>Actual size / 100%</b> (ห้ามเลือก Fit to page)
+  · ตรวจด้วยไม้บรรทัด: 10 ช่อง = 250 mm · ติดบนแผ่นแข็งที่<b>เรียบ</b> (ลังกระดาษ/อะคริลิก) ห้ามโค้งงอ — ขอบขาวรอบตารางต้องเหลือไว้
+  · ใช้กับ <b>ros2 launch humanoi_vision calibrate_color.launch.py</b>
+</div>
+<script>
+  // 10 x 7 ช่อง มุมซ้ายบนเป็นสีดำ
+  const g = document.getElementById("squares");
+  for (let r = 0; r < 7; r++) for (let c = 0; c < 10; c++) if ((r + c) % 2 === 0) {
+    const s = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    s.setAttribute("x", c); s.setAttribute("y", r); s.setAttribute("width", 1); s.setAttribute("height", 1);
+    g.appendChild(s);
+  }
+</script>
+</body>
+</html>

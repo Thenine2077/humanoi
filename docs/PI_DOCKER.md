@@ -118,6 +118,78 @@ bash ~/Humanoi/scripts/arm_moveit.sh
 - แฟลชเฟิร์มแวร์ Teensy จาก Pi ได้ (ไม่ต้องย้ายสาย): `teensy_loader_cli --mcu=TEENSY41 -w -v ไฟล์.hex` ใน container
   (ลงด้วย apt ไว้ใน container — หายถ้าสร้าง container ใหม่) ถ้าขึ้น `error writing to Teensy` ให้สั่งซ้ำอีกครั้ง
 
+## กล้อง Astra Pro + YOLO บนการ์ด Hailo-10H (ตรวจจับวัตถุ)
+
+```bash
+# ใน container: กล้อง + yolo_node + Foxglove (ตัวคิดบนการ์ด Hailo เปิดเองตอนบูตแล้ว)
+ros2 launch humanoi_vision yolo.launch.py
+ros2 launch humanoi_vision yolo.launch.py classes:=bottle,cup conf:=0.5   # เฉพาะบางคลาส
+```
+
+มีหน้าต่างภาพบนจอ Pi (กรอบ + รายการ X Y Z + ระยะเส้นตรง `dist` ที่เทียบกับตลับเมตรได้): บน Pi นอก container
+`bash ~/Humanoi/scripts/yolo_view.sh` (ออก: Ctrl+C) — ช้าลงเหลือ ~17 fps จากการวาดภาพ
+
+`depth_offset` (ค่าเริ่ม 0.03 m) บวกเข้ากับระยะ depth: Astra Pro อ่านสั้นกว่าระยะจากเลนส์สีราว 3 cm คงที่
+(ทดสอบ 15 ต.ค.: ขวด 3 จุดตรงตลับเมตรภายใน 1 cm, เทป 2 แถบห่าง 20 cm วัดได้ 19.7) — ปิดได้ด้วย `depth_offset:=0.0`
+พิกัดใน `/yolo/detections_3d` อยู่ในเฟรม `camera_color_optical_frame` (X ขวา, Y ลง, Z ไปข้างหน้า)
+
+ของที่ใกล้กว่า ~60 cm (พื้นที่ที่แขนเอื้อมถึง) depth วัดไม่ได้ → `table_mode:=auto` (ค่าเริ่ม) หาผิวโต๊ะจาก depth ส่วนที่ไกล
+ทุก 2 วินาที แล้วคิดตำแหน่งของที่ตั้งบนโต๊ะจากกรอบ YOLO (มองเป็นทรงกระบอก ได้ใจกลาง + กว้าง + สูง) ขึ้น `[table]`
+ในรายการ · `table_mode:=always` ใช้วิธีนี้กับทุกชิ้น (ไว้เทียบกับ depth) · ใช้ได้กับของที่ตั้งบนโต๊ะเท่านั้น
+
+ตัวคิดบนการ์ด Hailo (`scripts/hailo_yolo_server.py`, yolov11m ~27 ms/ภาพ) เป็น systemd service บนเครื่อง Pi (นอก container)
+ถือการ์ดเฉพาะตอน `yolo_node` ต่ออยู่ — HailoRT ให้เปิดการ์ดได้ทีละโปรแกรม ตอนไม่ได้รัน yolo_node งาน Hailo อื่น
+(hailo-apps ฯลฯ) ใช้การ์ดได้ปกติ ถ้าโปรแกรมอื่นถือการ์ดอยู่ yolo_node จะเตือน "ใช้ Hailo ไม่ได้" แล้วต่อเองเมื่อการ์ดว่าง
+
+```bash
+systemctl status hailo-yolo-server          # สถานะ
+journalctl -u hailo-yolo-server -f          # log (ภาพ/วินาที, client ต่อ/ออก)
+sudo systemctl restart hailo-yolo-server    # หลังแก้สคริปต์ / เปลี่ยนโมเดล
+sudo systemctl disable --now hailo-yolo-server   # เลิกเปิดเองตอนบูต
+# ติดตั้งครั้งแรก / หลังแก้ไฟล์ .service
+sudo cp ~/Humanoi/scripts/hailo-yolo-server.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now hailo-yolo-server
+```
+
+ดูใน Foxglove: Image panel ที่ `/yolo/image/compressed` · กรอบที่เจอ (พิกเซล) อยู่ที่ `/yolo/detections`
+HailoRT ต้องตรงกับเฟิร์มแวร์การ์ด (5.1.1 ลงบน Raspberry Pi OS แล้ว) container จึงส่งภาพไปให้ server ผ่าน
+`127.0.0.1:5555` แทนการเรียกการ์ดเอง · กล้องต้องเสียบที่ Pi และห้ามเปิด guvcview พร้อมกัน
+
+### calibrate ค่าเลนส์กล้องสี (ทำครั้งเดียว — กล้องตัวนี้ไม่มีค่าจากโรงงาน)
+
+พิมพ์ `docs/calibration/checkerboard_9x6_25mm.pdf` บน A4 แบบ **100%** ติดแผ่นแข็งที่เรียบ แล้วใน container:
+
+```bash
+ros2 launch humanoi_vision calibrate_color.launch.py
+```
+
+ถือกระดาษห่างกล้อง ~0.4-1.2 m ค่อยๆ ขยับไปทั่วภาพ ทั้งใกล้/ไกล และเอียงหลายทิศ หยุดนิ่งทุกท่า — ดูความคืบหน้าใน
+Foxglove ที่ `/calibration/image/compressed` (เก็บภาพเอง 30-40 ภาพแล้วคำนวณ) ได้ไฟล์
+`ros2_ws/src/humanoi_description/config/astra_color.yaml` แล้วรัน
+`colcon build --symlink-install --packages-select humanoi_description` หนึ่งครั้ง — `camera.launch.py` โหลดไฟล์นี้เอง
+(ก่อนมีไฟล์ log จะขึ้น ERROR "Unable to open camera calibration file" — ปกติ ไดรเวอร์ใช้ค่ากลางแทน)
+ไฟล์ yaml สร้างบน Pi — คัดลอกกลับมา PC เพื่อเก็บเข้า git (sync_to_pi.sh ไม่ลบไฟล์นี้บน Pi)
+
+- **วัดขนาดช่องที่พิมพ์ออกมาจริง** แล้วใส่ `square:=` ตามนั้น เพราะเครื่องพิมพ์มักย่อ (ตาราง 30 mm พิมพ์ออกมา 28.2 mm)
+  ขนาดช่องไม่กระทบค่าเลนส์ แต่ตัวตรวจกับ depth ใช้มันตรงๆ — ผิด 6% ก็ขึ้น `REJECTED`
+- มีหน้าต่างภาพบนจอ Pi: `bash ~/Humanoi/scripts/calibrate_camera.sh square:=0.0282 cols:=8 rows:=5`
+- ค่าเลนส์ยังค้านกับ depth (เกิน 4%) ทั้งที่ขนาดช่องถูก → ตัดสินด้วยตลับเมตรว่า depth หรือค่าเลนส์ที่คลาด:
+  `bash ~/Humanoi/scripts/check_depth_scale.sh` — ตั้งกระดาษ (แผ่นแข็ง ตั้งตรง) ที่ ~60 cm แล้วถอยตรงๆ ไป ~100 cm
+  พิมพ์ระยะที่วัดได้ทั้งสองครั้ง จะบอกว่า depth คลาดกี่ % และ fx ที่ถูกควรเป็นเท่าไร (ใช้ผลต่าง 2 ระยะ จึงไม่ต้องรู้
+  ว่าจุดศูนย์กล้องอยู่ลึกจากหน้ากล้องเท่าไร)
+- ผลที่ใช้อยู่ (15 ต.ค.): fx 632 fy 633 cx 322 cy 230 — ค่ากลาง 570 ของไดรเวอร์คลาด ~10%
+  depth ของ Astra Pro อ่านระยะ **สั้นกว่า** ระยะจากจุดศูนย์เลนส์สี ~3 cm คงที่ (สเกลตรงกัน) ตัว calibrate จึงตรวจ
+  ด้วยความชันข้ามหลายระยะ ไม่ใช่อัตราส่วน — ระยะเหลื่อมนี้ hand-eye calibration จะดูดซับไปเอง
+
+### hand-eye calibration: กล้องอยู่ตรงไหนเทียบกับฐานแขนซ้าย (ทำหลังติดกล้องที่เสา และทุกครั้งที่กล้องขยับ)
+
+แปะป้าย ArUco 4x4_50 id 0 ขนาด 40 mm (chev.me/arucogen พิมพ์ 100% มีขอบขาว ติดแผ่นแข็ง) บนมือจับ
+เปิด `arm start` + `arm moveit` แล้วรันบนเดสก์ท็อป Pi: `bash ~/Humanoi/scripts/hand_eye_calibrate.sh`
+พาแขนไป 15 ท่าด้วย MoveIt (ระยะป้ายคิดจากขนาดป้ายในภาพ — ใช้ได้ทุกระยะ แขนซ้ายเอื้อมห่างกล้องได้แค่ ~52 cm
+ซึ่งใกล้เกินกว่าที่ depth วัดได้; `measure:=depth` ใช้ depth แทนเมื่อป้ายห่าง > 0.6 m) กระจายซ้าย/ขวา/ใกล้/ไกล/สูง/ต่ำ
+และหมุนข้อมือหลายมุม หยุดค้างท่าละ ~2 วินาทีจนขึ้น CAPTURED → ได้ `humanoi_description/config/camera_to_left_arm.yaml`
+→ `colcon build --symlink-install --packages-select humanoi_description` → `yolo.launch.py` ส่ง TF
+`base_link -> camera_link` ให้เอง (ไม่มีไฟล์ = ข้าม) · ไม่ใช้ผลถ้าคลาดเฉลี่ยเกิน 10 mm หรือข้อมือหมุนต่างกันไม่ถึง 30°
+
 ## ดูหุ่นจาก PC
 
 ใน container รัน `ros2 launch foxglove_bridge foxglove_bridge_launch.xml`
@@ -126,7 +198,7 @@ bash ~/Humanoi/scripts/arm_moveit.sh
 ## หมายเหตุ
 
 - `Dockerfile` ไม่ลง Gazebo (หนัก และ Pi ไม่ต้องใช้) — RViz + MoveIt ลงไว้สำหรับจัดท่าแขนบนจอ Pi — ไม่ต้องรัน `rosdep install` เพราะ `humanoi_description` อ้าง ros_gz / rviz2 ไว้สำหรับซิม
-- Hailo / YOLO ยังรันบนเครื่องจริงนอก container ตามเดิม ถ้าจะเอาผลเข้า ROS ให้ส่งผ่าน socket ไปให้ node ใน container
+- Hailo รันบนเครื่องจริงนอก container เสมอ (`scripts/hailo_yolo_server.py`) — `humanoi_vision yolo_node` ใน container คุยกับมันผ่าน socket
 - อุปกรณ์ USB: Mega ขึ้นเป็น `/dev/ttyACM*`, lidar มักเป็น `/dev/ttyUSB*`
 - สั่งจากข้างนอกแบบไม่ interactive (`docker exec humanoi_ros ...`) ให้นำหน้าด้วย `/entrypoint.sh` เสมอ ไม่งั้นจะหา `ros2` ไม่เจอ (`bash -lc` ไม่โหลด ROS ให้)
 - การ์ด 29G เหลือที่ว่างไม่มาก (อิมเมจ ROS กิน 3.6G) — ถ้าเปิด guvcview กับกล้อง Orbbec แล้วกล้องหลุด มันจะเขียน error ลง `~/.xsession-errors` จนการ์ดเต็ม (เคยโตถึง 6G) ให้ปิดโปรแกรมแล้วล้างด้วย `truncate -s 0 ~/.xsession-errors`

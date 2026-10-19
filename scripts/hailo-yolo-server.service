@@ -1,0 +1,32 @@
+# ตัวคิด YOLO บนการ์ด Hailo-10H เปิดเองตอน Pi บูต (scripts/hailo_yolo_server.py, TCP 127.0.0.1:5555)
+#
+# ติดตั้ง (บน Pi):
+#   sudo cp ~/Humanoi/scripts/hailo-yolo-server.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now hailo-yolo-server
+# ดูสถานะ / log:  systemctl status hailo-yolo-server · journalctl -u hailo-yolo-server -f
+# หยุดชั่วคราว:   sudo systemctl stop hailo-yolo-server   (บูตครั้งหน้าเปิดเองอีก)
+# เลิกเปิดเอง:     sudo systemctl disable --now hailo-yolo-server
+[Unit]
+Description=Humanoi YOLO on Hailo-10H for ROS yolo_node (127.0.0.1:5555)
+After=network.target
+# ถ้าการ์ดหลุด/เสียจะลองใหม่ได้ 5 ครั้งใน 2 นาที แล้วหยุด — ไม่วนเปิดซ้ำไม่รู้จบจนเต็ม log
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=eitlaser
+# HailoRT เขียน hailort.log ไว้ในโฟลเดอร์ที่รัน — /tmp เป็น tmpfs ไม่กินการ์ด SD
+WorkingDirectory=/tmp
+# ไดรเวอร์โหลดเฟิร์มแวร์ลงการ์ด ~4 วินาทีหลังบูต — รอ /dev/hailo0 ขึ้นก่อน (สูงสุด 60 วินาที)
+# $$ = เครื่องหมาย $ จริงๆ (systemd แปลง $ เดี่ยวเป็นตัวแปรของมันเอง)
+ExecStartPre=/bin/sh -c 'for i in $$(seq 60); do [ -e /dev/hailo0 ] && exit 0; sleep 1; done; echo "ไม่เจอ /dev/hailo0" >&2; exit 1'
+ExecStart=/usr/bin/python3 -u /home/eitlaser/Humanoi/scripts/hailo_yolo_server.py
+# สคริปต์แปลง SIGTERM เป็นการปิดแบบเรียบร้อย (คืนการ์ดก่อนออก)
+KillSignal=SIGTERM
+TimeoutStopSec=15
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

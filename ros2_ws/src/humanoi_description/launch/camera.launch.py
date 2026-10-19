@@ -35,6 +35,8 @@ def generate_launch_description():
         launch_arguments={
             "enable_ir": LaunchConfiguration("enable_ir"),
             "enable_point_cloud": LaunchConfiguration("enable_point_cloud"),
+            "depth_registration": LaunchConfiguration("depth_registration"),
+            "color_info_url": LaunchConfiguration("color_info_url"),
         }.items(),
     )
 
@@ -66,6 +68,17 @@ def generate_launch_description():
                               description="ภาพอินฟราเรด — ยังไม่มีใครใช้ ปิดได้เพื่อลด CPU"),
         DeclareLaunchArgument("enable_point_cloud", default_value="true", choices=["true", "false"],
                               description="point cloud /camera/depth/points — Nav2 จะใช้ภายหลัง"),
+        # true = กล้องจัด depth ให้ตรงกับภาพสีทีละพิกเซล (frame_id = camera_color_optical_frame)
+        # ต้องเปิดไว้ถ้าจะเอาพิกัดพิกเซลจาก YOLO (บนภาพสี) ไปอ่าน depth — humanoi_vision ใช้แบบนี้
+        DeclareLaunchArgument("depth_registration", default_value="true", choices=["true", "false"],
+                              description="จัด depth ให้ตรงกับภาพสี (ต้องเปิดสำหรับพิกัด 3D ของ YOLO)"),
+        # กล้องตัวนี้ไม่มีค่าเลนส์จากโรงงาน (get_camera_params ได้ NaN) ไดรเวอร์จึงใช้ค่ากลาง fx=fy=570.34
+        # ค่าที่ calibrate เอง (humanoi_vision calibrate_color) อยู่ที่ config/astra_color.yaml — ถ้ายังไม่มีไฟล์
+        # ไดรเวอร์เตือนว่าหาไม่เจอแล้วใช้ค่ากลางตามเดิม ไม่พัง (ไฟล์ใหม่ต้อง colcon build แพ็กเกจนี้หนึ่งครั้ง)
+        DeclareLaunchArgument("color_info_url", default_value=[
+                                  "file://", PathJoinSubstitution([FindPackageShare("humanoi_description"),
+                                                                   "config", "astra_color.yaml"])],
+                              description="ไฟล์ค่าเลนส์กล้องสี (ว่าง = ค่ากลางของไดรเวอร์)"),
         camera,
         compress,
         foxglove,

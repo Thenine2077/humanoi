@@ -19,7 +19,7 @@ tar --exclude='*/build' --exclude='*/install' --exclude='*/log' --exclude='__pyc
 AR4_SRC="${AR4_SRC:-$(cd .. && pwd)/ar4/ar4_ws/src}"
 if [ -d "$AR4_SRC/ar_program" ]; then
   tar -C "$AR4_SRC" --exclude='__pycache__' --exclude='*.tmp' \
-      -cf - ar_description ar_hardware_interface ar_program ar_moveit_config ar_gz_bringup \
+      -cf - ar_description ar_hardware_interface ar_program ar_moveit_config ar_gz_bringup ar_dual \
     | ssh -o BatchMode=yes "$PI" '
         f=~/Humanoi/ros2_ws/src/ar_program/config/programs.yaml
         [ -f "$f" ] && cp "$f" "$f.bak"
