@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<title>คู่มือใช้งานแขนกล AR4</title>
+<title>คู่มือใช้งานแขนกล AR4 สองแขน</title>
 <style>
   @page { size: A4; margin: 14mm 14mm 14mm 14mm; }
   :root {
@@ -67,9 +67,9 @@
 <body>
 
 <div class="cover">
-  <h1>คู่มือใช้งานแขนกล AR4</h1>
+  <h1>คู่มือใช้งานแขนกล AR4 สองแขน</h1>
   <div class="sub">หุ่นยนต์ Humanoi · Raspberry Pi 5 · ROS 2 Jazzy · คำสั่งลัด <b>arm</b></div>
-  <div class="meta">ฉบับ 15 ตุลาคม 2026 · ไฟล์ต้นฉบับ docs/AR4_ARM_COMMANDS.md</div>
+  <div class="meta">ฉบับ 19 ตุลาคม 2026 (สองแขน) · ไฟล์ต้นฉบับ docs/AR4_ARM_COMMANDS.md</div>
 </div>
 
 <h2><span class="num">0</span>ภาพรวมระบบ</h2>
@@ -83,7 +83,7 @@
   <rect x="170" y="14" width="300" height="200" rx="10" fill="#fff" stroke="#1d2433" stroke-width="1.2"/>
   <text x="320" y="36" text-anchor="middle" font-size="13" font-weight="700" fill="#1d2433">Raspberry Pi 5 (container humanoi_ros)</text>
   <rect x="186" y="50" width="130" height="44" rx="6" fill="#ecfdf3" stroke="#15803d"/>
-  <text x="251" y="69" text-anchor="middle" font-size="12" font-weight="700" fill="#14532d">ระบบแขน</text>
+  <text x="251" y="69" text-anchor="middle" font-size="12" font-weight="700" fill="#14532d">ระบบสองแขน</text>
   <text x="251" y="85" text-anchor="middle" font-size="10.5" fill="#15803d">arm start</text>
   <rect x="326" y="50" width="130" height="44" rx="6" fill="#fff1e8" stroke="#c2410c"/>
   <text x="391" y="69" text-anchor="middle" font-size="12" font-weight="700" fill="#7c2d12">ตัวเล่นโปรแกรม</text>
@@ -94,20 +94,26 @@
   <rect x="326" y="106" width="130" height="44" rx="6" fill="#f4f6f9" stroke="#5b6475"/>
   <text x="391" y="125" text-anchor="middle" font-size="12" font-weight="700" fill="#1d2433">ตัวรับรีโมท</text>
   <text x="391" y="141" text-anchor="middle" font-size="10.5" fill="#5b6475">arm remote</text>
-  <text x="320" y="180" text-anchor="middle" font-size="11" fill="#5b6475">ท่าและโปรแกรมเก็บใน programs.yaml</text>
-  <text x="320" y="198" text-anchor="middle" font-size="11" fill="#5b6475">ดู/แก้ด้วย arm list · teach · program · delete</text>
-  <line x1="470" y1="72" x2="528" y2="72" stroke="#5b6475" stroke-width="1.4" marker-end="url(#a)"/>
-  <text x="499" y="64" text-anchor="middle" font-size="10" fill="#5b6475">USB</text>
-  <rect x="530" y="44" width="140" height="56" rx="8" fill="#ecfdf3" stroke="#15803d"/>
-  <text x="600" y="67" text-anchor="middle" font-size="12.5" font-weight="700" fill="#14532d">Teensy 4.1</text>
-  <text x="600" y="86" text-anchor="middle" font-size="10.5" fill="#15803d">แขน AR4 (6 แกน)</text>
-  <line x1="528" y1="150" x2="470" y2="150" stroke="#5b6475" stroke-width="1.4" marker-end="url(#a)"/>
-  <text x="499" y="142" text-anchor="middle" font-size="10" fill="#5b6475">USB</text>
-  <rect x="530" y="122" width="140" height="56" rx="8" fill="#f4f6f9" stroke="#5b6475"/>
-  <text x="600" y="145" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1d2433">Arduino Mega</text>
-  <text x="600" y="164" text-anchor="middle" font-size="10.5" fill="#5b6475">ฐาน + รับรีโมท FlySky</text>
+  <text x="320" y="180" text-anchor="middle" font-size="11" fill="#5b6475">ท่า (แยกตามแขน) และโปรแกรมเก็บใน programs.yaml</text>
+  <text x="320" y="198" text-anchor="middle" font-size="11" fill="#5b6475">ดู/แก้ด้วย arm list · show · teach · program · delete</text>
+  <line x1="470" y1="44" x2="528" y2="44" stroke="#5b6475" stroke-width="1.4" marker-end="url(#a)"/>
+  <text x="499" y="37" text-anchor="middle" font-size="10" fill="#5b6475">USB</text>
+  <rect x="530" y="20" width="140" height="50" rx="8" fill="#ecfdf3" stroke="#15803d"/>
+  <text x="600" y="41" text-anchor="middle" font-size="12.5" font-weight="700" fill="#14532d">Teensy แขนซ้าย</text>
+  <text x="600" y="59" text-anchor="middle" font-size="10.5" fill="#15803d">left = แขน 1</text>
+  <line x1="470" y1="108" x2="528" y2="108" stroke="#5b6475" stroke-width="1.4" marker-end="url(#a)"/>
+  <text x="499" y="101" text-anchor="middle" font-size="10" fill="#5b6475">USB</text>
+  <rect x="530" y="84" width="140" height="50" rx="8" fill="#ecfdf3" stroke="#15803d"/>
+  <text x="600" y="105" text-anchor="middle" font-size="12.5" font-weight="700" fill="#14532d">Teensy แขนขวา</text>
+  <text x="600" y="123" text-anchor="middle" font-size="10.5" fill="#15803d">right = แขน 2</text>
+  <line x1="528" y1="172" x2="470" y2="172" stroke="#5b6475" stroke-width="1.4" marker-end="url(#a)"/>
+  <text x="499" y="165" text-anchor="middle" font-size="10" fill="#5b6475">USB</text>
+  <rect x="530" y="148" width="140" height="50" rx="8" fill="#f4f6f9" stroke="#5b6475"/>
+  <text x="600" y="169" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1d2433">Arduino Mega</text>
+  <text x="600" y="187" text-anchor="middle" font-size="10.5" fill="#5b6475">ฐาน + รับรีโมท FlySky</text>
 </svg>
 
+<p>หุ่นมีแขน AR4 สองตัวบนเสา เรียกตามด้านเมื่อ<b>มองจากตัวหุ่น</b>: <b>left</b> = แขน 1 (ซ้าย) พิมพ์ <code>left</code> <code>l</code> <code>1</code> หรือ <code>ซ้าย</code> · <b>right</b> = แขน 2 (ขวา) พิมพ์ <code>right</code> <code>r</code> <code>2</code> หรือ <code>ขวา</code></p>
 <p>ทุกคำสั่งในคู่มือนี้พิมพ์ใน <b>Terminal ของ Raspberry Pi นอก container</b> ด้วยคำสั่งลัด <code>arm</code> เปิด Terminal ได้ 2 ทาง:</p>
 <ul>
   <li><b>Raspberry Pi Connect</b> → Screen sharing → กดไอคอน Terminal บนเดสก์ท็อป Pi (ต้องใช้ทางนี้ถ้าจะเปิด MoveIt)</li>
@@ -119,87 +125,132 @@
   <div class="card start"><h4>① เปิด</h4>
     <ol class="steps">
       <li><code>arm status</code></li>
-      <li><code>arm calibrate</code> <span class="muted small">(เมื่อจำเป็น)</span></li>
+      <li><code>arm calibrate left</code> / <code>right</code> <span class="muted small">(เมื่อจำเป็น)</span></li>
       <li><code>arm start</code> <span class="muted small">หน้าต่าง 1</span></li>
       <li><code>arm player</code> <span class="muted small">หน้าต่าง 2</span></li>
     </ol></div>
   <div class="card use"><h4>② ใช้</h4>
     <ol class="steps">
-      <li><code>arm run demo</code></li>
+      <li><code>arm run ชื่อโปรแกรม</code></li>
       <li><code>arm moveit</code> <span class="muted small">จัดท่า</span></li>
-      <li><code>arm teach ชื่อท่า</code></li>
+      <li><code>arm teach left ชื่อท่า</code></li>
       <li><code>arm remote 1</code> <span class="muted small">รีโมท</span></li>
     </ol></div>
   <div class="card stop"><h4>③ ปิด / หยุด</h4>
     <ol class="steps">
       <li><code>arm stop</code> <span class="muted small">หยุดโปรแกรม</span></li>
-      <li><code>arm run demo</code> <span class="muted small">กลับท่าพัก</span></li>
+      <li><code>arm goto left rest</code> / <code>right rest</code></li>
       <li><code>arm off</code></li>
       <li>ปิดไฟแขน</li>
     </ol></div>
 </div>
 
+<div class="warn"><b>ห้ามถอดหรือเสียบสาย USB ของแขนขณะไฟแขนเปิด</b> ปิดไฟแขนก่อนทุกครั้ง (Pi 5 ตัวแรกเสียหลังถอดสาย Teensy ตอนไฟแขนเปิดอยู่ เมื่อ 19 ต.ค. 2026)</div>
 <div class="warn"><b>หยุดฉุกเฉิน:</b> ปิดสวิตช์ไฟแขนเร็วที่สุด · คำสั่ง <code>arm stop</code>, ปุ่ม Stop ใน RViz และสวิตช์ SWD เป็นการหยุดทางซอฟต์แวร์ ใช้แทนสวิตช์ตัดไฟไม่ได้</div>
 
-<h2 class="page-break"><span class="num">1</span>เริ่มใช้งาน</h2>
+<h2 class="page-break"><span class="num">1</span>ตั้งค่าครั้งแรก</h2>
+<p>ทำครั้งเดียวเมื่อ: ใช้ Pi ตัวใหม่ · เปลี่ยนบอร์ด Teensy · แฟลชเฟิร์มแวร์ใหม่ ชื่อแขนและทิศมอเตอร์เก็บอยู่ในบอร์ด Teensy ของแต่ละแขน (เฟิร์มแวร์ AR4_ROS2_seq v2) ย้ายสาย USB ไปช่องไหนของ Pi ก็หาเจอเอง</p>
+<ol class="steps">
+  <li><b>เช็กไฟย้อนก่อนต่อแขนเข้า Pi ใหม่:</b> เปิดไฟแขน ยังไม่เสียบ USB เข้า Pi แล้ววัดแรงดันที่หัว USB-A ปลายสาย ระหว่างขา 5V (ขาริม) กับ GND (ขาริมอีกข้าง) ทุกเส้น (Teensy + Nano ทั้งสองแขน) <b>ต้องได้ 0V</b> ถ้าได้ ~5V ห้ามเสียบ ต้องแก้ก่อน (หรือใส่ USB isolator คั่น)</li>
+  <li>ปิดไฟแขน → เสียบ USB ทุกเส้นเข้า Pi → เปิดไฟแขน</li>
+  <li><code>arm ports</code> ดูบอร์ด Teensy ทุกตัว: พอร์ต · เฟิร์มแวร์ (<code>seq2</code>) · ชื่อแขน · ข้อที่ตั้งกลับทิศ</li>
+  <li><code>arm identify</code> ตั้งชื่อบอร์ด: ข้อ 6 (ข้อมือ) ของแต่ละบอร์ดหมุนไป-กลับ 10° ทีละบอร์ด ดูว่าแขนไหนขยับ แล้วตอบ <code>l</code> = ซ้าย · <code>r</code> = ขวา · <code>a</code> = ขยับอีกที · <code>s</code> = ข้าม จบแล้วขึ้น <code>left=... right=...</code> = ใช้ได้ (ไม่เห็นอะไรขยับ = ไฟแขนปิดอยู่)</li>
+  <li><b>หาลำดับ calibrate ที่มือไม่ชน</b> (หัวข้อ 9) ไล่ทีละข้อ <code>arm calibrate left 6</code>, <code>arm calibrate left 5</code>, ... ได้ลำดับที่ปลอดภัยแล้วตั้งเป็นค่าเริ่ม <code>LEFT_CAL_ORDER</code> / <code>RIGHT_CAL_ORDER</code> ใน <code>~/Humanoi/scripts/arm.sh</code></li>
+  <li>ข้อไหนขึ้น <code>✗ ... FAIL</code> = มอเตอร์ข้อนั้นหมุนกลับด้าน → <code>arm dir right 000010</code> (ตัวอย่าง: J5 กลับทิศ) แล้ว calibrate ข้อนั้นใหม่</li>
+  <li>หลัง calibrate ครั้งแรก แขนอยู่ท่าพัก → <code>arm start</code> แล้วบันทึกท่าพักของแขนที่ยังไม่มี: <code>arm teach right rest</code></li>
+</ol>
+<div class="tip">เช็กซ้ำว่าชื่อตรงกับแขนจริงได้ทุกเมื่อ: <code>arm identify left</code> ข้อ 6 ของแขนซ้ายจะหมุนให้ดูแขนเดียว (ระบบแขนต้องปิดอยู่)</div>
+
+<h2><span class="num">2</span>เริ่มใช้งาน</h2>
 <p>คำสั่งที่ "เปิดค้าง" ใช้ <b>หน้าต่างละคำสั่ง</b> และห้ามปิดหน้าต่างระหว่างใช้งาน คำสั่ง <code>arm</code> จะไม่ยอมเปิดระบบแขนซ้อน 2 ชุด (เคยทำให้แขนขยับมั่ว)</p>
 <table>
-  <tr><th style="width:40px">ขั้น</th><th style="width:150px">หน้าต่าง</th><th style="width:130px">คำสั่ง</th><th>หมายเหตุ</th></tr>
-  <tr><td>0</td><td>ไหนก็ได้</td><td><code>arm status</code></td><td>ดูว่าอะไรเปิดอยู่ ระบบแขนต้องเป็น ✗ ก่อนเริ่ม</td></tr>
-  <tr><td>1</td><td>หน้าต่าง 1</td><td><code>arm calibrate</code></td><td><b>เฉพาะเมื่อจำเป็น</b> (หัวข้อ 7) รอแขนกลับท่าพักแล้วนิ่ง แล้วกด <span class="kbd">Ctrl+C</span></td></tr>
-  <tr><td>2</td><td>หน้าต่าง 1</td><td><code>arm start</code></td><td>เปิดระบบแขน <b>เปิดค้างไว้</b></td></tr>
+  <tr><th style="width:40px">ขั้น</th><th style="width:150px">หน้าต่าง</th><th style="width:170px">คำสั่ง</th><th>หมายเหตุ</th></tr>
+  <tr><td>0</td><td>ไหนก็ได้</td><td><code>arm status</code></td><td>ดูว่าอะไรเปิดอยู่และบอร์ดแขน ระบบแขนต้องเป็น ✗ ก่อนเริ่ม</td></tr>
+  <tr><td>1</td><td>หน้าต่าง 1</td><td><code>arm calibrate left</code><br><code>arm calibrate right</code></td><td><b>เฉพาะเมื่อจำเป็น</b> (หัวข้อ 9) ทีละแขน จบเองเมื่อเสร็จ</td></tr>
+  <tr><td>2</td><td>หน้าต่าง 1</td><td><code>arm start</code></td><td>เปิดระบบสองแขน <b>เปิดค้างไว้</b> · <code>arm start left</code> = แขนซ้ายจริง แขนขวาจำลอง</td></tr>
   <tr><td>3</td><td>หน้าต่าง 2</td><td><code>arm player</code></td><td>เปิดตัวเล่นโปรแกรม <b>เปิดค้างไว้</b> (ความเร็วเริ่มต้น 0.19)</td></tr>
-  <tr><td>4</td><td>หน้าต่าง 3 (เดสก์ท็อป Pi)</td><td><code>arm moveit</code></td><td>เปิด MoveIt + RViz เฉพาะตอนจัดท่า (หัวข้อ 3)</td></tr>
-  <tr><td>5</td><td>หน้าต่าง 4</td><td><code>arm remote 1</code></td><td>สั่งจากรีโมท เฉพาะตอนใช้รีโมท (หัวข้อ 5)</td></tr>
+  <tr><td>4</td><td>หน้าต่าง 3 (เดสก์ท็อป Pi)</td><td><code>arm moveit</code></td><td>MoveIt + RViz สองแขน เฉพาะตอนจัดท่า (หัวข้อ 5)</td></tr>
+  <tr><td>5</td><td>หน้าต่าง 4</td><td><code>arm remote 1</code></td><td>สั่งจากรีโมท เฉพาะตอนใช้รีโมท (หัวข้อ 7)</td></tr>
 </table>
 
 <div class="flow">
     <div class="title">แบบต้อง calibrate</div>
-    <div class="row"><div class="win">หน้าต่าง 1</div><div class="cmd">arm calibrate</div><div>Enter → รอแขนกลับท่าพักและนิ่ง (~2 นาที) → Ctrl+C</div></div>
+    <div class="row"><div class="win">หน้าต่าง 1</div><div class="cmd">arm calibrate left</div><div>อ่านคำเตือน → Enter → รอจนขึ้น "calibrate ครบตามที่สั่งแล้ว"</div></div>
+    <div class="row"><div class="win">หน้าต่าง 1</div><div class="cmd">arm calibrate right</div><div>เหมือนกัน</div></div>
     <div class="row"><div class="win">หน้าต่าง 1</div><div class="cmd">arm start</div><div>หน้าต่างเดิม เปิดค้างไว้</div></div>
     <div class="row"><div class="win">หน้าต่าง 2</div><div class="cmd">arm player</div><div>เปิดค้างไว้</div></div>
-    <div class="row"><div class="win">หน้าต่าง 3</div><div class="cmd">arm run demo</div><div>ทดสอบ</div></div>
+    <div class="row"><div class="win">หน้าต่าง 3</div><div class="cmd">arm run ชื่อโปรแกรม</div><div>ทดสอบ</div></div>
   </div>
 <div class="flow">
     <div class="title">แบบไม่ต้อง calibrate</div>
     <div class="row"><div class="win">หน้าต่าง 1</div><div class="cmd">arm start</div><div>เปิดค้างไว้</div></div>
     <div class="row"><div class="win">หน้าต่าง 2</div><div class="cmd">arm player</div><div>เปิดค้างไว้</div></div>
-    <div class="row"><div class="win">หน้าต่าง 3</div><div class="cmd">arm run demo</div><div>ทดสอบ</div></div>
+    <div class="row"><div class="win">หน้าต่าง 3</div><div class="cmd">arm run ชื่อโปรแกรม</div><div>ทดสอบ</div></div>
 </div>
-<div class="note">หลังกด Ctrl+C ที่ calibrate ถ้า <code>arm start</code> ขึ้นว่า "ระบบแขนเปิดอยู่แล้ว" ให้รอราว 15 วินาทีแล้วสั่งใหม่ ตัวเก่ายังปิดตัวไม่เสร็จ</div>
+<div class="note"><code>arm start</code> หาพอร์ตของแต่ละแขนเองจากชื่อในบอร์ด แล้วแสดงว่าใช้พอร์ตไหน ถ้าขึ้น <code>หาบอร์ด Teensy แขน... ไม่เจอ</code> ดูหัวข้อ 11</div>
 
-<h2><span class="num">2</span>คำสั่งใช้งาน (หน้าต่างไหนก็ได้)</h2>
+<h2><span class="num">3</span>คำสั่งใช้งาน (หน้าต่างไหนก็ได้)</h2>
 <table>
-  <tr><th>ทำอะไร</th><th style="width:300px">คำสั่ง (ตัวอย่าง)</th></tr>
-  <tr><td>เล่นโปรแกรม รอจนจบแล้วบอกผล ✓/✗</td><td><code>arm run demo</code></td></tr>
-  <tr><td>หยุดโปรแกรมกลางคัน</td><td><code>arm stop</code></td></tr>
-  <tr><td>ดูท่าและโปรแกรมทั้งหมด</td><td><code>arm list</code></td></tr>
-  <tr><td>บันทึกท่าปัจจุบันของแขน</td><td><code>arm teach pick_above</code></td></tr>
-  <tr><td>สร้างโปรแกรม (<code>wait=1.0</code> = หยุดรอ 1 วินาที)</td><td><code>arm program pick rest pick_above wait=1.0 rest</code></td></tr>
-  <tr><td>พาแขนไปท่าเดียว</td><td><code>arm goto pick_above</code></td></tr>
-  <tr><td>ลบท่า (ต้องไม่มีโปรแกรมไหนใช้อยู่)</td><td><code>arm delete pick_above</code></td></tr>
-  <tr><td>ลบโปรแกรม (ท่าในโปรแกรมยังอยู่)</td><td><code>arm delete-program pick</code></td></tr>
+  <tr><th>ทำอะไร</th><th style="width:330px">คำสั่ง (ตัวอย่าง)</th></tr>
+  <tr><td>บันทึกท่าปัจจุบันของแขนหนึ่ง</td><td><code>arm teach left pick_above</code></td></tr>
+  <tr><td>สร้างโปรแกรมสองแขน (หัวข้อ 4)</td><td><code>arm program pick2 rest/rest act1/act1 act2/- wait=1.0 rest/rest</code></td></tr>
+  <tr><td>ดูโปรแกรมเป็นตาราง ขั้น | ซ้าย | ขวา</td><td><code>arm show pick2</code></td></tr>
+  <tr><td>ดูท่าทุกแขนและโปรแกรมทั้งหมด</td><td><code>arm list</code></td></tr>
+  <tr><td>เล่นโปรแกรม รอจนจบแล้วบอกผล ✓/✗</td><td><code>arm run pick2</code></td></tr>
+  <tr><td>หยุดโปรแกรมกลางคัน (ทุกแขน)</td><td><code>arm stop</code></td></tr>
+  <tr><td>พาแขนเดียวไปท่าเดียว</td><td><code>arm goto right pick_above</code></td></tr>
+  <tr><td>ลบท่า (ต้องไม่มีโปรแกรมไหนใช้อยู่)</td><td><code>arm delete left pick_above</code></td></tr>
+  <tr><td>ลบโปรแกรม (ท่าในโปรแกรมยังอยู่)</td><td><code>arm delete-program pick2</code></td></tr>
   <tr><td>ปิดทุกอย่างของแขน</td><td><code>arm off</code></td></tr>
 </table>
-<p class="muted small">ตั้งชื่อท่าและโปรแกรมเป็นภาษาอังกฤษหรือตัวเลข จะพิมพ์ใน Terminal ได้สะดวก</p>
+<p class="muted small">ท่าเก็บ<b>แยกตามแขน</b> ชื่อท่าซ้ำกันข้ามแขนได้ (<code>rest</code> ของแขนซ้ายกับของแขนขวาเป็นคนละท่า) · ตั้งชื่อท่าและโปรแกรมเป็นภาษาอังกฤษหรือตัวเลข</p>
 
-<h2><span class="num">3</span>สร้างท่าด้วย MoveIt</h2>
+<h2><span class="num">4</span>เขียนโปรแกรมสองแขน</h2>
+<p>แต่ละขั้นเขียน <b><code>ท่าแขนซ้าย/ท่าแขนขวา</code></b></p>
+<table>
+  <tr><th style="width:120px">เขียน</th><th>ความหมาย</th></tr>
+  <tr><td><code>act1/act2</code></td><td>แขนซ้ายไป <code>act1</code> แขนขวาไป <code>act2</code> <b>เริ่มพร้อมกันและถึงพร้อมกัน</b></td></tr>
+  <tr><td><code>act1/-</code></td><td>แขนซ้ายไป <code>act1</code> แขนขวา<b>อยู่นิ่ง</b> (<code>-</code> หรือ <code>still</code>)</td></tr>
+  <tr><td><code>-/act3</code></td><td>แขนซ้ายอยู่นิ่ง แขนขวาไป <code>act3</code></td></tr>
+  <tr><td><code>wait=1.0</code></td><td>หยุดรอ 1 วินาที (ทั้งสองแขน)</td></tr>
+</table>
+<div class="grid2">
+  <div class="card"><h4>กติกา</h4>
+    <ul>
+      <li>ขั้นถัดไปเริ่มเมื่อ<b>ทุกแขนถึงแล้ว</b></li>
+      <li><code>-</code> ไม่ได้จำตำแหน่งไว้ แขนค้างอยู่ตรงที่ขั้นก่อนหน้าพาไป</li>
+      <li>ขั้นแรกควรเป็นท่าที่รู้ตำแหน่งแน่นอนทั้งสองแขน เช่น <code>rest/rest</code></li>
+      <li>โปรแกรมแบบเก่า (ไม่มี <code>/</code> เช่น <code>demo</code>) = แขนซ้ายอย่างเดียว ยังเล่นได้</li>
+    </ul></div>
+  <div class="card"><h4>ตัวอย่าง <code>arm show pick2</code></h4>
+<pre>โปรแกรม 'pick2' (5 ขั้น)
+  ขั้น  แขนซ้าย (1)  แขนขวา (2)
+     1  rest         rest
+     2  act1         act1
+     3  act2         still
+     4  wait 1 s
+     5  rest         rest</pre></div>
+</div>
+<div class="note"><b>สำคัญ:</b> ไม่มีการเช็กการชนตอน <code>arm run</code> / <code>arm goto</code> (รวมสองแขนชนกันเอง) แขนเดินตรงจากท่าหนึ่งไปอีกท่า <b>ไม่ได้เดินตามเส้นทางที่ MoveIt วางไว้ตอนจัดท่า</b> ทดสอบโปรแกรมใหม่ด้วยความเร็วต่ำก่อน ถ้าเฉียดให้เพิ่มท่าคั่นกลาง เช่นยกแขนขึ้นก่อนหมุนฐาน</div>
+
+<h2><span class="num">5</span>สร้างท่าด้วย MoveIt</h2>
 <h3>เปิด MoveIt</h3>
 <ol class="steps">
   <li>เปิดระบบแขนไว้ก่อน (<code>arm start</code>) MoveIt สั่งแขนผ่านระบบนี้</li>
   <li>เปิด <b>Raspberry Pi Connect → Screen sharing</b> ให้เห็นเดสก์ท็อป Pi</li>
   <li>บนเดสก์ท็อป Pi กดไอคอน <b>Terminal</b> (รูปจอดำ <code>&gt;_</code> แถบบนซ้าย)</li>
-  <li>พิมพ์ <code>arm moveit</code> แล้ว Enter รอ 20–30 วินาที หน้าต่าง <b>RViz</b> จะขึ้นพร้อมแผง MotionPlanning และโมเดลแขน</li>
+  <li>พิมพ์ <code>arm moveit</code> แล้ว Enter รอ 20–30 วินาที หน้าต่าง <b>RViz</b> ขึ้นพร้อมโมเดลสองแขน เสา หัว และกล้อง</li>
   <li>ปล่อยหน้าต่าง Terminal นี้เปิดไว้ (ปิด MoveIt = <span class="kbd">Ctrl+C</span> ในหน้าต่างนี้)</li>
 </ol>
 <p class="small muted">ขึ้น <code>✗ เปิดระบบแขนก่อน</code> = ยังไม่ได้ <code>arm start</code> · RViz ไม่ขึ้น = เดสก์ท็อป Pi ยังไม่ได้ล็อกอิน (ต้องเห็นหน้าจอใน Pi Connect ก่อน)</p>
 
 <h3>จัดท่าและบันทึก</h3>
 <ol class="steps">
-  <li>แผง MotionPlanning → แท็บ <b>Joints</b> เลื่อนมุมทีละแกน (หรือลากลูกบอลที่ปลายแขน) แขนสีส้มโปร่งขยับให้ดูก่อน <b>แขนจริงยังไม่ขยับ</b></li>
-  <li>แท็บ <b>Planning</b> → Velocity Scaling ตั้งไว้ <b>0.3</b> (อย่าเกิน) → กด <b>Plan &amp; Execute</b> → <b>แขนจริงขยับ</b></li>
-  <li>แขนถึงท่าแล้ว ในอีกหน้าต่างพิมพ์ <code>arm teach ชื่อท่า</code></li>
-  <li>ทำซ้ำทุกท่า → <code>arm program ชื่อโปรแกรม ท่า1 ท่า2 ...</code> → ทดสอบ <code>arm run ชื่อโปรแกรม</code></li>
+  <li>แผง MotionPlanning → ช่อง <b>Planning Group</b> เลือก <code>left_arm</code>, <code>right_arm</code> หรือ <code>both_arms</code></li>
+  <li>แท็บ <b>Joints</b> เลื่อนมุมทีละแกน (หรือลากลูกบอลที่ปลายแขน) แขนสีส้มโปร่งขยับให้ดูก่อน <b>แขนจริงยังไม่ขยับ</b></li>
+  <li>แท็บ <b>Planning</b> → Velocity Scaling ตั้งไว้ <b>0.3</b> (อย่าเกิน) → กด <b>Plan &amp; Execute</b> → <b>แขนจริงขยับ</b> · ตอน Plan, MoveIt เช็กการชนแขนกับแขน และแขนกับเสา/หัว/กล้องให้ ถ้าชนจะ Plan ไม่ผ่าน</li>
+  <li>แขนถึงท่าแล้ว ในอีกหน้าต่างพิมพ์ <code>arm teach left ชื่อท่า</code> (หรือ <code>right</code>)</li>
+  <li>ทำซ้ำทุกท่า → <code>arm program ...</code> → ทดสอบ <code>arm run ชื่อโปรแกรม</code></li>
 </ol>
 <div class="flow">
   <div class="title">ลำดับหน้าต่างตอนจัดท่า</div>
@@ -208,24 +259,24 @@
   <div class="row"><div class="win">หน้าต่าง 3 (เดสก์ท็อป Pi)</div><div class="cmd">arm moveit</div><div>เปิดค้าง RViz ขึ้นบนจอ Pi</div></div>
   <div class="row"><div class="win">หน้าต่าง 4</div><div class="cmd">arm teach / program / run</div><div>สั่งงาน</div></div>
 </div>
-<div class="note"><b>สำคัญ:</b> ตอนเล่นโปรแกรม แขนเดินตรงจากท่าหนึ่งไปอีกท่า (ทุกแกนเริ่มและจบพร้อมกัน) <b>ไม่ได้เดินตามเส้นทางที่ MoveIt วางไว้ตอนจัดท่า</b> เล่นรอบแรกให้ดูว่าไม่เฉียดอะไร ถ้าเฉียดให้เพิ่มท่าคั่นกลาง เช่นยกแขนขึ้นก่อนหมุนฐาน</div>
+<p class="small muted">ปุ่ม <b>Stop</b> ในแผง Planning หยุดแขนกลางทางได้ · ฉุกเฉินปิดสวิตช์ไฟแขน</p>
 
-<h2><span class="num">4</span>แก้ไขและลบ ท่า/โปรแกรม</h2>
+<h2><span class="num">6</span>แก้ไขและลบ ท่า/โปรแกรม</h2>
 <table>
   <tr><th style="width:170px">อยากทำ</th><th>ทำยังไง</th></tr>
-  <tr><td><b>แก้ท่าเดิม</b></td><td><code>arm goto ท่า</code> → ปรับใน MoveIt (Joints → Plan &amp; Execute) → <code>arm teach ชื่อเดิม</code> บันทึกทับ ระบบแสดงค่าเก่า/ใหม่ให้เทียบ ทุกโปรแกรมที่ใช้ท่านี้ได้ค่าใหม่ทันที</td></tr>
-  <tr><td><b>แก้ลำดับในโปรแกรม</b></td><td><code>arm program ชื่อเดิม ท่าใหม่ทั้งหมด...</code> สั่งทับได้เลย</td></tr>
-  <tr><td><b>ลบท่าที่โปรแกรมยังใช้</b></td><td>ระบบไม่ยอมและบอกว่าโปรแกรมไหนใช้อยู่ แก้หรือลบโปรแกรมนั้นก่อน แล้วค่อย <code>arm delete</code></td></tr>
-  <tr><td><b>เปลี่ยนชื่อท่า</b></td><td><code>arm goto ชื่อเก่า</code> → <code>arm teach ชื่อใหม่</code> → แก้โปรแกรมให้ใช้ชื่อใหม่ → <code>arm delete ชื่อเก่า</code></td></tr>
+  <tr><td><b>แก้ท่าเดิม</b></td><td><code>arm goto แขน ท่า</code> → ปรับใน MoveIt (Joints → Plan &amp; Execute) → <code>arm teach แขน ชื่อเดิม</code> บันทึกทับ ระบบแสดงค่าเก่า/ใหม่ให้เทียบ ทุกโปรแกรมที่ใช้ท่านี้ได้ค่าใหม่ทันที</td></tr>
+  <tr><td><b>แก้ลำดับในโปรแกรม</b></td><td><code>arm program ชื่อเดิม ขั้นใหม่ทั้งหมด...</code> สั่งทับได้เลย</td></tr>
+  <tr><td><b>ลบท่าที่โปรแกรมยังใช้</b></td><td>ระบบไม่ยอมและบอกว่าโปรแกรมไหนใช้อยู่ แก้หรือลบโปรแกรมนั้นก่อน แล้วค่อย <code>arm delete แขน ท่า</code></td></tr>
+  <tr><td><b>เปลี่ยนชื่อท่า</b></td><td><code>arm goto แขน ชื่อเก่า</code> → <code>arm teach แขน ชื่อใหม่</code> → แก้โปรแกรมให้ใช้ชื่อใหม่ → <code>arm delete แขน ชื่อเก่า</code></td></tr>
   <tr><td><b>ลบโปรแกรม</b></td><td><code>arm delete-program ชื่อ</code> (ท่าที่อยู่ในโปรแกรมไม่หาย)</td></tr>
 </table>
-<div class="tip">แก้ท่าหรือโปรแกรมแล้วไม่ต้องรีสตาร์ทอะไร ตัวเล่นโปรแกรมอ่านไฟล์ใหม่ทุกครั้งที่สั่ง ยกเว้นหลังอัปเดตโปรแกรมของระบบเอง (เช่นตอนเพิ่มคำสั่ง <code>arm goto</code>) ต้องปิดแล้วเปิด <code>arm player</code> ใหม่หนึ่งครั้ง</div>
+<div class="tip">แก้ท่าหรือโปรแกรมแล้วไม่ต้องรีสตาร์ทอะไร ตัวเล่นโปรแกรมอ่านไฟล์ใหม่ทุกครั้งที่สั่ง</div>
 
-<h2><span class="num">5</span>สั่งจากรีโมท FlySky</h2>
+<h2><span class="num">7</span>สั่งจากรีโมท FlySky</h2>
 <table>
   <tr><th style="width:230px">สวิตช์</th><th>ทำอะไร</th></tr>
-  <tr><td><b>CH6</b> = <b>SWC</b> (3 ระดับ)<br>บนสุด → ล่างสุด</td><td>เล่นโปรแกรม <code>1</code> หนึ่งครั้ง (เปลี่ยนได้ เช่น <code>arm remote pick</code>) ตำแหน่งกลางไม่นับ ค้างล่างสุดไม่เล่นซ้ำ จะเล่นใหม่ต้องดันขึ้นบนสุดก่อน</td></tr>
-  <tr><td><b>CH8</b> = <b>SWD</b><br>ขึ้น → ลง</td><td>หยุดแขนทันที และระหว่างที่ SWD ลงค้างอยู่ สั่งเล่นไม่ได้</td></tr>
+  <tr><td><b>CH6</b> = <b>SWC</b> (3 ระดับ)<br>บนสุด → ล่างสุด</td><td>เล่นโปรแกรม <code>1</code> หนึ่งครั้ง (เปลี่ยนได้ เช่น <code>arm remote pick2</code>) ตำแหน่งกลางไม่นับ ค้างล่างสุดไม่เล่นซ้ำ จะเล่นใหม่ต้องดันขึ้นบนสุดก่อน</td></tr>
+  <tr><td><b>CH8</b> = <b>SWD</b><br>ขึ้น → ลง</td><td>หยุดแขนทันที (ทุกแขน) และระหว่างที่ SWD ลงค้างอยู่ สั่งเล่นไม่ได้</td></tr>
   <tr><td><b>SWA</b></td><td>ARM ล้อฐาน (ไม่เกี่ยวกับแขน) ระหว่างใช้แขน ให้ SWA ขึ้นไว้ ล้อจะล็อกนิ่ง</td></tr>
 </table>
 <p><b>ต้องมี:</b> Mega เสียบ USB เข้า Pi · รีโมทเปิดอยู่ · <code>arm start</code> และ <code>arm player</code> เปิดอยู่ แล้วเปิดอีกหน้าต่าง:</p>
@@ -241,89 +292,127 @@
 </ul>
 <p class="small muted"><code>arm remote</code> เปิด <code>relay_bridge</code> (คุยกับ Mega) ให้ด้วยถ้ายังไม่ได้เปิด กด Ctrl+C ปิดทั้งคู่ · รีโมทยังขับฐานได้ตามปกติ · ถ้ายังไม่ได้เปิด <code>arm player</code> ก็ทดสอบสวิตช์ได้ เห็นผลบนจอแต่แขนไม่ขยับ</p>
 
-<h2><span class="num">6</span>ปิดระบบ</h2>
+<h2><span class="num">8</span>ปิดระบบ</h2>
 <ol class="steps">
-  <li>ให้แขนกลับท่าพักก่อน: <code>arm run demo</code> (จบที่ท่าพัก) หรือ <code>arm goto rest</code></li>
+  <li>ให้แขนกลับท่าพักก่อน: <code>arm goto left rest</code> และ <code>arm goto right rest</code> (หรือสร้างโปรแกรม <code>arm program park rest/rest</code> แล้ว <code>arm run park</code>)</li>
   <li><code>arm off</code> ปิดทุกอย่างของแขน (หรือกด Ctrl+C ทีละหน้าต่าง)</li>
   <li>ปิดไฟแขน</li>
 </ol>
 
-<h2><span class="num">7</span>Calibrate</h2>
+<h2><span class="num">9</span>Calibrate</h2>
 <div class="grid2">
   <div class="card"><h4>ต้อง calibrate เมื่อ</h4>
     <ul>
-      <li>ปิดไฟแขน หรือถอดสาย USB ของ Teensy</li>
-      <li>แฟลชเฟิร์มแวร์ Teensy ใหม่</li>
+      <li>ปิดไฟแขน (รวมทุกครั้งที่ต้องถอด/เสียบ USB เพราะต้องปิดไฟแขนก่อน)</li>
+      <li>แฟลชเฟิร์มแวร์ Teensy ใหม่ หรือเปลี่ยนทิศมอเตอร์ด้วย <code>arm dir</code></li>
       <li>แขนชนอะไร หรือสายพานรูด</li>
     </ul>
-    <p class="small muted">Teensy นับตำแหน่งจากสเต็ปที่สั่งมอเตอร์ ไม่ได้วัดจริง ถ้าเกิดเรื่องข้างบน ตำแหน่งที่จำไว้จะไม่ตรงกับแขนจริง ถ้าไม่เกิดให้ข้ามไป <code>arm start</code> ได้เลย</p></div>
-  <div class="card"><h4>ระหว่าง calibrate (~2 นาที)</h4>
+    <p class="small muted">Teensy นับตำแหน่งจากสเต็ปที่สั่งมอเตอร์ ไม่ได้วัดจริง ถ้าเกิดเรื่องข้างบน ตำแหน่งที่จำไว้จะไม่ตรงกับแขนจริง ถ้าไม่เกิดให้ข้ามไป <code>arm start</code> ได้เลย · calibrate ได้เฉพาะตอนระบบแขนปิดอยู่</p></div>
+  <div class="card"><h4>ระหว่าง calibrate</h4>
     <ul>
-      <li>รอบแขนโล่ง สาย USB หย่อนพ้นรัศมีแขน ฐาน J1 หมุนไปถึง −170°</li>
-      <li>แขนหมุนทุกแกนไปชนสวิตช์ → หยุด 2 วินาที → ถอยออก → กลับท่าพัก</li>
-      <li>log เงียบ หรือขึ้น error / <code>Failed to acquire lock</code> ก็ได้ Teensy ทำต่อจนจบเอง</li>
-      <li><b>ห้ามกด Ctrl+C จนกว่าแขนจะหยุดนิ่งที่ท่าพัก</b></li>
+      <li>ครั้งแรกหลังย้ายสาย ดูให้แน่ใจว่าแขนที่ขยับคือแขนที่สั่ง ไม่ใช่ หรือมือกำลังจะชน ให้ปิดไฟแขนทันที</li>
+      <li>รอบแขนโล่ง สาย USB หย่อนพ้นรัศมีแขน ฐาน J1 หมุนไปถึง −170° อีกแขนต้องไม่อยู่ในทาง</li>
+      <li>ข้อที่ไม่ได้สั่งไม่ขยับ แต่ถ้าเพิ่งเปิดไฟแขน ต้อง calibrate ให้ครบ 6 ข้อก่อนใช้งาน</li>
+      <li>จบเมื่อขึ้น <code>calibrate ครบตามที่สั่งแล้ว</code> <b>ไม่ต้องกด Ctrl+C</b></li>
     </ul></div>
 </div>
+<h3>สั่งยังไง (ทีละแขน)</h3>
+<table>
+  <tr><th style="width:230px">คำสั่ง</th><th>ทำอะไร</th></tr>
+  <tr><td><code>arm calibrate left</code></td><td>ใช้ลำดับที่ตั้งไว้ใน <code>LEFT_CAL_ORDER</code> (ยังไม่ตั้ง = ต้องใส่ลำดับเอง)</td></tr>
+  <tr><td><code>arm calibrate left 5</code></td><td>ข้อเดียว ไว้ไล่ดูว่าข้อไหนพามือไปชน</td></tr>
+  <tr><td><code>arm calibrate left 6 5 4 1 2 3</code></td><td>ทีละข้อตามลำดับ แต่ละข้อหาสวิตช์ → ถอย → กลับท่าพัก ก่อนไปข้อถัดไป</td></tr>
+  <tr><td><code>arm calibrate left 456 123</code></td><td>กลุ่มละหลายข้อพร้อมกัน</td></tr>
+  <tr><td><code>arm calibrate left all</code></td><td>6 ข้อพร้อมกันแบบต้นฉบับ (มือที่ติดปลายแขนอาจชน)</td></tr>
+</table>
+<h3>อ่านผลระหว่าง calibrate</h3>
+<table>
+  <tr><th style="width:230px">ขึ้นว่า</th><th>แปลว่า / ทำอะไร</th></tr>
+  <tr><td><code>✓ J5 เจอสวิตช์แล้ว</code></td><td>ข้อนั้นผ่าน</td></tr>
+  <tr><td><code>✗ J5 ... FAIL</code></td><td>หมุนครบระยะแล้วไม่เจอสวิตช์ บอร์ดหยุดข้อนั้นให้เอง (ไม่หมุนต่อจนชน) โปรแกรมจบพร้อมแจ้ง มักเป็นมอเตอร์ข้อนั้นหมุนกลับด้าน → <code>arm dir</code> แล้ว calibrate ข้อนั้นใหม่ · หรือสวิตช์/สายหลุด</td></tr>
+  <tr><td><code>USB หลุดระหว่าง calibrate</code></td><td>ปกติตอนมอเตอร์หมุน แขนทำต่อเอง โปรแกรมรอต่อใหม่ให้</td></tr>
+</table>
+<h3>ทิศมอเตอร์ <code>arm dir</code></h3>
+<p><code>arm dir left|right J1..J6</code> 6 หลัก 0/1 ตามลำดับ J1..J6, <code>1</code> = ข้อนั้นมอเตอร์หมุนกลับด้านจากปกติ เช่น <code>arm dir right 000010</code> = J5 แขนขวากลับทิศ · <code>arm dir right 000000</code> = ปกติทุกข้อ เก็บในบอร์ดของแขนนั้น ใช้ทั้งตอน calibrate และตอนวิ่ง ตั้งแล้วต้อง calibrate ข้อนั้นใหม่</p>
 
-<h2><span class="num">8</span>ค่าที่ตั้งไว้และความปลอดภัย</h2>
+<h2><span class="num">10</span>ค่าที่ตั้งไว้และความปลอดภัย</h2>
 <table>
   <tr><th style="width:230px">รายการ</th><th>ค่า / หมายเหตุ</th></tr>
-  <tr><td>ความเร็วตัวเล่นโปรแกรม</td><td><b>0.19 rad/s</b> (ฐานหมุน ~11°/วินาที เท่ากับตอน calibrate) เพดาน 0.22 สั่งเกินจะถูกลดลงเอง เร่งและเบรก 4.6°/วินาที²</td></tr>
+  <tr><td>ความเร็วตัวเล่นโปรแกรม</td><td><b>0.19 rad/s</b> (ฐานหมุน ~11°/วินาที) เพดาน 0.22 สั่งเกินจะถูกลดลงเอง เร่งและเบรก 4.6°/วินาที² · สองแขนในขั้นเดียวกันถูกยืดเวลาให้ถึงพร้อมกัน</td></tr>
   <tr><td>ความเร็ว MoveIt</td><td>Velocity Scaling <b>0.3</b> (อย่าตั้งเกิน)</td></tr>
+  <tr><td>การเช็กการชน</td><td>มีเฉพาะตอน Plan ใน MoveIt (แขนกับแขน, แขนกับเสา/หัว/กล้อง) · <code>arm run</code> / <code>arm goto</code> ไม่เช็ก</td></tr>
   <tr><td>สายพาน J1</td><td>เคยรูดตอนแขนยื่นไกลแล้วหมุนฐานเร็ว ท่าที่ยื่นแขนสุดและหมุนฐานไกล (เช่น <code>home</code>, <code>pick_frot</code>) ให้ทดสอบช้าๆ และให้ช่างตรวจความตึงสม่ำเสมอ</td></tr>
-  <tr><td>ท่าพัก (<code>rest</code>)</td><td>J2 = −5.8°, J5 = −52.2° แกนอื่น 0°</td></tr>
+  <tr><td>ท่าพัก (<code>rest</code>)</td><td>J2 = −5.8°, J5 = −52.2° แกนอื่น 0° (แขนอยู่ท่านี้หลัง calibrate)</td></tr>
+  <tr><td>สาย USB ของแขน</td><td>ถอด/เสียบเฉพาะตอนไฟแขนปิด · ต่อเข้า Pi ใหม่ต้องวัดไฟย้อนก่อน (หัวข้อ 1)</td></tr>
   <tr><td>การหยุดฉุกเฉินจริง</td><td>สวิตช์ตัดไฟแขน · คำสั่งหยุดทางซอฟต์แวร์ใช้แทนไม่ได้</td></tr>
 </table>
-<h3>ขอบเขตแต่ละแกน (ตัวเล่นโปรแกรมตรวจทุกท่าก่อนขยับ)</h3>
+<h3>ขอบเขตแต่ละแกน (ตัวเล่นโปรแกรมตรวจทุกท่าก่อนขยับ — สองแขนเท่ากัน)</h3>
 <table>
   <tr><th>แกน</th><th>J1 ฐาน</th><th>J2 ไหล่</th><th>J3 ศอก</th><th>J4</th><th>J5</th><th>J6</th></tr>
   <tr><td>องศา</td><td>±170</td><td>−42 ถึง +90</td><td>−89 ถึง +52</td><td>±165</td><td>±105</td><td>±155</td></tr>
 </table>
 
-<h2><span class="num">9</span>แก้ปัญหา</h2>
+<h2><span class="num">11</span>แก้ปัญหา</h2>
 <table>
   <tr><th style="width:210px">อาการ</th><th style="width:190px">สาเหตุ</th><th>แก้</th></tr>
   <tr><td><code>Waiting for at least 1 matching subscription(s)</code></td><td>ตัวเล่นโปรแกรมไม่ได้เปิด</td><td><code>arm player</code> ในอีกหน้าต่าง</td></tr>
   <tr><td><code>ระบบแขนเปิดอยู่แล้ว — ห้ามเปิดซ้อน</code></td><td>มีระบบแขนเปิดอยู่แล้ว</td><td>ใช้ตัวเดิม หรือ <code>arm off</code> แล้วเริ่มใหม่</td></tr>
   <tr><td><code>Controller already loaded</code>, <code>Unknown header C1/P0/JA</code></td><td>เปิดระบบแขนซ้อน 2 ชุด</td><td><code>arm off</code> → calibrate ใหม่</td></tr>
+  <tr><td><code>หาบอร์ด Teensy แขน... ไม่เจอ</code></td><td>บอร์ดยังไม่ได้ตั้งชื่อ / ไฟแขนปิด / ค้างอยู่ใน calibrate</td><td><code>arm ports</code> ดูก่อน · ยังไม่มีชื่อ → <code>arm identify</code> · ค้าง → ปิด-เปิดไฟแขน</td></tr>
+  <tr><td><code>arm ports</code> ขึ้น <code>ไม่ตอบ</code></td><td>บอร์ดกำลัง calibrate หรือระบบแขนเปิดใช้พอร์ตอยู่</td><td>รอ calibrate จบ / <code>arm off</code></td></tr>
+  <tr><td><code>มีบอร์ดชื่อ 'left' สองตัว</code></td><td>ตั้งชื่อซ้ำ</td><td><code>arm identify</code> ใหม่</td></tr>
+  <tr><td>calibrate ขึ้น <code>✗ J... FAIL</code></td><td>มอเตอร์ข้อนั้นหมุนกลับด้าน หรือสวิตช์/สายหลุด</td><td><code>arm dir แขน 6หลัก</code> → calibrate ข้อนั้นใหม่</td></tr>
+  <tr><td>calibrate แล้วมือชน</td><td>หลายข้อหมุนพร้อมกัน</td><td>calibrate ทีละข้อ หาลำดับที่ไม่ชน แล้วตั้ง <code>LEFT_CAL_ORDER</code> / <code>RIGHT_CAL_ORDER</code></td></tr>
+  <tr><td>แขนจริงหมุนกลับทิศกับโมเดลใน RViz</td><td>ทิศข้อนั้นในบอร์ดกับในโมเดลไม่ตรงกัน</td><td>ตรวจข้อนั้นด้วย calibrate ก่อน แล้วแจ้งให้แก้ (อย่าแก้ไฟล์โมเดลเอง)</td></tr>
   <tr><td><code>path tolerance violation</code></td><td>สั่งเร็วเกิน มอเตอร์ตามไม่ทัน</td><td>ใช้ความเร็วปกติ (0.19) ห้ามเกิน 0.22</td></tr>
   <tr><td>สายพานรูด / ท่าเพี้ยน</td><td>แขนยื่นไกลแล้วเร่ง-หยุดแรง หรือสายพานหย่อน</td><td>ให้ช่างตั้งความตึง → calibrate ใหม่</td></tr>
-  <tr><td>calibrate แล้วโปรแกรมพัง</td><td>USB หลุดชั่วขณะ (สัญญาณรบกวนจากมอเตอร์)</td><td>รอแขนกลับท่าพัก → Ctrl+C → <code>arm start</code></td></tr>
-  <tr><td><code>ไม่เจอ Teensy</code></td><td>สาย USB หลุด/เสียบผิดเส้น</td><td>เสียบสาย Teensy เข้า Pi (เส้นที่ใช้ได้) แล้วเปิดไฟแขน</td></tr>
-  <tr><td><code>arm goto</code> ขึ้น <code>ไม่มีโปรแกรม '@...'</code></td><td>ตัวเล่นโปรแกรมยังเป็นรุ่นก่อนมี goto</td><td>Ctrl+C ที่หน้าต่าง <code>arm player</code> แล้วสั่ง <code>arm player</code> ใหม่ (ครั้งเดียว)</td></tr>
+  <tr><td><code>แขนขวาไม่มีท่า '...'</code></td><td>ท่านั้นยังไม่ได้ teach ให้แขนนั้น (ท่าแยกตามแขน)</td><td><code>arm list</code> ดูชื่อท่าของแต่ละแขน → <code>arm teach แขน ท่า</code></td></tr>
   <tr><td>โยกสวิตช์รีโมทแล้วแขนไม่ขยับ</td><td>ยังไม่ได้ดันสวิตช์ขึ้นก่อน / SWD ลงอยู่ / ตัวเล่นโปรแกรมไม่เปิด</td><td>ดูหน้าต่าง <code>arm remote</code> · ดัน SWC และ SWD ขึ้นแล้วโยก SWC ลงใหม่</td></tr>
-  <tr><td><code>arm remote</code> ขึ้น <code>ไม่เจอ Mega</code></td><td>Mega ไม่ได้เสียบที่ Pi</td><td>เสียบ USB ของ Mega เข้า Pi</td></tr>
+  <tr><td><code>arm remote</code> ขึ้น <code>ไม่เจอ Mega</code></td><td>Mega ไม่ได้เสียบที่ Pi</td><td>ปิดไฟแขน → เสียบ USB ของ Mega เข้า Pi</td></tr>
   <tr><td>RViz ไม่ขึ้น</td><td>เดสก์ท็อป Pi ยังไม่ได้ล็อกอิน</td><td>เปิด Pi Connect ให้เห็นหน้าจอก่อน แล้ว <code>arm moveit</code> ใหม่</td></tr>
 </table>
 
-<h2><span class="num">10</span>ภาคผนวก</h2>
+<h2><span class="num">12</span>ภาคผนวก</h2>
+<h3>ซิมสองแขนบน PC (ไม่ต้องมี Pi / แขนจริง)</h3>
+<ol class="steps">
+  <li>ดับเบิลคลิก <code>C:\Users\User\Desktop\ar4\run_dual_sim.bat</code> เปิด 3 หน้าต่าง: แขนจำลอง · MoveIt + RViz · ตัวเล่นโปรแกรม</li>
+  <li>RViz เปิดมาเป็นหน้าเปล่า (ตั้งใจ กันเมาส์ค้างใน WSL) → <b>File &gt; Open Config</b> → <code>/mnt/c/Users/User/Desktop/ar4/ar4_ws/install/ar_dual/share/ar_dual/config/dual_moveit.rviz</code></li>
+  <li>สอนท่า/สร้างโปรแกรมด้วย <code>ros2 run ar_program teach ...</code> ในหน้าต่าง WSL อีกหน้าต่าง (ตัวอย่างขึ้นในหน้าต่าง .bat) · ปิด = ปิดทั้งสามหน้าต่าง</li>
+</ol>
 <h3>คำสั่งเต็ม (ใช้เมื่อคำสั่ง <code>arm</code> ใช้ไม่ได้)</h3>
 <p class="small">เข้า container ก่อนทุกหน้าต่าง: <code>docker exec -it humanoi_ros bash</code></p>
-<pre># calibrate / เปิดระบบแขน
-ros2 launch ar_hardware_interface ar_hardware.launch.py serial_port:=/dev/serial/by-id/usb-Teensyduino_USB_Serial_13173040-if00 calibrate:=True
-ros2 launch ar_hardware_interface ar_hardware.launch.py serial_port:=/dev/serial/by-id/usb-Teensyduino_USB_Serial_13173040-if00 calibrate:=False
+<pre># หาพอร์ต / ตั้งชื่อบอร์ด (ระบบแขนต้องปิดอยู่)
+ros2 run ar_dual ar_ports.py --list
+ros2 run ar_dual ar_ports.py                 # พิมพ์ left=&lt;พอร์ต&gt; right=&lt;พอร์ต&gt;
+ros2 run ar_dual ar_ports.py --identify
+ros2 run ar_dual ar_ports.py --dir &lt;พอร์ต&gt; 000010
+# calibrate (ทีละแขน)
+ros2 run ar_dual ar_calibrate.py &lt;พอร์ตแขน&gt; 6 5 4 1 2 3
+# เปิดระบบสองแขน (left_hw/right_hw = real | mock)
+ros2 launch ar_dual dual_hardware.launch.py left_port:=&lt;พอร์ตซ้าย&gt; right_port:=&lt;พอร์ตขวา&gt; left_hw:=real right_hw:=real
 # ตัวเล่นโปรแกรม
-ros2 launch ar_program arm_program.launch.py
+ros2 launch ar_program arm_program.launch.py speed:=0.19
 # สั่งงาน
-ros2 topic pub --once /arm/run std_msgs/msg/String "{data: 'demo'}"
+ros2 topic pub --once /arm/run std_msgs/msg/String "{data: pick2}"
+ros2 topic pub --once /arm/run std_msgs/msg/String "{data: '@right:rest'}"   # = arm goto right rest
 ros2 topic pub --once /arm/stop std_msgs/msg/Empty "{}"
 ros2 run ar_program teach --list
-ros2 run ar_program teach &lt;ชื่อท่า&gt;
-ros2 run ar_program teach --program &lt;ชื่อโปรแกรม&gt; &lt;ท่า1&gt; &lt;ท่า2&gt; wait=1.0 &lt;ท่า3&gt;
-ros2 run ar_program teach --delete &lt;ชื่อท่า&gt;
-ros2 run ar_program teach --delete-program &lt;ชื่อโปรแกรม&gt;</pre>
+ros2 run ar_program teach --show pick2
+ros2 run ar_program teach &lt;ชื่อท่า&gt; --arm left
+ros2 run ar_program teach --program pick2 rest/rest act1/- wait=1.0 -/act2
+ros2 run ar_program teach --delete &lt;ชื่อท่า&gt; --arm right
+ros2 run ar_program teach --delete-program pick2</pre>
 <h3>ตำแหน่งไฟล์บน Pi</h3>
 <table>
   <tr><th style="width:200px">อะไร</th><th>ที่อยู่</th></tr>
   <tr><td>ท่าและโปรแกรม</td><td><code>~/Humanoi/ros2_ws/src/ar_program/config/programs.yaml</code></td></tr>
-  <tr><td>คำสั่งลัด <code>arm</code></td><td><code>~/Humanoi/scripts/arm.sh</code> (alias ใน <code>~/.bashrc</code>)</td></tr>
+  <tr><td>คำสั่งลัด <code>arm</code></td><td><code>~/Humanoi/scripts/arm.sh</code> (alias ใน <code>~/.bashrc</code>) · ลำดับ calibrate ตั้งที่ <code>LEFT_CAL_ORDER</code> / <code>RIGHT_CAL_ORDER</code></td></tr>
   <tr><td>เปิด MoveIt</td><td><code>~/Humanoi/scripts/arm_moveit.sh</code></td></tr>
   <tr><td>คู่มือ</td><td><code>~/Humanoi/docs/AR4_ARM_COMMANDS.md</code> และไฟล์ PDF นี้</td></tr>
-  <tr><td>Teensy (แขน)</td><td><code>/dev/serial/by-id/usb-Teensyduino_USB_Serial_13173040-if00</code></td></tr>
+  <tr><td>Teensy สองแขน</td><td>หาเองจากชื่อที่เก็บในบอร์ด (<code>arm ports</code>) · บังคับเองได้: <code>LEFT_TEENSY=... RIGHT_TEENSY=... arm start</code></td></tr>
   <tr><td>Arduino Mega (ฐาน)</td><td><code>/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_858303033393517150C0-if00</code></td></tr>
 </table>
-<p class="small muted">การรัน <code>scripts/sync_to_pi.sh</code> จาก PC จะเขียนทับ programs.yaml บน Pi (สำรองไว้เป็น programs.yaml.bak) ถ้า teach ท่าไว้บน Pi ให้ดึงไฟล์กลับมา PC ก่อน</p>
+<p class="small muted">การรัน <code>scripts/sync_to_pi.sh</code> จาก PC จะเขียนทับ programs.yaml บน Pi (สำรองไว้เป็น programs.yaml.bak) ถ้า teach ท่าไว้บน Pi ให้ดึงไฟล์กลับมา PC ก่อน · ไฟล์ท่าของซิมบน PC (<code>ar4\ar4_ws\src\ar_program\config\programs.yaml</code>) เป็นคนละไฟล์กับบน Pi</p>
 
 </body>
 </html>
