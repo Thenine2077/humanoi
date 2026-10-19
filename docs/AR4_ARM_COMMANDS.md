@@ -10,7 +10,7 @@
 - **Raspberry Pi Connect** → Terminal บนเดสก์ท็อป Pi (ต้องใช้ทางนี้ถ้าจะเปิด MoveIt)
 - **จาก PC:** `ssh eitlaser@192.168.1.68`
 
-พิมพ์ `arm help` เพื่อดูรายการคำสั่งทั้งหมดได้ตลอด
+พิมพ์ `arm help` เพื่อดูรายการคำสั่งทั้งหมดได้ตลอด · **ใช้บน PC (WSL) ได้ด้วยคำสั่งชุดเดียวกัน** — ดูหัวข้อ 6
 
 > **ห้ามถอดหรือเสียบสาย USB ของแขนขณะไฟแขนเปิด** — ปิดไฟแขนก่อนทุกครั้ง
 > (Pi 5 ตัวแรกเสียหลังถอดสาย Teensy ตอนไฟแขนเปิดอยู่ เมื่อ 19 ต.ค. 2026)
@@ -268,17 +268,43 @@ arm calibrate left all          6 ข้อพร้อมกันแบบต�
 
 ---
 
-## 6. ซิมสองแขนบน PC (ไม่ต้องมี Pi / แขนจริง)
+## 6. ใช้บน PC (แขนจริงเสียบ USB เข้า PC / ซิม ไม่ต้องมี Pi)
 
-ดับเบิลคลิก `C:\Users\User\Desktop\ar4\run_dual_sim.bat` — เปิด 3 หน้าต่าง: แขนจำลอง, MoveIt + RViz, ตัวเล่นโปรแกรม
+คำสั่ง `arm` ชุดเดียวกับบน Pi — พิมพ์ใน **หน้าต่าง WSL (Ubuntu-24.04)** ไม่ใช่ PowerShell
+(เปิดได้จาก Windows Terminal → Ubuntu-24.04 หรือพิมพ์ `wsl -d Ubuntu-24.04` ใน PowerShell)
+คำสั่งคือ `Humanoi/scripts/arm_pc.sh` (alias `arm` อยู่ใน `~/.bashrc` ของ WSL แล้ว)
 
-1. RViz เปิดมาเป็นหน้าเปล่า (ตั้งใจ — กันเมาส์ค้างใน WSL) → **File > Open Config** →
-   `/mnt/c/Users/User/Desktop/ar4/ar4_ws/install/ar_dual/share/ar_dual/config/dual_moveit.rviz`
-2. สอนท่า/สร้างโปรแกรมด้วย `ros2 run ar_program teach ...` ในหน้าต่าง WSL อีกหน้าต่าง (ตัวอย่างขึ้นในหน้าต่าง .bat)
-3. ปิด = ปิดทั้งสามหน้าต่าง
+ต่างจาก Pi:
+
+- **พอร์ตเป็น COM ของ Windows** (เช่น `COM9`) — `arm ports` ขึ้นเป็น COM, `arm name COM9 left`
+  หาเองจากชื่อแขนในบอร์ดเหมือน Pi · บอร์ดที่ยังไม่ได้ตั้งชื่อ: `arm identify` หรือ `arm name COMx left|right`
+  หรือบังคับพอร์ตเอง: `LEFT_TEENSY=COM9 arm start left`
+- `arm start` เปิด **สะพาน serial** ให้เอง: Windows เปิด COM ตรง → TCP → WSL เห็นเป็น `/tmp/ttyV_left` `/tmp/ttyV_right`
+  (หน่วง ~1.3 ms ต่อรอบ) — ปิด `arm start` ด้วย Ctrl+C แล้วสะพานปิดตาม · ถ้าหน้าต่างค้าง/ถูกปิดทิ้ง สั่ง `arm off`
+- `arm start sim` = แขนจำลองทั้งคู่ (ไม่ต้องเสียบบอร์ด) — ใช้ลองโปรแกรม/จัดท่า แทน `run_dual_sim.bat` ได้
+- `arm moveit` เปิด RViz **หน้าเปล่า** (ตั้งใจ — โหลด config ตอนเปิดบน WSLg แล้วเมาส์คลิกไม่ได้) →
+  **File > Open Config** → `/mnt/c/Users/User/Desktop/ar4/ar4_ws/install/ar_dual/share/ar_dual/config/dual_moveit.rviz`
+  · RViz ย่อแล้วกดเปิดไม่ขึ้น / ขึ้น `[WARN:COPY MODE]` → ปิดทุกหน้าต่าง WSL แล้วสั่ง `wsl --shutdown` ใน PowerShell
+- ไม่มี `arm remote` (รีโมทต่อกับ Mega บน Pi)
+- `arm calibrate` ใช้ลำดับข้อเริ่มต้นตัวเดียวกับ Pi (`LEFT_CAL_ORDER` / `RIGHT_CAL_ORDER` ใน `scripts/arm.sh`)
+
+```bash
+# หน้าต่าง WSL 1
+arm ports
+arm calibrate left 6 5 4 1 2 3
+arm start              # หรือ arm start left / arm start sim
+# หน้าต่าง WSL 2
+arm player
+# หน้าต่าง WSL 3
+arm moveit
+arm teach left act1
+arm run pick2
+```
 
 ไฟล์ท่าบน PC (`ar4\ar4_ws\src\ar_program\config\programs.yaml`) เป็นคนละไฟล์กับบน Pi —
 `scripts/sync_to_pi.sh` เขียนทับไฟล์บน Pi (สำรองเป็น `programs.yaml.bak`) ถ้า teach ท่าไว้บน Pi ให้ดึงกลับมา PC ก่อน
+
+ซิมแบบเดิม (ไม่ใช้ `arm`): ดับเบิลคลิก `C:\Users\User\Desktop\ar4\run_dual_sim.bat` — เปิด 3 หน้าต่างให้เลย
 
 ---
 
