@@ -70,6 +70,21 @@ need_player() {
 
 show() { if is_running "$1"; then echo "  ✓ $2"; else echo "  ✗ $2"; fi; }
 
+rps_result() {  # อ่าน "<หุ่น>:<ผู้เล่น>:<ผล>" จาก /rps/result แล้วพิมพ์เป็นภาษาไทย
+  local line robot player result
+  read -r line || { echo "  ? ไม่ได้ผลภายใน 3 นาที — ดูหน้าต่าง arm rps"; return; }
+  IFS=: read -r robot player result <<< "$line"
+  declare -A th=([rock]=ค้อน [paper]=กระดาษ [scissors]=กรรไกร [none]="ไม่เห็นมือ")
+  case "$result" in
+    player_win) result="ผู้เล่นชนะ (หุ่นชูนิ้วโป้ง)" ;;
+    robot_win) result="หุ่นชนะ (หุ่นชู 2 นิ้ว)" ;;
+    draw) result="เสมอ (เป่าใหม่ครบแล้ว)" ;;
+    no_player) result="ไม่เห็นมือผู้เล่น — ยื่นมือให้กล้องเห็นตอน ฉุบ" ;;
+    stopped) result="หยุดกลางคัน" ;;
+  esac
+  echo "  หุ่น: ${th[$robot]:-$robot} · ผู้เล่น: ${th[$player]:-$player} → $result"
+}
+
 cmd="${1:-help}"
 shift || true
 need_container
@@ -87,6 +102,7 @@ case "$cmd" in
     show "lib/ar_program/arm_program" "ตัวเล่นโปรแกรม     (arm player)"
     show move_group "MoveIt + RViz      (arm moveit)"
     show "lib/humanoi_base/rc_arm_trigger" "สวิตช์รีโมท        (arm remote)"
+    show "lib/humanoi_games/rps_game" "เกมเป่ายิ้งฉุบ      (arm rps)"
     show "lib/humanoi_base/relay_bridge" "relay_bridge (Mega)"
     if is_running ros2_control_node; then
       echo "ตัวควบคุม:"
@@ -237,6 +253,37 @@ EOF
       | grep . || echo "  ? ไม่ได้รับผลภายใน 10 นาที — ดูหน้าต่าง arm player"
     ;;
 
+  rps)  # เกมเป่ายิ้งฉุบ (ros2_ws/src/humanoi_games) — คู่มือ docs/RPS_GAME.md
+    case "${1:-}" in
+      play)
+        is_running "lib/humanoi_games/rps_game" || { echo "✗ เปิดเกมก่อน (อีกหน้าต่าง): arm rps"; exit 1; }
+        echo "เป่า-ยิ้ง-ฉุบ! ... (หยุด: arm rps stop หรือปิดสวิตช์ไฟแขน)"
+        ros bash -c "timeout 180 ros2 topic echo /rps/result --once --field data 2>/dev/null & E=\$!; sleep 1.5; \
+          ros2 topic pub --once /rps/play std_msgs/msg/Empty '{}' >/dev/null; wait \$E" | rps_result
+        ;;
+      stop)
+        ros ros2 topic pub --once /rps/stop std_msgs/msg/Empty "{}" >/dev/null && echo "ส่งคำสั่งหยุดเกมแล้ว"
+        ;;
+      ""|camera|random|topic)
+        is_running ros2_control_node || { echo "✗ เปิดระบบแขนก่อน (arm start)"; exit 1; }
+        if is_running "lib/humanoi_games/rps_game"; then echo "✗ เกมเปิดอยู่แล้ว — เล่น: arm rps play"; exit 1; fi
+        player="${1:-camera}"; hand=true; [ "${2:-}" = nohand ] && hand=false
+        camera=true; is_running astra_camera && camera=false  # กล้องเปิดอยู่แล้ว (เช่นจาก yolo) ไม่ต้องเปิดซ้ำ
+        echo "เปิดเกมเป่ายิ้งฉุบ (ผู้เล่น: $player · มือ: $hand) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
+        echo "เล่น 1 ตา: arm rps play (อีกหน้าต่าง) · ต้องสอนท่าตั้งก่อน: arm teach left rps_ready"
+        ros_tty ros2 launch humanoi_games rps.launch.py player:="$player" hand:="$hand" camera:="$camera"
+        ;;
+      *)
+        cat <<'EOF'
+ใช้: arm rps [camera|random|topic] [nohand]   เปิดเกม (เปิดค้าง) — camera = ดูมือผู้เล่นจากกล้อง (ค่าเริ่ม)
+                                            random = สุ่มแทนผู้เล่น (ทดสอบ) · nohand = ไม่ต่อมือจริง
+     arm rps play                           เล่น 1 ตา รอจนจบแล้วบอกผล
+     arm rps stop                           หยุดเกมกลางคัน
+EOF
+        exit 1 ;;
+    esac
+    ;;
+
   stop)
     ros ros2 topic pub --once /arm/stop std_msgs/msg/Empty "{}" >/dev/null && echo "ส่งคำสั่งหยุดแล้ว (ทุกแขน)"
     ;;
@@ -280,14 +327,16 @@ EOF
   off)
     echo "ปิดทุกอย่างของแขน (แขนค้างที่ท่าปัจจุบัน)..."
     for p in "ros2 launch ar_program" "ros2 launch ar_dual" "ros2 launch ar_gz_bringup" \
-             "ros2 launch ar_hardware_interface" "lib/humanoi_base/rc_arm_trigger" "ar_calibrate.py"; do
+             "ros2 launch ar_hardware_interface" "lib/humanoi_base/rc_arm_trigger" "ar_calibrate.py" \
+             "ros2 launch humanoi_games"; do
       docker exec "$C" pkill -INT -f "$p" 2>/dev/null
     done
     for _ in $(seq 1 15); do
-      is_running ros2_control_node || is_running move_group || is_running "lib/ar_program/arm_program" || break
+      is_running ros2_control_node || is_running move_group || is_running "lib/ar_program/arm_program" \
+        || is_running "lib/humanoi_games" || break
       sleep 1
     done
-    for p in ros2_control_node move_group lib/ar_program/arm_program spawner rviz2; do
+    for p in ros2_control_node move_group lib/ar_program/arm_program spawner rviz2 lib/humanoi_games; do
       docker exec "$C" pkill -9 -f "$p" 2>/dev/null
     done
     bash "$0" status
@@ -329,8 +378,13 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm goto <left|right> <ท่า>        พาแขนเดียวไปท่าเดียว (ใช้ตอนแก้ท่า: goto -> ปรับใน MoveIt -> teach ชื่อเดิม)
    arm stop                           หยุดโปรแกรมกลางคัน (ทุกแขน)
 
+ เกมเป่ายิ้งฉุบ (คู่มือ docs/RPS_GAME.md — สอนท่าตั้งก่อน: arm teach left rps_ready)
+   arm rps [camera|random] [nohand]   เปิดเกม (เปิดค้าง แทน arm player) ดูมือผู้เล่นจากกล้อง / สุ่มแทน
+   arm rps play                       เล่น 1 ตา: J1 ขึ้นลง 3 ครั้ง → มือออกท่า → ผู้เล่นชนะชูโป้ง แพ้ชู 2 นิ้ว
+   arm rps stop                       หยุดเกมกลางคัน
+
  ปิด
-   arm off                            ปิดทุกอย่างของแขน
+   arm off                            ปิดทุกอย่างของแขน (รวมเกม)
 
  ไม่มีการเช็คการชนตอน arm run/goto (รวมสองแขนชนกันเอง) — ทดสอบโปรแกรมใหม่ด้วย speed ต่ำก่อนเสมอ
 EOF

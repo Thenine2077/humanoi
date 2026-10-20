@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+"""rps_game — เป่ายิ้งฉุบกับหุ่น
+
+ลำดับ: แขนไปท่าตั้ง (rps_ready — สอนเองด้วย arm teach) มือกำ → ข้อ 1 ยกขึ้น-ลง 3 ครั้ง (เป่า-ยิ้ง-ฉุบ)
+→ จังหวะ "ฉุบ" มือออกท่าที่สุ่มไว้ → ดูท่าผู้เล่นจากกล้อง → ผู้เล่นชนะ = ชูนิ้วโป้ง (ไลค์),
+ผู้เล่นแพ้ = ชู 2 นิ้ว, เสมอ = เป่าใหม่ (ไม่เกิน max_draws ครั้ง), ไม่เห็นมือ = ส่ายนิ้ว
+
+  ros2 launch humanoi_games rps.launch.py                     # เปิดเกมค้างไว้ (แขน + มือ + กล้อง)
+  ros2 topic pub --once /rps/play std_msgs/msg/Empty "{}"     # เล่น 1 ตา
+  ros2 topic echo /rps/result
+
+วิธีเรียกเล่นยังไม่ได้เลือก — อะไรก็ได้ที่ส่ง /rps/play ได้ (สวิตช์รีโมท, ปุ่ม, เสียง, หน้าเว็บ)
+
+หัวข้อ
+  /rps/play            (sub, Empty)   เริ่ม 1 ตา (ระหว่างเล่นอยู่ไม่รับซ้ำ)
+  /rps/stop            (sub, Empty)   หยุดกลางคัน แขนหยุดที่ตำแหน่งปัจจุบัน
+  /rps/player_gesture  (sub, String)  ท่าผู้เล่นทีละเฟรม rock|paper|scissors|none (rps_vision หรือพิมพ์ส่งเอง)
+  /rps/state           (pub, String)  idle | ready | beat:1..3 | reveal:<ท่าหุ่น> | result:<ผล> (ไว้ต่อเสียง/จอ)
+  /rps/result          (pub, String)  ผลสุดท้ายของเกม (เสมอแล้วเป่าใหม่ = ไม่ส่ง รอผลตาสุดท้าย)
+                                      "<ท่าหุ่น>:<ท่าผู้เล่น|none>:<ผล>"
+                                      ผล = player_win | robot_win | draw | no_player | stopped | error:<เหตุผล>
+  /hand/gesture        (pub, String)  สั่งมือ (amazinghand_node)
+
+แขนสั่งตรงเข้า <arm>_arm_controller แบบเดียวกับ ar_program (เร่ง → วิ่ง → เบรก ไม่ผ่าน MoveIt ไม่เช็คการชน)
+อย่าเปิด arm player สั่งแขนเดียวกันพร้อมกับเกม · หยุดฉุกเฉิน = ปิดสวิตช์ไฟแขน
+"""
+import functools
+import math
+import random
+import threading
+import time
+from collections import deque
+
+import rclpy
+from builtin_interfaces.msg import Duration
+from control_msgs.action import FollowJointTrajectory
+from rcl_interfaces.msg import ParameterDescriptor
+from rclpy.action import ActionClient
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
+from rclpy.node import Node
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Empty, String
+from tf2_ros import Buffer, TransformListener
+from trajectory_msgs.msg import JointTrajectoryPoint
+
+from ar_program import programs
+from humanoi_games import rps_logic
+from humanoi_games.rps_logic import THAI
+
+ARM_TH = {"left": "ซ้าย", "right": "ขวา"}
+RESULT_TH = {"player_win": "ผู้เล่นชนะ → ชูนิ้วโป้ง", "robot_win": "หุ่นชนะ → ชู 2 นิ้ว",
+             "draw": "เสมอ", "no_player": "ไม่เห็นมือผู้เล่น → ส่ายนิ้ว"}
+# ผล -> (ท่ามือ, พารามิเตอร์ชื่อท่าแขนตอนโชว์ — ไม่ได้สอนท่านั้นไว้ = แขนค้างที่ท่าตั้ง)
+REACTION = {"player_win": ("like", "like_pose"), "robot_win": ("victory", "victory_pose"),
+            "draw": ("paper", None), "no_player": ("nonono", None)}
+PARAMS = {
+    "arm": "left",                # แขนที่ติดมือ
+    "layout": "dual",             # dual = ar_dual (<arm>_joint_N) · single = แขนเดี่ยวแบบเดิม (joint_N)
+    "programs_file": programs.DEFAULT_FILE,
+    "ready_pose": "rps_ready",    # ท่าตั้งก่อนเป่า (ต้องสอนก่อน: arm teach left rps_ready)
+    "like_pose": "rps_like",      # ท่าแขนตอนชูนิ้วโป้ง (ไม่บังคับ)
+    "victory_pose": "rps_v",      # ท่าแขนตอนชู 2 นิ้ว (ไม่บังคับ)
+    "pump_joint": 1,              # ข้อที่ขยับขึ้นลง
+    "pump_deg": 8.0,              # ยกกี่องศา
+    "auto_up": True,              # true = เลือกทิศข้อ 1 ให้มือ "ขึ้น" เอง (คำนวณจาก TF ที่ท่าตั้ง) ·
+                                  # false = ใช้เครื่องหมายของ pump_deg ตรงๆ
+    "up_frame": "torso",          # เฟรมที่แกน z ชี้ขึ้นฟ้า
+    "pump_count": 3,              # เป่า-ยิ้ง-ฉุบ
+    "pump_speed": 0.20,           # rad/s (เพดาน 0.22 เหมือน ar_program — เกินนี้เฟิร์มแวร์ตามไม่ทัน)
+    "pump_accel": 0.15,           # rad/s^2 ต่ำกว่าที่เฟิร์มแวร์เร่งได้ (10°/s^2 = 0.17)
+    "move_speed": 0.19,           # ไป/กลับท่าตั้งและท่าโชว์ — ค่าเดียวกับ arm player
+    "move_accel": 0.08,
+    "hand_lead": 0.4,             # สั่งมือออกท่าก่อนแขนลงสุดกี่วินาที (นิ้วใช้เวลาราว 0.3 s)
+    "robot_choice": "random",     # random | rock | paper | scissors (บังคับท่าหุ่น ไว้ทดสอบ/โชว์)
+    "player_source": "camera",    # camera = โหวตจาก /rps/player_gesture · random = สุ่มแทนผู้เล่น (ทดสอบ)
+    "settle": 0.2,                # หลัง "ฉุบ" รอให้มือผู้เล่นนิ่งก่อนเริ่มนับ (วินาที)
+    "player_window": 1.5,         # นับท่าผู้เล่นนานเท่าไหร่
+    "min_votes": 4,               # ต้องเห็นมืออย่างน้อยกี่เฟรมในช่วงนั้น
+    "max_draws": 2,               # เสมอแล้วเป่าใหม่ได้กี่ครั้ง
+    "react_hold": 3.0,            # ค้างท่าโชว์กี่วินาที
+    "end_gesture": "paper",       # ท่ามือตอนจบเกม
+}
+MAX_SPEED = 0.22
+
+
+class GameError(Exception):
+    pass
+
+
+class Stopped(Exception):
+    pass
+
+
+def _wait(future, timeout):
+    end = time.monotonic() + timeout
+    while not future.done():
+        if time.monotonic() > end:
+            return None
+        time.sleep(0.01)
+    return future.result()
+
+
+def _duration(secs):
+    sec = int(secs)
+    return Duration(sec=sec, nanosec=int(round((secs - sec) * 1e9)))
+
+
+class RpsGame(Node):
+    def __init__(self):
+        super().__init__("rps_game")
+        any_type = ParameterDescriptor(dynamic_typing=True)  # pump_deg:=8 (int) ก็รับ — ค่าถูกแปลงตอนใช้
+        for name, default in PARAMS.items():
+            self.declare_parameter(name, default, any_type)
+        self.arm = programs.arm_of(self.get_parameter("arm").value)
+        layout = self.get_parameter("layout").value
+        self.joints = programs.joint_names(self.arm, layout)
+        action = (f"/{self.arm}_arm_controller/follow_joint_trajectory" if layout == "dual"
+                  else "/joint_trajectory_controller/follow_joint_trajectory")
+        cb = ReentrantCallbackGroup()
+        self.client = ActionClient(self, FollowJointTrajectory, action, callback_group=cb)
+        self.current = {}
+        self.samples = deque(maxlen=600)  # (เวลา, ท่าผู้เล่น)
+        self.busy = False
+        self.lock = threading.Lock()
+        self.stop_flag = threading.Event()
+        self.goal_handle = None
+        self.create_subscription(JointState, "/joint_states", self._on_js, 10, callback_group=cb)
+        self.create_subscription(Empty, "/rps/play", self._on_play, 10, callback_group=cb)
+        self.create_subscription(Empty, "/rps/stop", self._on_stop, 10, callback_group=cb)
+        self.create_subscription(String, "/rps/player_gesture", self._on_player, 50, callback_group=cb)
+        self.tf = Buffer()
+        TransformListener(self.tf, self)
+        self.hand_pub = self.create_publisher(String, "/hand/gesture", 10)
+        self.state_pub = self.create_publisher(String, "/rps/state", 10)
+        self.result_pub = self.create_publisher(String, "/rps/result", 10)
+        self._state("idle")
+        p = self._params()
+        stroke = rps_logic.stroke_time(math.radians(float(p["pump_deg"])),
+                                       min(float(p["pump_speed"]), MAX_SPEED), float(p["pump_accel"]))
+        self.get_logger().info(
+            f"rps_game พร้อม — แขน{ARM_TH[self.arm]} ({action}) ท่าตั้ง '{p['ready_pose']}' · "
+            f"เป่า {p['pump_count']} ครั้ง ข้อ {p['pump_joint']} {float(p['pump_deg']):+.0f}° "
+            f"(~{2 * stroke * p['pump_count']:.0f} วินาที) · ผู้เล่นจาก {p['player_source']} · "
+            "เล่น: ros2 topic pub --once /rps/play std_msgs/msg/Empty \"{}\"")
+
+    # ---------- callbacks ----------
+    def _params(self):
+        return {name: self.get_parameter(name).value for name in PARAMS}
+
+    def _on_js(self, msg):
+        for name, pos in zip(msg.name, msg.position):
+            self.current[name] = pos
+
+    def _on_player(self, msg):
+        self.samples.append((time.monotonic(), msg.data.strip()))
+
+    def _on_play(self, _msg):
+        with self.lock:
+            if self.busy:
+                self.get_logger().warn("กำลังเล่นอยู่ — ไม่รับ /rps/play ซ้ำ")
+                return
+            self.busy = True
+            self.stop_flag.clear()
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _on_stop(self, _msg):
+        if self.busy:
+            self.get_logger().warn("ได้รับ /rps/stop — หยุดเกม")
+            self.stop_flag.set()
+            if self.goal_handle is not None:
+                self.goal_handle.cancel_goal_async()
+
+    # ---------- เกม (worker thread) ----------
+    def _run(self):
+        robot = player = None
+        try:
+            try:
+                robot, player, result = self._play()
+            except Stopped:
+                result = "stopped"
+            except (GameError, programs.ProgramError) as exc:
+                result = f"error:{exc}"
+            except Exception as exc:  # ไม่ให้ thread ตายเงียบแล้ว busy ค้าง
+                result = f"error:{type(exc).__name__}: {exc}"
+            self.result_pub.publish(String(data=f"{robot}:{player or 'none'}:{result}"))
+            if result.startswith("error") or result == "stopped":
+                self.get_logger().error(f"เกมจบ: {result}")
+        finally:
+            self.goal_handle = None
+            self._state("idle")
+            with self.lock:
+                self.busy = False
+
+    def _play(self):
+        p = self._params()
+        data = programs.load(p["programs_file"])
+        ready = self._pose(data, p["ready_pose"], required=True)
+        j = int(p["pump_joint"]) - 1
+        amp = math.radians(float(p["pump_deg"]))
+        for sign in (1, -1):  # ตรวจทั้งสองทิศก่อนขยับ (ทิศ "ขึ้น" รู้หลังแขนถึงท่าตั้ง)
+            up = list(ready)
+            up[j] += sign * abs(amp)
+            programs.check_pose(f"ท่ายก ({p['ready_pose']} ข้อ {j + 1} {sign * abs(float(p['pump_deg'])):+.0f}°)", up)
+        if not self.client.wait_for_server(timeout_sec=3.0):
+            raise GameError(f"ไม่พบตัวคุมแขน{ARM_TH[self.arm]} — เปิดระบบแขนก่อน (arm start)")
+        if not all(n in self.current for n in self.joints):
+            raise GameError(f"ยังไม่ได้รับ joint_states ของแขน{ARM_TH[self.arm]}")
+        if not self.hand_pub.get_subscription_count():
+            self.get_logger().warn("ไม่มีโหนดมือฟังอยู่ (amazinghand_node) — เล่นต่อแบบแขนอย่างเดียว")
+        pump_speed = min(float(p["pump_speed"]), MAX_SPEED)
+        pump_accel = float(p["pump_accel"])
+
+        self._hand("rock")
+        self._state("ready")
+        self._move_to(ready, p)
+        if p["auto_up"] and j == 0:
+            amp = self._upward(abs(amp), p["up_frame"])
+        for rnd in range(1, int(p["max_draws"]) + 2):
+            robot = p["robot_choice"] if p["robot_choice"] in rps_logic.CHOICES else rps_logic.robot_pick()
+            self._hand("rock")
+            points, beats = rps_logic.pump_plan(ready, j, amp, int(p["pump_count"]), pump_speed, pump_accel,
+                                                programs.trapezoid)
+            events = [(t, functools.partial(self._state, f"beat:{i}")) for i, t in enumerate(beats, 1)]
+            events.append((max(0.0, beats[-1] - float(p["hand_lead"])), functools.partial(self._reveal, robot)))
+            self.get_logger().info(f"ตาที่ {rnd}: เป่า-ยิ้ง-ฉุบ ({beats[-1]:.1f} วินาที)")
+            t0 = self._trajectory(points, events)
+            player = self._read_player(t0 + beats[-1], p)
+            result = rps_logic.judge(robot, player) if player else "no_player"
+            self._state(f"result:{result}")
+            self.get_logger().info(
+                f"หุ่นออก {THAI[robot]} · ผู้เล่นออก {THAI[player]}"
+                f"{' (สุ่มทดสอบ)' if p['player_source'] == 'random' else ''} → {RESULT_TH[result]}")
+            if result == "draw" and rnd <= int(p["max_draws"]):  # /rps/result ส่งเฉพาะผลสุดท้าย
+                self.get_logger().info("เสมอ — เป่าใหม่")
+                self._sleep(1.0)
+                continue
+            self._react(result, data, ready, p)
+            return robot, player, result
+
+    def _pose(self, data, name, required=False):
+        if not name or name not in data["poses"][self.arm]:
+            if required:
+                raise GameError(f"แขน{ARM_TH[self.arm]}ไม่มีท่า '{name}' — สอนก่อน: arm teach {self.arm} {name}")
+            return None
+        return programs.check_pose(f"{self.arm}:{name}", data["poses"][self.arm][name])
+
+    def _upward(self, amp, frame):
+        """ทิศของข้อ 1 ที่ทำให้มือยกขึ้น ณ ท่าปัจจุบัน — แขนติดข้างเสา แกนข้อ 1 นอนขวาง ทิศขึ้นจึงขึ้นกับท่าตั้ง
+
+        แกนข้อ 1 = แกน z ของเฟรม <arm>_link_1 (URDF: axis 0 0 1) ผ่านจุดกำเนิดของเฟรมนั้น
+        ความเร็วมือเมื่อข้อ 1 หมุนบวก = แกน × (มือ − จุดบนแกน) — ดูแค่ส่วน z (ขึ้นฟ้า) ไม่ต้องขยับแขนทดลอง
+        """
+        time.sleep(0.3)  # ให้ TF ตามทันท่าตั้งที่เพิ่งไปถึง
+        try:
+            t1 = self.tf.lookup_transform(frame, f"{self.arm}_link_1", rclpy.time.Time())
+            t6 = self.tf.lookup_transform(frame, f"{self.arm}_link_6", rclpy.time.Time())
+        except Exception as exc:
+            self.get_logger().warn(f"หาทิศขึ้นไม่ได้ (TF {frame}: {exc}) — ใช้ pump_deg ตามเครื่องหมายเดิม")
+            return math.copysign(amp, float(self.get_parameter("pump_deg").value))
+        q, o, h = t1.transform.rotation, t1.transform.translation, t6.transform.translation
+        ax = (2 * (q.x * q.z + q.w * q.y), 2 * (q.y * q.z - q.w * q.x))  # x, y ของแกน z เฟรม link_1
+        vz = ax[0] * (h.y - o.y) - ax[1] * (h.x - o.x)  # ส่วน z ของ แกน × (มือ − จุดบนแกน) ม./rad
+        lift = abs(vz) * amp * 100
+        self.get_logger().info(f"ยกขึ้น = ข้อ 1 {'+' if vz >= 0 else '-'}{math.degrees(amp):.0f}° "
+                               f"(มือขึ้นราว {lift:.1f} ซม.)")
+        if lift < 2.0:
+            self.get_logger().warn("ท่าตั้งนี้ข้อ 1 พามือขึ้นลงได้น้อย (มือเกือบอยู่บนแนวแกนข้อ 1) "
+                                   "— ลองสอนท่าตั้งให้มือยื่นไปข้างหน้ามากขึ้น")
+        return amp if vz >= 0 else -amp
+
+    def _read_player(self, shot, p):
+        """ท่าผู้เล่นหลังจังหวะฉุบ (เวลา monotonic) — None = ไม่เห็นมือชัดพอ"""
+        start = shot + float(p["settle"])
+        if p["player_source"] == "random":
+            self._sleep_until(start)
+            return rps_logic.robot_pick()
+        end = start + float(p["player_window"])
+        self._sleep_until(end)
+        return rps_logic.vote(list(self.samples), start, end, int(p["min_votes"]))
+
+    def _react(self, result, data, ready, p):
+        gesture, pose_param = REACTION[result]
+        self._hand(gesture)
+        target = self._pose(data, p[pose_param]) if pose_param else None
+        if target:
+            self._move_to(target, p)
+        self._sleep(float(p["react_hold"]))
+        if target:
+            self._move_to(ready, p)
+        self._hand(p["end_gesture"])
+
+    def _reveal(self, robot):
+        self._hand(robot)
+        self._state(f"reveal:{robot}")
+
+    # ---------- แขน ----------
+    def _move_to(self, target, p):
+        start = [self.current[n] for n in self.joints]
+        speed = min(float(p["move_speed"]), MAX_SPEED)
+        self._trajectory(programs.trapezoid(start, target, speed, float(p["move_accel"]), 1.0))
+
+    def _trajectory(self, points, events=()):
+        """ส่ง trajectory แล้วรอจนจบ ระหว่างนั้นเรียก events [(วินาทีจากเริ่ม, ฟังก์ชัน)] ตามเวลา — คืนเวลาเริ่ม"""
+        if self.stop_flag.is_set():
+            raise Stopped()
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory.joint_names = list(self.joints)
+        for t, pos, vel in points:
+            pt = JointTrajectoryPoint()
+            pt.positions = [float(v) for v in pos]
+            pt.velocities = [float(v) for v in vel]
+            pt.time_from_start = _duration(t)
+            goal.trajectory.points.append(pt)
+        gh = _wait(self.client.send_goal_async(goal), 5.0)
+        if gh is None or not gh.accepted:
+            raise GameError(f"ตัวคุมแขน{ARM_TH[self.arm]} ไม่รับคำสั่ง")
+        t0 = time.monotonic()
+        self.goal_handle = gh
+        pending = sorted(events, key=lambda e: e[0])
+        result = gh.get_result_async()
+        deadline = t0 + points[-1][0] + 10.0
+        while not result.done():
+            while pending and pending[0][0] <= time.monotonic() - t0:
+                pending.pop(0)[1]()
+            if self.stop_flag.is_set():
+                gh.cancel_goal_async()
+                raise Stopped()
+            if time.monotonic() > deadline:
+                gh.cancel_goal_async()
+                raise GameError(f"แขน{ARM_TH[self.arm]} ไปไม่ถึงในเวลา")
+            time.sleep(0.01)
+        for _, fn in pending:
+            fn()
+        res = result.result()
+        if self.stop_flag.is_set():
+            raise Stopped()
+        if res.result.error_code != FollowJointTrajectory.Result.SUCCESSFUL:
+            raise GameError(f"ตัวคุมแขนรายงาน error {res.result.error_code} {res.result.error_string}".strip())
+        return t0
+
+    # ---------- อื่นๆ ----------
+    def _hand(self, gesture):
+        self.hand_pub.publish(String(data=gesture))
+
+    def _state(self, text):
+        self.state_pub.publish(String(data=text))
+
+    def _sleep(self, secs):
+        self._sleep_until(time.monotonic() + secs)
+
+    def _sleep_until(self, t):
+        while time.monotonic() < t:
+            if self.stop_flag.is_set():
+                raise Stopped()
+            time.sleep(0.02)
+
+
+def main():
+    rclpy.init()
+    node = RpsGame()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    try:
+        executor.spin()
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

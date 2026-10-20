@@ -22,6 +22,8 @@ fi
 # ROS setup ใช้ตัวแปรที่ไม่ได้ตั้ง — source ก่อน set -u
 source /opt/ros/jazzy/setup.bash
 source "$AR4_WS/install/setup.bash"
+# แพ็กเกจของ Humanoi (เกม humanoi_games) — build แยกใน Humanoi/ros2_ws
+[ -f "$HERE/../ros2_ws/install/local_setup.bash" ] && source "$HERE/../ros2_ws/install/local_setup.bash"
 set -u
 
 # พอร์ต COM ของ Teensy: หาเองจากชื่อแขนที่เก็บในบอร์ด (เหมือน Pi) · บังคับเองได้: LEFT_TEENSY=COM9 arm start
@@ -121,6 +123,21 @@ need_player() {
 
 show() { if is_running "$1"; then echo "  ✓ $2"; else echo "  ✗ $2"; fi; }
 
+rps_result() {  # อ่าน "<หุ่น>:<ผู้เล่น>:<ผล>" จาก /rps/result แล้วพิมพ์เป็นภาษาไทย
+  local line robot player result
+  read -r line || { echo "  ? ไม่ได้ผลภายใน 3 นาที — ดูหน้าต่าง arm rps"; return; }
+  IFS=: read -r robot player result <<< "$line"
+  declare -A th=([rock]=ค้อน [paper]=กระดาษ [scissors]=กรรไกร [none]="ไม่เห็นมือ")
+  case "$result" in
+    player_win) result="ผู้เล่นชนะ (หุ่นชูนิ้วโป้ง)" ;;
+    robot_win) result="หุ่นชนะ (หุ่นชู 2 นิ้ว)" ;;
+    draw) result="เสมอ (เป่าใหม่ครบแล้ว)" ;;
+    no_player) result="ไม่เห็นมือผู้เล่น" ;;
+    stopped) result="หยุดกลางคัน" ;;
+  esac
+  echo "  หุ่น: ${th[$robot]:-$robot} · ผู้เล่น: ${th[$player]:-$player} → $result"
+}
+
 # ---- สะพาน serial (arm start) ----
 HOST_IP=127.0.0.1  # networkingMode=mirrored: Windows คือ localhost
 if [ "$(wslinfo --networking-mode 2>/dev/null)" != mirrored ]; then
@@ -179,6 +196,7 @@ case "$cmd" in
     fi
     show "lib/ar_program/arm_program" "ตัวเล่นโปรแกรม     (arm player)"
     show move_group "MoveIt + RViz      (arm moveit)"
+    show "lib/humanoi_games/rps_game" "เกมเป่ายิ้งฉุบ      (arm rps)"
     if is_running ros2_control_node; then
       echo "ตัวควบคุม:"
       timeout 10 ros2 control list_controllers 2>/dev/null | sed 's/^/  /'
@@ -335,6 +353,44 @@ EOF
       | grep . || echo "  ? ไม่ได้รับผลภายใน 10 นาที — ดูหน้าต่าง arm player"
     ;;
 
+  rps)  # เกมเป่ายิ้งฉุบ (Humanoi/ros2_ws/src/humanoi_games) — คู่มือ docs/RPS_GAME.md
+    case "${1:-}" in
+      play)
+        is_running "lib/humanoi_games/rps_game" || { echo "✗ เปิดเกมก่อน (อีกหน้าต่าง): arm rps"; exit 1; }
+        echo "เป่า-ยิ้ง-ฉุบ! ... (หยุด: arm rps stop)"
+        bash -c "timeout 180 ros2 topic echo /rps/result --once --field data 2>/dev/null & E=\$!; sleep 1.5; \
+          ros2 topic pub --once /rps/play std_msgs/msg/Empty '{}' >/dev/null; wait \$E" | rps_result
+        ;;
+      stop)
+        ros2 topic pub --once /rps/stop std_msgs/msg/Empty "{}" >/dev/null && echo "ส่งคำสั่งหยุดเกมแล้ว"
+        ;;
+      ""|random|topic|camera)
+        if [ "${1:-}" = camera ]; then
+          echo "✗ บน PC กล้องกับมือจริงอยู่ฝั่ง Windows — WSL มองไม่เห็น ใช้ทดสอบ: arm rps random / arm rps topic"
+          exit 1
+        fi
+        if ! ros2 pkg prefix humanoi_games >/dev/null 2>&1; then
+          echo "✗ ยังไม่ได้ build เกมใน WSL: cd $(realpath -m "$HERE/../ros2_ws") && colcon build --symlink-install --packages-select humanoi_games"
+          exit 1
+        fi
+        is_running ros2_control_node || { echo "✗ เปิดระบบแขนก่อน (arm start sim หรือ arm start)"; exit 1; }
+        if is_running "lib/humanoi_games/rps_game"; then echo "✗ เกมเปิดอยู่แล้ว — เล่น: arm rps play"; exit 1; fi
+        player="${1:-random}"
+        echo "เปิดเกมเป่ายิ้งฉุบ (ผู้เล่น: $player · มือจำลอง — log ท่าแทน) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
+        echo "เล่น 1 ตา: arm rps play (อีกหน้าต่าง) · ต้องสอนท่าตั้งก่อน: arm teach left rps_ready"
+        [ "$player" = topic ] && echo "ส่งท่าผู้เล่นเอง: ros2 topic pub -r 10 /rps/player_gesture std_msgs/msg/String \"{data: paper}\""
+        ros2 launch humanoi_games rps.launch.py player:="$player" hand:=false
+        ;;
+      *)
+        cat <<'EOF'
+ใช้: arm rps [random|topic]   เปิดเกมแบบทดสอบบน PC (เปิดค้าง) — random = สุ่มแทนผู้เล่น, topic = ส่งท่าผู้เล่นเอง
+     arm rps play             เล่น 1 ตา รอจนจบแล้วบอกผล
+     arm rps stop             หยุดเกมกลางคัน
+EOF
+        exit 1 ;;
+    esac
+    ;;
+
   stop)
     ros2 topic pub --once /arm/stop std_msgs/msg/Empty "{}" >/dev/null && echo "ส่งคำสั่งหยุดแล้ว (ทุกแขน)"
     ;;
@@ -377,14 +433,15 @@ EOF
 
   off)
     echo "ปิดทุกอย่างของแขน (แขนค้างที่ท่าปัจจุบัน)..."
-    for p in "ros2 launch ar_program" "ros2 launch ar_dual" "ros2 launch ar_gz_bringup"; do
+    for p in "ros2 launch ar_program" "ros2 launch ar_dual" "ros2 launch ar_gz_bringup" "ros2 launch humanoi_games"; do
       pkill -INT -f "$p" 2>/dev/null
     done
     for _ in $(seq 1 15); do
-      is_running ros2_control_node || is_running move_group || is_running "lib/ar_program/arm_program" || break
+      is_running ros2_control_node || is_running move_group || is_running "lib/ar_program/arm_program" \
+        || is_running "lib/humanoi_games" || break
       sleep 1
     done
-    for p in ros2_control_node move_group lib/ar_program/arm_program spawner rviz2; do
+    for p in ros2_control_node move_group lib/ar_program/arm_program spawner rviz2 lib/humanoi_games; do
       pkill -9 -f "$p" 2>/dev/null
     done
     pkill -f "socat .*pty,link=/tmp/ttyV_(left|right)" 2>/dev/null
@@ -421,6 +478,9 @@ left = แขน 1 (ซ้ายเมื่อมองจากตัวหุ
 
  เล่น
    arm run <โปรแกรม> · arm goto <left|right> <ท่า> · arm stop
+
+ เกมเป่ายิ้งฉุบ (ทดสอบบน PC: มือจำลอง ไม่มีกล้อง — คู่มือ docs/RPS_GAME.md)
+   arm rps [random|topic]             เปิดเกม (เปิดค้าง) · arm rps play = เล่น 1 ตา · arm rps stop = หยุด
 
  ปิด
    arm off                            ปิดทุกอย่างของแขน รวมสะพาน serial ฝั่ง Windows
