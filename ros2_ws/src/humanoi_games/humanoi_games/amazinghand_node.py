@@ -33,6 +33,8 @@ from humanoi_games import hand_poses
 
 ADAPTER_USB = (0x1A86, 0x55D3)  # Waveshare Bus Servo Adapter (A) = CH343 — Nano ของแขนเป็น CH340 (55d3 ≠ 7523)
 DEMO_MIDDLE = [3.0, 0.0, -5.0, -8.0, -2.0, 5.0, -12.0, 0.0]  # MiddlePos ของมือตัวอย่างใน AmazingHand_Demo.py
+MAX_MIDDLE = 60.0  # ปกติคลาดไม่เกินครึ่งฟันแตร (9°) แต่มือนี้นิ้วชี้ต้องเกิน 30° (แตรน่าจะใส่คลาด ~2 ฟัน)
+SERVO_LIMIT = 140.0  # ลิมิตโรงงานของ SCS0009 = ±144° (raw 20-1003) — กันเป้าหมายทะลุช่วงที่หมุนได้
 
 
 def calib_file():
@@ -56,8 +58,8 @@ def load_middle(path):
             values = [float(v) for v in json.load(fh)["middle_pos"]]
     except FileNotFoundError:
         return None
-    if len(values) != 8 or any(abs(v) > 30 for v in values):
-        raise ValueError(f"{path}: middle_pos ต้องมี 8 ค่า แต่ละค่าไม่เกิน ±30°")
+    if len(values) != 8 or any(abs(v) > MAX_MIDDLE for v in values):
+        raise ValueError(f"{path}: middle_pos ต้องมี 8 ค่า แต่ละค่าไม่เกิน ±{MAX_MIDDLE:.0f}°")
     return values
 
 
@@ -128,14 +130,18 @@ class Hand:
         return None
 
     def move(self, degrees, speed):
+        """สั่งทุก servo — เป้าหมายเกิน ±SERVO_LIMIT ถูกจำกัดไว้ คืน ID ที่ถูกจำกัด (ไว้เตือน)"""
         for sid in self.ids:
             self.c.write_goal_speed(sid, speed)
+        clipped = [sid for sid, d in zip(self.ids, degrees) if abs(d) > SERVO_LIMIT]
+        degrees = [max(-SERVO_LIMIT, min(SERVO_LIMIT, d)) for d in degrees]
         rads = [math.radians(d) for d in degrees]
         try:
             self.c.sync_write_goal_position(self.ids, rads)
         except Exception:
             for sid, r in zip(self.ids, rads):
                 self.c.write_goal_position(sid, r)
+        return clipped
 
     def relax(self):
         if self.c is None:
@@ -246,7 +252,10 @@ class AmazingHandNode(Node):
                 self.get_logger().info(f"[dry_run] ท่า {pose}: " + " ".join(
                     f"{d:+.0f}" for d in hand_poses.servo_degrees(pose, self.middle, self.side)))
             else:
-                self.hand.move(hand_poses.servo_degrees(pose, self.middle, self.side), self.speed)
+                clipped = self.hand.move(hand_poses.servo_degrees(pose, self.middle, self.side), self.speed)
+                if clipped:
+                    self.get_logger().warn(f"ท่า {pose}: servo ID {clipped} เป้าหมายเกิน ±{SERVO_LIMIT:.0f}° "
+                                           "(ค่ากลางนิ้วสูง) — จำกัดไว้ที่ขอบ", throttle_duration_sec=10.0)
             end = time.monotonic() + hold
             while time.monotonic() < end:
                 try:

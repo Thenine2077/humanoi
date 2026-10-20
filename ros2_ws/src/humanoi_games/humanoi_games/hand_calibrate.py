@@ -21,12 +21,12 @@ import os
 import sys
 
 from humanoi_games import hand_poses
-from humanoi_games.amazinghand_node import DEMO_MIDDLE, Hand, calib_file, load_middle
+from humanoi_games.amazinghand_node import DEMO_MIDDLE, MAX_MIDDLE, Hand, calib_file, load_middle
 
 NAMES_TH = {"index": "นิ้วชี้", "middle": "นิ้วกลาง", "ring": "นิ้วนาง", "thumb": "นิ้วโป้ง"}
 VIEWS = {"s": ("ตรง", 0.0), "o": ("แบ", float(hand_poses.OPEN[0])), "c": ("กำ", float(hand_poses.CLOSE[0]))}
 CURL = float(hand_poses.CLOSE[0])  # นิ้วอื่นกำไว้ระหว่างตั้งนิ้วนี้
-MAX_OFFSET = 30.0  # แตร servo คลาดได้ไม่เกินครึ่งฟัน (9°) — เกิน 30 แปลว่ามีอะไรผิด
+MAX_OFFSET = MAX_MIDDLE  # ±60° — ปกติแตรคลาดไม่เกินครึ่งฟัน (9°) เกินจากนี้ต้องถอดใส่แตรใหม่
 HELP = ("l/r เอียง · f/b งอหน้า/หลัง (ใส่ตัวเลขต่อท้ายได้ เช่น l3) · 1+ 1- 2+ 2- ทีละ servo · "
         "s/o/c ดูท่า ตรง/แบ/กำ · n/p นิ้วถัดไป/ก่อนหน้า · q บันทึกแล้วออก · x ออกไม่บันทึก")
 
@@ -96,7 +96,9 @@ def main():
     finger, view = 0, "s"
 
     def show():
-        hand.move(pose_degrees(middle, finger, view), args.speed)
+        clipped = hand.move(pose_degrees(middle, finger, view), args.speed)
+        if clipped:
+            print(f"  (servo ID {clipped} ถึงขอบ ±140° ในท่านี้ — ไปต่อไม่ได้)")
 
     try:
         show()
@@ -122,7 +124,7 @@ def main():
             elif kind in VIEWS:
                 view = kind
             elif not adjust(middle, finger, kind, n):
-                print(f"  เกิน ±{MAX_OFFSET:.0f}° — ไม่แก้ (แตร servo น่าจะใส่ผิดฟัน)")
+                print(f"  เกิน ±{MAX_OFFSET:.0f}° — ไม่แก้ (แตร servo ใส่คลาดหลายฟัน ต้องถอดใส่ใหม่)")
                 continue
             show()
     except (KeyboardInterrupt, EOFError):
