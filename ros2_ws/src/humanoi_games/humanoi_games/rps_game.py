@@ -5,8 +5,8 @@
 → จังหวะ "ฉุบ" มือออกท่าที่สุ่มไว้ → ดูท่าผู้เล่นจากกล้อง → แขนไปท่าโชว์ (ถ้าสอนไว้) แล้วมือค่อยทำท่า:
 หุ่นแพ้ = แขนสลับ victory_pose/lose_pose 3 รอบ + ชูนิ้วโป้ง (ไลค์), หุ่นชนะ = แขนไป victory_pose + ชู 2 นิ้ว,
 เสมอ = เป่าใหม่ (ไม่เกิน max_draws ครั้ง), ไม่เห็นมือ = ส่ายนิ้ว
-โชว์เสร็จแขนกลับท่าตั้งผ่านโปรแกรม return_program (ready_pose) — ไม่ไปตรงๆ เพราะข้อ 1 รับน้ำหนัก
-การเหวี่ยงแขนทั้งแขนตรงๆ ไม่ไหว (ตอนเริ่มเกม ถ้าแขนอยู่ไกลจากท่าตั้งก็เดินโปรแกรมนี้ก่อนเหมือนกัน)
+โชว์เสร็จแขนกลับท่าตั้งผ่านท่า return_moves (move_readyP1 → move_readyP2 → rps_ready) — ไม่ไปตรงๆ เพราะข้อ 1
+รับน้ำหนักการเหวี่ยงแขนทั้งแขนตรงๆ ไม่ไหว (ตอนเริ่มเกม ถ้าแขนอยู่ไกลจากท่าตั้งก็เดินทางนี้ก่อนเหมือนกัน)
 จบเกมแล้วผู้เล่นชูนิ้วชี้ค้างไว้ (replay_hold วินาที) = เล่นตาใหม่ วนไปเรื่อยๆ
 (รอนิ้วชี้ได้ replay_timeout วินาทีหลังจบเกม)
 
@@ -72,8 +72,8 @@ PARAMS = {
     "show_speed": 0.22,           # ท่าโชว์ที่ใกล้กัน (ไม่เกิน show_fast_max_deg) ขยับด้วยเพดานที่เฟิร์มแวร์ตามทัน:
     "show_accel": 0.17,           # 12.6°/s, 9.7°/s^2 (เฟิร์มแวร์ 10°/s^2) — แกว่ง 39° ครั้งละ ~4.4 s
     "show_fast_max_deg": 45.0,    # ท่าที่ห่างกว่านี้ (เช่นจากท่าตั้ง) ใช้ move_speed/move_accel นุ่มๆ แทน
-    "return_program": "ready_pose",  # โปรแกรม (ใน programs.yaml) ที่พาแขนกลับท่าตั้งอย่างปลอดภัย — ใช้แค่ขั้นของแขนนี้
-    "near_deg": 5.0,              # ห่างท่าตั้งไม่เกินกี่องศา (ทุกข้อ) ถึงไปตรงๆ ได้โดยไม่ต้องเดินโปรแกรม
+    "return_moves": "move_readyP1 move_readyP2",  # ท่าที่เดินผ่านก่อนเข้าท่าตั้ง (คั่นเว้นวรรค) — ข้อ 1 ไม่ต้องรับการเหวี่ยงตรงๆ
+    "near_deg": 5.0,              # ห่างท่าตั้งไม่เกินกี่องศา (ทุกข้อ) ถึงไปตรงๆ ได้โดยไม่ต้องเดินผ่าน return_moves
     "pump_joint": 1,              # ข้อที่ขยับขึ้นลง
     "pump_deg": 5.0,              # ยกกี่องศา (8° = 11.6 วินาที, 5° = 8.6, 4° = 7.7, 3° = 6.7 — มือยกราว 0.6 ซม./องศา)
     "auto_up": True,              # true = เลือกทิศข้อ 1 ให้มือ "ขึ้น" เอง (คำนวณจาก TF ที่ท่าตั้ง) ·
@@ -265,7 +265,7 @@ class RpsGame(Node):
         pump_speed = min(float(p["pump_speed"]), MAX_SPEED)
         pump_accel = float(p["pump_accel"])
 
-        self._program_steps(data, p["return_program"])  # ตรวจโปรแกรมทางกลับก่อนขยับอะไร
+        self._return_poses(data, p)  # ตรวจท่าทางกลับก่อนขยับอะไร (ท่าหาย = ไม่ขยับเลย)
         self._hand(p["windup_gesture"])
         self._state("ready")
         self._go_ready(data, ready, p)
@@ -336,7 +336,7 @@ class RpsGame(Node):
         return rps_logic.vote(list(self.samples), start, end, int(p["min_votes"]))
 
     def _react(self, result, data, ready, p):
-        """แขนไปท่าโชว์ทีละท่าจนครบก่อน (ท่าที่สอนไว้) แล้วมือค่อยทำท่า ค้างไว้ แล้วกลับท่าตั้งผ่าน return_program"""
+        """แขนไปท่าโชว์ทีละท่าจนครบก่อน (ท่าที่สอนไว้) แล้วมือค่อยทำท่า ค้างไว้ แล้วกลับท่าตั้งผ่าน return_moves"""
         gesture, moves_param = REACTION[result]
         names = str(p[moves_param]).split() if moves_param else []
         missing = sorted({n for n in names if self._pose(data, n) is None})
@@ -352,35 +352,19 @@ class RpsGame(Node):
         self._hand(p["end_gesture"])
         self._go_ready(data, ready, p)
 
-    def _program_steps(self, data, name):
-        """ขั้นของแขนนี้ในโปรแกรม name: [(ชื่อท่า, มุม) | ("wait", วินาที)] — ตรวจทุกท่าก่อน (ท่าหาย = ไม่ขยับเลย)"""
-        steps = data["programs"].get(name)
-        if not steps:
-            raise GameError(f"ไม่มีโปรแกรม '{name}' (ทางกลับท่าตั้ง) — สร้างด้วย arm program {name} ... "
-                            "หรือตั้ง return_program")
-        out = []
-        for step in steps:
-            per_arm = programs.step_arms(step)
-            if per_arm is None:
-                out.append(("wait", float(step["wait"])))
-            elif per_arm.get(self.arm, "still") not in programs.STILL:
-                pose = per_arm[self.arm]
-                out.append((pose, self._pose(data, pose, required=True)))
-        return out
+    def _return_poses(self, data, p):
+        """[(ชื่อท่า, มุม)] ของ return_moves — ต้องสอนครบทุกท่า"""
+        return [(name, self._pose(data, name, required=True)) for name in str(p["return_moves"]).split()]
 
     def _go_ready(self, data, ready, p):
-        """ไปท่าตั้ง — อยู่ไกลกว่า near_deg ให้เดินตาม return_program ก่อน (เส้นทางที่สอนไว้) แล้วค่อยเข้าท่าตั้ง"""
+        """ไปท่าตั้ง — อยู่ไกลกว่า near_deg ให้เดินผ่าน return_moves ก่อน (เส้นทางที่สอนไว้) แล้วค่อยเข้าท่าตั้ง"""
         start = [self.current[n] for n in self.joints]
         if math.degrees(max(abs(a - b) for a, b in zip(ready, start))) > float(p["near_deg"]):
-            name = p["return_program"]
-            steps = self._program_steps(data, name)
-            self.get_logger().info(f"กลับท่าตั้งผ่านโปรแกรม '{name}': " + " → ".join(k for k, _ in steps))
-            for pose, value in steps:
-                if pose == "wait":
-                    self._sleep(value)
-                else:
-                    self._state(f"return:{pose}")
-                    self._move_to(value, p)
+            steps = self._return_poses(data, p)
+            self.get_logger().info("กลับท่าตั้ง: " + " → ".join([n for n, _ in steps] + [p["ready_pose"]]))
+            for name, target in steps:
+                self._state(f"return:{name}")
+                self._move_to(target, p)
         self._move_to(ready, p)
 
     def _reveal(self, robot):
