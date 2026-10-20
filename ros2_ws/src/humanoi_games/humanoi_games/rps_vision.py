@@ -6,14 +6,15 @@
 
 หัวข้อ
   image_topic                (sub, Image)            ค่าเริ่ม /camera/color/image_raw (rgb8 หรือ bgr8)
-  /rps/player_gesture        (pub, String)           ทุกเฟรมที่ประมวลผล: rock | paper | scissors | none
+  /rps/player_gesture        (pub, String)           ทุกเฟรมที่ประมวลผล: rock | paper | scissors | point | none
   /rps/vision/image/compressed (pub, CompressedImage) ภาพพร้อมจุดมือและท่าที่อ่านได้ (เฉพาะตอนมีคนดู เช่น Foxglove)
 
 ต้องมี mediapipe (ติดตั้งแบบไม่ลาก numpy 2 มาทับของ ROS — มีใน docker/Dockerfile แล้ว):
   apt-get install python3-matplotlib
   pip3 install --break-system-packages --no-deps mediapipe==1.1.1 "absl-py~=2.3" "flatbuffers~=25.9" certifi
 แยกท่าแบบเดียวกับ Fun thing\\robot_hand.py: นับนิ้วที่เหยียด (ระยะข้อมือ→ปลายนิ้ว เทียบข้อมือ→ข้อกลางนิ้ว)
-ไม่ดูนิ้วโป้ง — กำ = ค้อน, 4 นิ้วเหยียด = กระดาษ, ชี้+กลางเหยียด นาง+ก้อยพับ = กรรไกร, อย่างอื่น = none
+ไม่ดูนิ้วโป้ง — กำ = ค้อน, 4 นิ้วเหยียด = กระดาษ, ชี้+กลางเหยียด นาง+ก้อยพับ = กรรไกร,
+ชี้อย่างเดียว = point (ชูนิ้วชี้ = เล่นใหม่), อย่างอื่น = none
 """
 import math
 import os
@@ -32,7 +33,7 @@ from std_msgs.msg import String
 FINGERS = {"index": (6, 8), "middle": (10, 12), "ring": (14, 16), "pinky": (18, 20)}
 BONES = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8), (5, 9), (9, 10), (10, 11), (11, 12),
          (9, 13), (13, 14), (14, 15), (15, 16), (13, 17), (17, 18), (18, 19), (19, 20), (0, 17)]
-LABEL = {"rock": "ROCK", "paper": "PAPER", "scissors": "SCISSORS", "none": "-"}
+LABEL = {"rock": "ROCK", "paper": "PAPER", "scissors": "SCISSORS", "point": "ONE (play again)", "none": "-"}
 
 
 def _dist(a, b):
@@ -54,6 +55,8 @@ def classify(pts):
         return "paper"
     if fingers == [True, True, False, False]:
         return "scissors"
+    if fingers == [True, False, False, False]:
+        return "point"  # ชูนิ้วชี้ 1 นิ้ว = เล่นใหม่ (หลังจบเกม)
     return "none"
 
 

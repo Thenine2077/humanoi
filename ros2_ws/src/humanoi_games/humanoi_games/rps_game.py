@@ -2,8 +2,11 @@
 """rps_game — เป่ายิ้งฉุบกับหุ่น
 
 ลำดับ: แขนไปท่าตั้ง (rps_ready — สอนเองด้วย arm teach) มือกำหลวมๆ → ข้อ 1 ยกขึ้น-ลง 3 ครั้ง (เป่า-ยิ้ง-ฉุบ)
-→ จังหวะ "ฉุบ" มือออกท่าที่สุ่มไว้ → ดูท่าผู้เล่นจากกล้อง → ผู้เล่นชนะ = ชูนิ้วโป้ง (ไลค์),
-ผู้เล่นแพ้ = ชู 2 นิ้ว, เสมอ = เป่าใหม่ (ไม่เกิน max_draws ครั้ง), ไม่เห็นมือ = ส่ายนิ้ว
+→ จังหวะ "ฉุบ" มือออกท่าที่สุ่มไว้ → ดูท่าผู้เล่นจากกล้อง → แขนไปท่าโชว์ (ถ้าสอนไว้) แล้วมือค่อยทำท่า:
+หุ่นแพ้ = แขนไป lose_pose + ชูนิ้วโป้ง (ไลค์), หุ่นชนะ = แขนไป victory_pose + ชู 2 นิ้ว,
+เสมอ = เป่าใหม่ (ไม่เกิน max_draws ครั้ง), ไม่เห็นมือ = ส่ายนิ้ว
+จบเกมแล้วผู้เล่นชูนิ้วชี้ค้างไว้ (replay_hold วินาที) = แขนกลับท่าตั้งแล้วเล่นตาใหม่ วนไปเรื่อยๆ
+(รอนิ้วชี้ได้ replay_timeout วินาทีหลังจบเกม — แขนค้างที่ท่าโชว์ระหว่างรอ)
 
   ros2 launch humanoi_games rps.launch.py                     # เปิดเกมค้างไว้ (แขน + มือ + กล้อง)
   ros2 topic pub --once /rps/play std_msgs/msg/Empty "{}"     # เล่น 1 ตา
@@ -14,8 +17,9 @@
 หัวข้อ
   /rps/play            (sub, Empty)   เริ่ม 1 ตา (ระหว่างเล่นอยู่ไม่รับซ้ำ)
   /rps/stop            (sub, Empty)   หยุดกลางคัน แขนหยุดที่ตำแหน่งปัจจุบัน
-  /rps/player_gesture  (sub, String)  ท่าผู้เล่นทีละเฟรม rock|paper|scissors|none (rps_vision หรือพิมพ์ส่งเอง)
-  /rps/state           (pub, String)  idle | ready | beat:1..3 | reveal:<ท่าหุ่น> | result:<ผล> (ไว้ต่อเสียง/จอ)
+  /rps/player_gesture  (sub, String)  ท่าผู้เล่นทีละเฟรม rock|paper|scissors|point|none (rps_vision หรือพิมพ์ส่งเอง)
+  /rps/state           (pub, String)  idle | ready | beat:1..3 | reveal:<ท่าหุ่น> | result:<ผล> | pose:<ท่าโชว์>
+                                      | waiting_replay (รอนิ้วชี้) — ไว้ต่อเสียง/จอ
   /rps/result          (pub, String)  ผลสุดท้ายของเกม (เสมอแล้วเป่าใหม่ = ไม่ส่ง รอผลตาสุดท้าย)
                                       "<ท่าหุ่น>:<ท่าผู้เล่น|none>:<ผล>"
                                       ผล = player_win | robot_win | draw | no_player | stopped | error:<เหตุผล>
@@ -51,16 +55,16 @@ from humanoi_games.rps_logic import THAI
 ARM_TH = {"left": "ซ้าย", "right": "ขวา"}
 RESULT_TH = {"player_win": "ผู้เล่นชนะ → ชูนิ้วโป้ง", "robot_win": "หุ่นชนะ → ชู 2 นิ้ว",
              "draw": "เสมอ", "no_player": "ไม่เห็นมือผู้เล่น → ส่ายนิ้ว"}
-# ผล -> (ท่ามือ, พารามิเตอร์ชื่อท่าแขนตอนโชว์ — ไม่ได้สอนท่านั้นไว้ = แขนค้างที่ท่าตั้ง)
-REACTION = {"player_win": ("like", "like_pose"), "robot_win": ("victory", "victory_pose"),
+# ผล (มุมผู้เล่น) -> (ท่ามือ, พารามิเตอร์ชื่อท่าแขนตอนโชว์ — ไม่ได้สอนท่านั้นไว้ = แขนค้างที่ท่าตั้ง)
+REACTION = {"player_win": ("like", "lose_pose"), "robot_win": ("victory", "victory_pose"),
             "draw": ("paper", None), "no_player": ("nonono", None)}
 PARAMS = {
     "arm": "left",                # แขนที่ติดมือ
     "layout": "dual",             # dual = ar_dual (<arm>_joint_N) · single = แขนเดี่ยวแบบเดิม (joint_N)
     "programs_file": programs.DEFAULT_FILE,
     "ready_pose": "rps_ready",    # ท่าตั้งก่อนเป่า (ต้องสอนก่อน: arm teach left rps_ready)
-    "like_pose": "rps_like",      # ท่าแขนตอนชูนิ้วโป้ง (ไม่บังคับ)
-    "victory_pose": "rps_v",      # ท่าแขนตอนชู 2 นิ้ว (ไม่บังคับ)
+    "victory_pose": "victory_pose",  # ท่าแขนตอนหุ่นชนะ (ชู 2 นิ้ว) — ไม่บังคับ: arm teach left victory_pose
+    "lose_pose": "lose_pose",        # ท่าแขนตอนหุ่นแพ้ (ชูนิ้วโป้ง) — ไม่บังคับ: arm teach left lose_pose
     "pump_joint": 1,              # ข้อที่ขยับขึ้นลง
     "pump_deg": 5.0,              # ยกกี่องศา (8° = 11.6 วินาที, 5° = 8.6, 4° = 7.7, 3° = 6.7 — มือยกราว 0.6 ซม./องศา)
     "auto_up": True,              # true = เลือกทิศข้อ 1 ให้มือ "ขึ้น" เอง (คำนวณจาก TF ที่ท่าตั้ง) ·
@@ -82,6 +86,10 @@ PARAMS = {
     "react_hold": 3.0,            # ค้างท่าโชว์กี่วินาที
     "end_gesture": "paper",       # ท่ามือตอนจบเกม
     "windup_gesture": "windup",   # ท่ามือตอนง้าง (เป่า-ยิ้ง) — ต่างจากค้อน (กำสุด) ให้เห็นชัดว่าออกท่าแล้ว
+    "start_delay": 1.0,           # ถึงท่าตั้งแล้วรอกี่วินาทีก่อนเริ่มเป่า (ให้ผู้เล่นเตรียมมือ)
+    "replay_gesture": "point",    # ท่าผู้เล่นหลังจบเกม = เล่นใหม่ (ชูนิ้วชี้ 1 นิ้ว)
+    "replay_hold": 0.8,           # ต้องค้างท่านั้นกี่วินาที (กันมือที่กำลังลดลงผ่านท่าชี้แวบเดียว)
+    "replay_timeout": 60.0,       # รอนิ้วชี้หลังจบเกมได้กี่วินาที (0 = รอตลอด) — หมดเวลาต้องสั่ง /rps/play ใหม่
 }
 MAX_SPEED = 0.22
 
@@ -127,6 +135,8 @@ class RpsGame(Node):
         self.lock = threading.Lock()
         self.stop_flag = threading.Event()
         self.goal_handle = None
+        self.replay_until = 0.0  # เวลา (monotonic) ที่ยังรับนิ้วชี้ = เล่นใหม่ · 0 = ไม่รับ
+        self.create_timer(0.5, self._check_replay_timeout, callback_group=cb)
         self.create_subscription(JointState, "/joint_states", self._on_js, 10, callback_group=cb)
         self.create_subscription(Empty, "/rps/play", self._on_play, 10, callback_group=cb)
         self.create_subscription(Empty, "/rps/stop", self._on_stop, 10, callback_group=cb)
@@ -155,16 +165,33 @@ class RpsGame(Node):
             self.current[name] = pos
 
     def _on_player(self, msg):
-        self.samples.append((time.monotonic(), msg.data.strip()))
+        now = time.monotonic()
+        self.samples.append((now, msg.data.strip()))
+        if self.busy or now > self.replay_until:
+            return
+        hold = float(self.get_parameter("replay_hold").value)
+        if rps_logic.held(list(self.samples), now - hold, now, self.get_parameter("replay_gesture").value):
+            self.get_logger().info("ผู้เล่นชูนิ้วชี้ — เล่นตาใหม่")
+            self._start()
 
     def _on_play(self, _msg):
+        self._start()
+
+    def _start(self):
         with self.lock:
             if self.busy:
-                self.get_logger().warn("กำลังเล่นอยู่ — ไม่รับ /rps/play ซ้ำ")
+                self.get_logger().warn("กำลังเล่นอยู่ — ไม่รับคำสั่งเล่นซ้ำ")
                 return
             self.busy = True
+            self.replay_until = 0.0
             self.stop_flag.clear()
         threading.Thread(target=self._run, daemon=True).start()
+
+    def _check_replay_timeout(self):
+        if self.replay_until and not self.busy and time.monotonic() > self.replay_until:
+            self.replay_until = 0.0
+            self._state("idle")
+            self.get_logger().info("หมดเวลารอนิ้วชี้ — เล่นต่อด้วย arm rps play")
 
     def _on_stop(self, _msg):
         if self.busy:
@@ -172,10 +199,16 @@ class RpsGame(Node):
             self.stop_flag.set()
             if self.goal_handle is not None:
                 self.goal_handle.cancel_goal_async()
+        elif self.replay_until:
+            self.replay_until = 0.0
+            self._state("idle")
+            self.get_logger().info("ได้รับ /rps/stop — เลิกรอนิ้วชี้")
 
     # ---------- เกม (worker thread) ----------
     def _run(self):
         robot = player = None
+        replay = False
+        timeout = 0.0
         try:
             try:
                 robot, player, result = self._play()
@@ -188,11 +221,21 @@ class RpsGame(Node):
             self.result_pub.publish(String(data=f"{robot}:{player or 'none'}:{result}"))
             if result.startswith("error") or result == "stopped":
                 self.get_logger().error(f"เกมจบ: {result}")
+            else:
+                replay = True
         finally:
             self.goal_handle = None
-            self._state("idle")
             with self.lock:
                 self.busy = False
+                if replay:  # จบเกมปกติ — รอนิ้วชี้ = เล่นตาใหม่
+                    timeout = float(self.get_parameter("replay_timeout").value)
+                    self.replay_until = time.monotonic() + timeout if timeout > 0 else math.inf
+            if replay:
+                self._state("waiting_replay")
+                self.get_logger().info(
+                    "ชูนิ้วชี้ค้างไว้ = เล่นตาใหม่" + (f" (รอ {timeout:.0f} วินาที)" if timeout > 0 else ""))
+            else:
+                self._state("idle")
 
     def _play(self):
         p = self._params()
@@ -218,6 +261,7 @@ class RpsGame(Node):
         self._move_to(ready, p)
         if p["auto_up"] and j == 0:
             amp = self._upward(abs(amp), p["up_frame"])
+        self._sleep(float(p["start_delay"]))
         for rnd in range(1, int(p["max_draws"]) + 2):
             robot = p["robot_choice"] if p["robot_choice"] in rps_logic.CHOICES else rps_logic.robot_pick()
             self._hand(p["windup_gesture"])
@@ -237,7 +281,7 @@ class RpsGame(Node):
                 self.get_logger().info("เสมอ — เป่าใหม่")
                 self._sleep(1.0)
                 continue
-            self._react(result, data, ready, p)
+            self._react(result, data, p)
             return robot, player, result
 
     def _pose(self, data, name, required=False):
@@ -281,15 +325,19 @@ class RpsGame(Node):
         self._sleep_until(end)
         return rps_logic.vote(list(self.samples), start, end, int(p["min_votes"]))
 
-    def _react(self, result, data, ready, p):
+    def _react(self, result, data, p):
+        """แขนไปท่าโชว์ก่อน (ถ้าสอนไว้) แล้วมือค่อยทำท่า — แขนค้างที่ท่าโชว์ เล่นตาใหม่ค่อยกลับท่าตั้ง"""
         gesture, pose_param = REACTION[result]
+        if pose_param:
+            name = p[pose_param]
+            target = self._pose(data, name)
+            if target:
+                self._state(f"pose:{name}")
+                self._move_to(target, p)
+            else:
+                self.get_logger().info(f"ยังไม่ได้สอนท่า '{name}' (arm teach {self.arm} {name}) — โชว์ที่ท่าตั้ง")
         self._hand(gesture)
-        target = self._pose(data, p[pose_param]) if pose_param else None
-        if target:
-            self._move_to(target, p)
         self._sleep(float(p["react_hold"]))
-        if target:
-            self._move_to(ready, p)
         self._hand(p["end_gesture"])
 
     def _reveal(self, robot):

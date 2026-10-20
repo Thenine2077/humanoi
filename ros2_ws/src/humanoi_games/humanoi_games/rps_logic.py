@@ -32,6 +32,16 @@ def vote(samples, t_from, t_to, min_votes=4, min_share=0.6):
     return best if n / len(seen) >= min_share else None
 
 
+def held(samples, t_from, t_to, gesture, min_frames=5, min_share=0.8):
+    """ผู้เล่นค้างท่า gesture ไว้ตลอดช่วง [t_from, t_to] ไหม (ใช้ชูนิ้วชี้ = เล่นใหม่)
+
+    ต้องเห็นอย่างน้อย min_frames เฟรม และเป็นท่านั้น ≥ min_share — มือที่กำลังลดลง/เปลี่ยนท่า
+    ผ่านท่าชี้นิ้วแค่ไม่กี่เฟรม จะไม่นับ
+    """
+    seen = [g for t, g in samples if t_from <= t <= t_to]
+    return len(seen) >= min_frames and seen.count(gesture) / len(seen) >= min_share
+
+
 def pump_plan(ready, joint, amplitude, count, speed, accel, trapezoid):
     """แผนแขนเป่า-ยิ้ง-ฉุบ: จากท่าตั้ง ยกข้อ joint ขึ้น amplitude (rad) แล้วลงกลับ count ครั้ง
 

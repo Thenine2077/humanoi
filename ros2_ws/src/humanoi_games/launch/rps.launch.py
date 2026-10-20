@@ -30,6 +30,7 @@ ARGS = {
     "pump_deg": ("5.0", "ข้อ 1 ยกกี่องศา (8° = 11.6 วินาที, 5° = 8.6, 4° = 7.7, 3° = 6.7)"),
     "pump_count": ("3", "ขยับขึ้นลงกี่ครั้ง"),
     "robot_choice": ("random", "random | rock | paper | scissors (บังคับท่าหุ่น ไว้ทดสอบ/โชว์)"),
+    "replay_timeout": ("60.0", "จบเกมแล้วรอนิ้วชี้ (= เล่นใหม่) กี่วินาที — 0 = รอตลอด"),
 }
 
 
@@ -46,6 +47,7 @@ def generate_launch_description():
                 "pump_deg": cfg["pump_deg"],
                 "pump_count": cfg["pump_count"],
                 "robot_choice": cfg["robot_choice"],
+                "replay_timeout": cfg["replay_timeout"],
                 "player_source": PythonExpression(
                     ["'random' if '", cfg["player"], "' == 'random' else 'camera'"]),
             }]),
