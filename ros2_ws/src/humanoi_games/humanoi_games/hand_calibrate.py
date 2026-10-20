@@ -20,11 +20,10 @@ import os
 import sys
 
 from humanoi_games import hand_poses
-from humanoi_games.amazinghand_node import SERVO_LIMIT, Hand, calib_file, load_calib
+from humanoi_games.amazinghand_node import Hand, calib_file, load_calib
 
 NAMES_TH = {"index": "นิ้วชี้", "middle": "นิ้วกลาง", "ring": "นิ้วนาง", "thumb": "นิ้วโป้ง"}
 VIEW_TH = {"o": "แบสุด", "c": "กำสุด"}
-MIN_GAP = 20.0  # กำสุดต้องมากกว่าแบสุดอย่างน้อยเท่านี้
 HELP = ("ท่าแบสุด (o) / กำสุด (c): + / - ปรับ · l / r เอียง · ใส่ตัวเลขต่อท้ายได้ เช่น +5 l3 · "
         "n นิ้วถัดไป (บันทึก) · p นิ้วก่อนหน้า · q บันทึกแล้วออก · x ออกไม่บันทึก")
 
@@ -38,15 +37,19 @@ def parse(cmd):
     return None
 
 
-def fits(c):
-    """ค่านิ้วนี้ใช้ได้ไหม: กำสุด > แบสุด อย่างน้อย MIN_GAP และ servo ไม่ทะลุขอบทั้งท่าแบและท่ากำ"""
-    if c["close"] - c["open"] < MIN_GAP:
-        return False
-    return all(abs(v) <= SERVO_LIMIT for bend in (c["open"], c["close"])
-               for v in hand_poses.finger_servos(c, bend))
+def problem(c, ids, hand):
+    """ค่านิ้วนี้ใช้ไม่ได้เพราะอะไร (None = ใช้ได้) — เช็กกับขีดจำกัดที่อ่านจาก servo จริง (hand.limits)"""
+    if c["close"] <= c["open"]:
+        return "กำสุดต้องมากกว่าแบสุด"
+    for bend, pose in ((c["open"], "แบสุด"), (c["close"], "กำสุด")):
+        for sid, deg in zip(ids, hand_poses.finger_servos(c, bend)):
+            if not hand.within(sid, deg):
+                lo, hi = hand.limits[sid]
+                return f"ท่า{pose} servo ID{sid} ต้องไป {deg:+.0f}° แต่ servo ตัวนี้หมุนได้ {lo:+.0f}..{hi:+.0f}°"
+    return None
 
 
-def adjust(c, view, kind, n):
+def adjust(c, view, kind, n, ids, hand):
     """แก้ค่านิ้ว c ตามคำสั่ง — คืนข้อความเหตุผลถ้าไม่แก้ (None = แก้แล้ว)"""
     new = dict(c)
     if kind in ("l", "r"):
@@ -55,10 +58,11 @@ def adjust(c, view, kind, n):
         new["close"] += n if kind == "+" else -n
     else:              # + = แบมากขึ้น (งอน้อยลง)
         new["open"] -= n if kind == "+" else -n
-    if not fits(new):
-        return (f"ไม่แก้ — กำสุดต้องมากกว่าแบสุดอย่างน้อย {MIN_GAP:.0f}° และ servo ต้องไม่เกิน ±{SERVO_LIMIT:.0f}°")
-    c.update(new)
-    return None
+    why = problem(new, ids, hand)
+    if why and not problem(c, ids, hand):  # ค่าเดิมใช้ได้ ค่าใหม่ไม่ได้ = ไม่แก้
+        return "ไม่แก้ — " + why
+    c.update(new)  # ค่าเดิมเกินอยู่แล้ว (เช่นโหลดมาจากไฟล์) ให้ขยับได้ จะได้ปรับกลับเข้ามา
+    return ("ยังเกิน — " + why) if why else None
 
 
 def pose_degrees(calib, finger, view):
@@ -109,7 +113,11 @@ def main():
         port = hand.connect()  # เช็กไฟ + ครบ 8 ตัว ก่อนเปิดแรงบิด
     except Exception as exc:
         sys.exit(f"✗ {exc}")
-    print(f"มือพร้อม ({port} @ {hand.found_baud})\n{HELP}")
+    print(f"มือพร้อม ({port} @ {hand.found_baud})")
+    print(f"ขีดจำกัดที่อ่านจาก servo (องศา): {hand.limits_text()}")
+    for w in hand.limit_warnings:
+        print(f"  ! {w} — ใช้ลิมิตโรงงาน ±144°")
+    print(HELP)
 
     finger, view = 0, "o"
 
@@ -141,10 +149,11 @@ def main():
             elif kind in VIEW_TH:
                 view = kind
             else:
-                reason = adjust(c, view, kind, n)
+                reason = adjust(c, view, kind, n, (2 * finger + 1, 2 * finger + 2), hand)
                 if reason:
                     print("  " + reason)
-                    continue
+                    if reason.startswith("ไม่แก้"):
+                        continue
             show()
     except (KeyboardInterrupt, EOFError):
         print()

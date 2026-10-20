@@ -32,7 +32,8 @@ from std_msgs.msg import String
 from humanoi_games import hand_poses
 
 ADAPTER_USB = (0x1A86, 0x55D3)  # Waveshare Bus Servo Adapter (A) = CH343 — Nano ของแขนเป็น CH340 (55d3 ≠ 7523)
-SERVO_LIMIT = 140.0  # ลิมิตโรงงานของ SCS0009 = ±144° (raw 20-1003) — กันเป้าหมายทะลุช่วงที่หมุนได้
+FACTORY_LIMIT = 144.0  # ลิมิตโรงงาน SCS0009 (raw 20-1003) — ใช้เฉพาะตอนอ่านจาก servo ไม่ได้/ค่าแปลก
+LIMIT_MARGIN = 1.0     # เผื่อการปัดเศษตอนแปลงหน่วย
 
 
 def calib_file():
@@ -72,8 +73,8 @@ def load_calib(path):
                         "close": bend0 + float((data.get("close") or {}).get(f, hand_poses.DEMO_CLOSE)),
                         "tilt": tilt0}
     for f, c in calib.items():
-        if not c["close"] - c["open"] >= 20 or any(abs(v) > SERVO_LIMIT for v in c.values()):
-            raise ValueError(f"{path}: ค่าของ{f} ผิด {c} (กำสุดต้องมากกว่าแบสุด ≥20°, ไม่เกิน ±{SERVO_LIMIT:.0f}°)")
+        if not c["close"] > c["open"]:
+            raise ValueError(f"{path}: ค่าของ{f} ผิด {c} (กำสุดต้องมากกว่าแบสุด)")
     return calib
 
 
@@ -104,6 +105,8 @@ class Hand:
         self.min_volts, self.max_volts = min_volts, max_volts
         self.c = None
         self.found_baud = None
+        self.limits = {sid: (-FACTORY_LIMIT, FACTORY_LIMIT) for sid in ids}  # องศา ต่ำสุด/สูงสุดของแต่ละ servo
+        self.limit_warnings = []
 
     def connect(self):
         from rustypot import Scs0009PyController
@@ -129,10 +132,36 @@ class Hand:
         if bad:
             raise RuntimeError(f"ไม่เปิดแรงบิด ({port}): " + ", ".join(bad) +
                                f" — ต้องครบทุกตัวและไฟ {self.min_volts}-{self.max_volts} V (เปิดไฟมือหรือยัง)")
+        self._read_limits()
         for sid in self.ids:
             self.c.write_goal_position(sid, scalar(self.c.read_present_position(sid)))
             self.c.write_torque_enable(sid, 1)
         return port
+
+    def _read_limits(self):
+        """มุมต่ำสุด/สูงสุดที่ servo แต่ละตัวยอมหมุน — อ่านจาก EEPROM ของ servo เอง (อ่านอย่างเดียว)
+
+        ค่าแปลก (อ่านไม่ได้ / ต่ำสุดไม่ติดลบ / สูงสุดไม่เป็นบวก / เกิน ±180°) = ใช้ลิมิตโรงงาน ±144° แล้วเตือน
+        """
+        self.limit_warnings = []
+        for sid in self.ids:
+            try:
+                lo = math.degrees(scalar(self.c.read_min_angle_limit(sid)))
+                hi = math.degrees(scalar(self.c.read_max_angle_limit(sid)))
+            except Exception as exc:
+                lo = hi = None
+                self.limit_warnings.append(f"ID {sid} อ่านขีดจำกัดไม่ได้ ({exc})")
+            if lo is not None and not -180 < lo < 0 < hi < 180:
+                self.limit_warnings.append(f"ID {sid} ขีดจำกัดที่อ่านได้แปลก ({lo:+.1f}..{hi:+.1f}°)")
+                lo = hi = None
+            self.limits[sid] = (lo, hi) if lo is not None else (-FACTORY_LIMIT, FACTORY_LIMIT)
+
+    def limits_text(self):
+        return ", ".join(f"ID{sid} {lo:+.0f}..{hi:+.0f}" for sid, (lo, hi) in self.limits.items())
+
+    def within(self, sid, deg):
+        lo, hi = self.limits.get(sid, (-FACTORY_LIMIT, FACTORY_LIMIT))
+        return lo + LIMIT_MARGIN <= deg <= hi - LIMIT_MARGIN
 
     def _find_baud(self):
         """baud ที่เซอร์โวตอบ — ลองค่าที่ตั้งไว้ก่อน แล้วไล่ค่าอื่น (อ่านอย่างเดียว ไม่เขียนอะไรลงเซอร์โว)
@@ -151,11 +180,12 @@ class Hand:
         return None
 
     def move(self, degrees, speed):
-        """สั่งทุก servo — เป้าหมายเกิน ±SERVO_LIMIT ถูกจำกัดไว้ คืน ID ที่ถูกจำกัด (ไว้เตือน)"""
+        """สั่งทุก servo — เป้าหมายที่เกินขีดจำกัดของ servo ตัวนั้นถูกจำกัดไว้ที่ขอบ คืน ID ที่ถูกจำกัด (ไว้เตือน)"""
         for sid in self.ids:
             self.c.write_goal_speed(sid, speed)
-        clipped = [sid for sid, d in zip(self.ids, degrees) if abs(d) > SERVO_LIMIT]
-        degrees = [max(-SERVO_LIMIT, min(SERVO_LIMIT, d)) for d in degrees]
+        clipped = [sid for sid, d in zip(self.ids, degrees) if not self.within(sid, d)]
+        degrees = [max(self.limits[sid][0] + LIMIT_MARGIN, min(self.limits[sid][1] - LIMIT_MARGIN, d))
+                   for sid, d in zip(self.ids, degrees)]
         rads = [math.radians(d) for d in degrees]
         try:
             self.c.sync_write_goal_position(self.ids, rads)
@@ -226,7 +256,10 @@ class AmazingHandNode(Node):
         self.ready = True
         if self.hand.found_baud != self.hand.baud:
             self.get_logger().warn(f"เซอร์โวตอบที่ {self.hand.found_baud} baud ไม่ใช่ {self.hand.baud} ที่ตั้งไว้ — ใช้ค่าที่เจอ")
-        self.get_logger().info(f"มือพร้อม ({port} @ {self.hand.found_baud}, ID {self.hand.ids}, {self.side})")
+        self.get_logger().info(f"มือพร้อม ({port} @ {self.hand.found_baud}, ID {self.hand.ids}, {self.side}) · "
+                               f"ขีดจำกัดจาก servo: {self.hand.limits_text()}")
+        for w in self.hand.limit_warnings:
+            self.get_logger().warn(w + " — ใช้ลิมิตโรงงาน ±144°")
         self._status("ready")
         return True
 
@@ -274,8 +307,8 @@ class AmazingHandNode(Node):
             else:
                 clipped = self.hand.move(hand_poses.servo_degrees(pose, self.calib, self.side), self.speed)
                 if clipped:
-                    self.get_logger().warn(f"ท่า {pose}: servo ID {clipped} เป้าหมายเกิน ±{SERVO_LIMIT:.0f}° "
-                                           "(ค่ากลางนิ้วสูง) — จำกัดไว้ที่ขอบ", throttle_duration_sec=10.0)
+                    self.get_logger().warn(f"ท่า {pose}: servo ID {clipped} เป้าหมายเกินขีดจำกัดของ servo "
+                                           f"({self.hand.limits_text()}) — จำกัดไว้ที่ขอบ", throttle_duration_sec=10.0)
             end = time.monotonic() + hold
             while time.monotonic() < end:
                 try:
