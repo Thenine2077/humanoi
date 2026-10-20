@@ -28,6 +28,12 @@ HELP = ("ท่าแบสุด (o) / กำสุด (c): + / - ปรับ 
         "n นิ้วถัดไป (บันทึก) · p นิ้วก่อนหน้า · q บันทึกแล้วออก · x ออกไม่บันทึก")
 
 
+def deg(v):
+    """องศาแบบไม่ปัดทิ้ง: +12 หรือ -53.5 (ค่าที่แปลงจากไฟล์เก่าลงท้าย .5 ได้ — ปัดแล้วกด +5 จะดูเหมือนขยับ 4 บ้าง 6 บ้าง)"""
+    text = f"{v:+.1f}"
+    return text[:-2] if text.endswith(".0") else text
+
+
 def parse(cmd):
     """คำสั่ง -> (ชนิด, จำนวนองศา) หรือ None ถ้าอ่านไม่ออก"""
     if cmd in ("o", "c", "n", "p", "q", "x"):
@@ -129,8 +135,10 @@ def main():
         while True:
             f = hand_poses.FINGERS[finger]
             c = calib[f]
-            cmd = input(f"[{NAMES_TH[f]} · ท่า{VIEW_TH[view]}] แบ {c['open']:+.0f} · กำ {c['close']:+.0f} · "
-                        f"เอียง {c['tilt']:+.0f} > ")
+            ida, idb = 2 * finger + 1, 2 * finger + 2
+            sa, sb = hand_poses.finger_servos(c, c["open"] if view == "o" else c["close"])
+            cmd = input(f"[{NAMES_TH[f]} · ท่า{VIEW_TH[view]}] แบ {deg(c['open'])} · กำ {deg(c['close'])} · "
+                        f"เอียง {deg(c['tilt'])} · servo ID{ida} {deg(sa)} ID{idb} {deg(sb)} > ")
             parsed = parse(cmd.strip().lower())
             if parsed is None:
                 print(HELP)
@@ -141,7 +149,7 @@ def main():
             if kind in ("n", "p", "q"):
                 save(args.file, calib)
                 saved = copy(calib)
-                print(f"  บันทึกแล้ว ({NAMES_TH[f]} แบ {c['open']:+.0f} กำ {c['close']:+.0f} เอียง {c['tilt']:+.0f})")
+                print(f"  บันทึกแล้ว ({NAMES_TH[f]} แบ {deg(c['open'])} กำ {deg(c['close'])} เอียง {deg(c['tilt'])})")
                 if kind == "q":
                     break
                 finger = (finger + (1 if kind == "n" else -1)) % len(hand_poses.FINGERS)
