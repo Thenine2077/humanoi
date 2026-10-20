@@ -9,8 +9,9 @@
   /rps/player_gesture        (pub, String)           ทุกเฟรมที่ประมวลผล: rock | paper | scissors | none
   /rps/vision/image/compressed (pub, CompressedImage) ภาพพร้อมจุดมือและท่าที่อ่านได้ (เฉพาะตอนมีคนดู เช่น Foxglove)
 
-ต้องมี mediapipe (ติดตั้งแบบไม่ลาก numpy 2 มาทับของ ROS):
-  pip3 install --break-system-packages --no-deps mediapipe==1.1.1 "absl-py~=2.3" "flatbuffers~=25.9"
+ต้องมี mediapipe (ติดตั้งแบบไม่ลาก numpy 2 มาทับของ ROS — มีใน docker/Dockerfile แล้ว):
+  apt-get install python3-matplotlib
+  pip3 install --break-system-packages --no-deps mediapipe==1.1.1 "absl-py~=2.3" "flatbuffers~=25.9" certifi
 แยกท่าแบบเดียวกับ Fun thing\\robot_hand.py: นับนิ้วที่เหยียด (ระยะข้อมือ→ปลายนิ้ว เทียบข้อมือ→ข้อกลางนิ้ว)
 ไม่ดูนิ้วโป้ง — กำ = ค้อน, 4 นิ้วเหยียด = กระดาษ, ชี้+กลางเหยียด นาง+ก้อยพับ = กรรไกร, อย่างอื่น = none
 """
@@ -74,7 +75,7 @@ class RpsVision(Node):
             from mediapipe.tasks.python import vision
         except ImportError as exc:
             raise SystemExit(f'โหลด mediapipe ไม่ได้ ({exc}) — ติดตั้ง: pip3 install --break-system-packages '
-                             '--no-deps mediapipe==1.1.1 "absl-py~=2.3" "flatbuffers~=25.9"')
+                             '--no-deps mediapipe==1.1.1 "absl-py~=2.3" "flatbuffers~=25.9" certifi (+ apt python3-matplotlib) — ดู docs/RPS_GAME.md')
         self.mp = mp
         model = self.get_parameter("model_path").value or default_model()
         conf = float(self.get_parameter("min_confidence").value)

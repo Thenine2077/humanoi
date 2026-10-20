@@ -73,11 +73,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # เกมเป่ายิ้งฉุบ (ros2_ws/src/humanoi_games): rustypot = คุมมือ AmazingHand, mediapipe = ดูมือผู้เล่น
 # mediapipe ติดแบบ --no-deps: dependency ของมันลาก numpy 2 + opencv-contrib มาทับ numpy 1.26 / cv2 ของ apt
-# ที่ ROS ใช้อยู่ (ของที่ build กับ numpy 1 จะพัง) — HandLandmarker ต้องการแค่ absl-py กับ flatbuffers
-RUN apt-get update && apt-get install -y --no-install-recommends python3-pip \
+# ที่ ROS ใช้อยู่ (ของที่ build กับ numpy 1 จะพัง) — ตอน import ต้องการ absl-py, flatbuffers, certifi และ
+# matplotlib (เอาจาก apt ซึ่ง build คู่กับ numpy 1.26 ของระบบ)
+RUN apt-get update && apt-get install -y --no-install-recommends python3-pip python3-matplotlib \
     && pip3 install --break-system-packages --no-cache-dir rustypot==1.13.1 \
     && pip3 install --break-system-packages --no-cache-dir --no-deps \
-         mediapipe==1.1.1 "absl-py~=2.3" "flatbuffers~=25.9" \
+         mediapipe==1.1.1 "absl-py~=2.3" "flatbuffers~=25.9" certifi \
     && rm -rf /var/lib/apt/lists/*
 
 COPY docker/entrypoint.sh /entrypoint.sh

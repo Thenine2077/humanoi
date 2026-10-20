@@ -35,12 +35,13 @@ arm teach left rps_v        # ไม่บังคับ — ท่าแขน
 ถ้ายังไม่ได้ build ใหม่ ลงใน container ที่รันอยู่ได้เลย หายเมื่อสร้าง container ใหม่):
 
 ```bash
-docker exec humanoi_ros bash -c 'apt-get update && apt-get install -y --no-install-recommends python3-pip \
+docker exec humanoi_ros bash -c 'apt-get update && apt-get install -y --no-install-recommends python3-pip python3-matplotlib \
   && pip3 install --break-system-packages rustypot==1.13.1 \
-  && pip3 install --break-system-packages --no-deps mediapipe==1.1.1 "absl-py~=2.3" "flatbuffers~=25.9"'
+  && pip3 install --break-system-packages --no-deps mediapipe==1.1.1 "absl-py~=2.3" "flatbuffers~=25.9" certifi'
 ```
 
 `--no-deps` สำคัญ: ถ้าไม่ใส่ mediapipe จะลาก numpy 2 มาทับของ ROS แล้วโหนดอื่นพัง
+(container ที่รันอยู่บน Pi ลงครบแล้วเมื่อ 20 ต.ค. — numpy 1.26.4 / cv2 4.6.0 เหมือนเดิม)
 
 ## เล่น
 
