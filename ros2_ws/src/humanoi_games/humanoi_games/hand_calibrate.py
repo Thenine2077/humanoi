@@ -2,6 +2,7 @@
 """hand_calibrate — ตั้งค่ากลางนิ้ว (MiddlePos) ของมือ AmazingHand ทีละนิ้วด้วยตา แล้วบันทึกให้เกมใช้
 
   arm hand-calibrate                         (บน Pi — ปิดเกมก่อน: พอร์ตมือเปิดได้ทีละโปรแกรม)
+  arm hand-calibrate --reset                 เริ่มใหม่จากค่าเดโม (ไฟล์ค่าเดิมเปลี่ยนชื่อเป็น .bak-<เวลา> ไม่ลบ)
   ros2 run humanoi_games hand_calibrate
 
 นิ้วที่กำลังตั้งจะยืดตรง (มุม 0) นิ้วอื่นกำไว้ไม่ให้บัง — ปรับจนนิ้วตั้งตรงแนวเดียวกับฝ่ามือ:
@@ -80,7 +81,13 @@ def main():
     ap.add_argument("--baud", type=int, default=1_000_000, help="ลองค่านี้ก่อน แล้วหาเอง")
     ap.add_argument("--file", default=calib_file())
     ap.add_argument("--speed", type=float, default=3.0)
+    ap.add_argument("--reset", action="store_true", help="สำรองไฟล์ค่าเดิมแล้วเริ่มใหม่จากค่าเดโม")
     args = ap.parse_args()
+
+    if args.reset and os.path.exists(args.file):
+        backup = f"{args.file}.bak-{datetime.datetime.now():%Y%m%d-%H%M%S}"
+        os.replace(args.file, backup)
+        print(f"รีเซ็ตแล้ว — ค่าเดิมสำรองไว้ที่ {backup} (ออกด้วย x = เกมใช้ค่าเดโม)")
 
     loaded = load_middle(args.file)
     middle = list(loaded or DEMO_MIDDLE)
