@@ -3,10 +3,12 @@
 
 ลำดับ: แขนไปท่าตั้ง (rps_ready — สอนเองด้วย arm teach) มือกำหลวมๆ → ข้อ 1 ยกขึ้น-ลง 3 ครั้ง (เป่า-ยิ้ง-ฉุบ)
 → จังหวะ "ฉุบ" มือออกท่าที่สุ่มไว้ → ดูท่าผู้เล่นจากกล้อง → แขนไปท่าโชว์ (ถ้าสอนไว้) แล้วมือค่อยทำท่า:
-หุ่นแพ้ = แขนไป lose_pose + ชูนิ้วโป้ง (ไลค์), หุ่นชนะ = แขนไป victory_pose + ชู 2 นิ้ว,
+หุ่นแพ้ = แขนสลับ victory_pose/lose_pose 3 รอบ + ชูนิ้วโป้ง (ไลค์), หุ่นชนะ = แขนไป victory_pose + ชู 2 นิ้ว,
 เสมอ = เป่าใหม่ (ไม่เกิน max_draws ครั้ง), ไม่เห็นมือ = ส่ายนิ้ว
-จบเกมแล้วผู้เล่นชูนิ้วชี้ค้างไว้ (replay_hold วินาที) = แขนกลับท่าตั้งแล้วเล่นตาใหม่ วนไปเรื่อยๆ
-(รอนิ้วชี้ได้ replay_timeout วินาทีหลังจบเกม — แขนค้างที่ท่าโชว์ระหว่างรอ)
+โชว์เสร็จแขนกลับท่าตั้งผ่านโปรแกรม return_program (ready_pose) — ไม่ไปตรงๆ เพราะข้อ 1 รับน้ำหนัก
+การเหวี่ยงแขนทั้งแขนตรงๆ ไม่ไหว (ตอนเริ่มเกม ถ้าแขนอยู่ไกลจากท่าตั้งก็เดินโปรแกรมนี้ก่อนเหมือนกัน)
+จบเกมแล้วผู้เล่นชูนิ้วชี้ค้างไว้ (replay_hold วินาที) = เล่นตาใหม่ วนไปเรื่อยๆ
+(รอนิ้วชี้ได้ replay_timeout วินาทีหลังจบเกม)
 
   ros2 launch humanoi_games rps.launch.py                     # เปิดเกมค้างไว้ (แขน + มือ + กล้อง)
   ros2 topic pub --once /rps/play std_msgs/msg/Empty "{}"     # เล่น 1 ตา
@@ -56,15 +58,22 @@ ARM_TH = {"left": "ซ้าย", "right": "ขวา"}
 RESULT_TH = {"player_win": "ผู้เล่นชนะ → ชูนิ้วโป้ง", "robot_win": "หุ่นชนะ → ชู 2 นิ้ว",
              "draw": "เสมอ", "no_player": "ไม่เห็นมือผู้เล่น → ส่ายนิ้ว"}
 # ผล (มุมผู้เล่น) -> (ท่ามือ, พารามิเตอร์ชื่อท่าแขนตอนโชว์ — ไม่ได้สอนท่านั้นไว้ = แขนค้างที่ท่าตั้ง)
-REACTION = {"player_win": ("like", "lose_pose"), "robot_win": ("victory", "victory_pose"),
+REACTION = {"player_win": ("like", "lose_moves"), "robot_win": ("victory", "victory_moves"),
             "draw": ("paper", None), "no_player": ("nonono", None)}
 PARAMS = {
     "arm": "left",                # แขนที่ติดมือ
     "layout": "dual",             # dual = ar_dual (<arm>_joint_N) · single = แขนเดี่ยวแบบเดิม (joint_N)
     "programs_file": programs.DEFAULT_FILE,
     "ready_pose": "rps_ready",    # ท่าตั้งก่อนเป่า (ต้องสอนก่อน: arm teach left rps_ready)
-    "victory_pose": "victory_pose",  # ท่าแขนตอนหุ่นชนะ (ชู 2 นิ้ว) — ไม่บังคับ: arm teach left victory_pose
-    "lose_pose": "lose_pose",        # ท่าแขนตอนหุ่นแพ้ (ชูนิ้วโป้ง) — ไม่บังคับ: arm teach left lose_pose
+    # ท่าแขนตอนโชว์ = ชื่อท่าเรียงกัน (คั่นด้วยเว้นวรรค) แขนไปทีละท่าจนครบ แล้วมือค่อยทำท่า
+    # ท่าที่ยังไม่ได้สอนข้ามไป (ไม่มีสักท่า = แขนค้างที่ท่าตั้ง) — สอน: arm teach left victory_pose / lose_pose
+    "victory_moves": "victory_pose",  # หุ่นชนะ (ชู 2 นิ้ว)
+    "lose_moves": "victory_pose lose_pose victory_pose lose_pose victory_pose lose_pose",  # หุ่นแพ้ (ชูโป้ง)
+    "show_speed": 0.22,           # ท่าโชว์ที่ใกล้กัน (ไม่เกิน show_fast_max_deg) ขยับด้วยเพดานที่เฟิร์มแวร์ตามทัน:
+    "show_accel": 0.17,           # 12.6°/s, 9.7°/s^2 (เฟิร์มแวร์ 10°/s^2) — แกว่ง 39° ครั้งละ ~4.4 s
+    "show_fast_max_deg": 45.0,    # ท่าที่ห่างกว่านี้ (เช่นจากท่าตั้ง) ใช้ move_speed/move_accel นุ่มๆ แทน
+    "return_program": "ready_pose",  # โปรแกรม (ใน programs.yaml) ที่พาแขนกลับท่าตั้งอย่างปลอดภัย — ใช้แค่ขั้นของแขนนี้
+    "near_deg": 5.0,              # ห่างท่าตั้งไม่เกินกี่องศา (ทุกข้อ) ถึงไปตรงๆ ได้โดยไม่ต้องเดินโปรแกรม
     "pump_joint": 1,              # ข้อที่ขยับขึ้นลง
     "pump_deg": 5.0,              # ยกกี่องศา (8° = 11.6 วินาที, 5° = 8.6, 4° = 7.7, 3° = 6.7 — มือยกราว 0.6 ซม./องศา)
     "auto_up": True,              # true = เลือกทิศข้อ 1 ให้มือ "ขึ้น" เอง (คำนวณจาก TF ที่ท่าตั้ง) ·
@@ -256,9 +265,10 @@ class RpsGame(Node):
         pump_speed = min(float(p["pump_speed"]), MAX_SPEED)
         pump_accel = float(p["pump_accel"])
 
+        self._program_steps(data, p["return_program"])  # ตรวจโปรแกรมทางกลับก่อนขยับอะไร
         self._hand(p["windup_gesture"])
         self._state("ready")
-        self._move_to(ready, p)
+        self._go_ready(data, ready, p)
         if p["auto_up"] and j == 0:
             amp = self._upward(abs(amp), p["up_frame"])
         self._sleep(float(p["start_delay"]))
@@ -281,7 +291,7 @@ class RpsGame(Node):
                 self.get_logger().info("เสมอ — เป่าใหม่")
                 self._sleep(1.0)
                 continue
-            self._react(result, data, p)
+            self._react(result, data, ready, p)
             return robot, player, result
 
     def _pose(self, data, name, required=False):
@@ -325,30 +335,68 @@ class RpsGame(Node):
         self._sleep_until(end)
         return rps_logic.vote(list(self.samples), start, end, int(p["min_votes"]))
 
-    def _react(self, result, data, p):
-        """แขนไปท่าโชว์ก่อน (ถ้าสอนไว้) แล้วมือค่อยทำท่า — แขนค้างที่ท่าโชว์ เล่นตาใหม่ค่อยกลับท่าตั้ง"""
-        gesture, pose_param = REACTION[result]
-        if pose_param:
-            name = p[pose_param]
+    def _react(self, result, data, ready, p):
+        """แขนไปท่าโชว์ทีละท่าจนครบก่อน (ท่าที่สอนไว้) แล้วมือค่อยทำท่า ค้างไว้ แล้วกลับท่าตั้งผ่าน return_program"""
+        gesture, moves_param = REACTION[result]
+        names = str(p[moves_param]).split() if moves_param else []
+        missing = sorted({n for n in names if self._pose(data, n) is None})
+        if missing:
+            self.get_logger().info("ยังไม่ได้สอนท่า " + ", ".join(missing) + f" (arm teach {self.arm} <ท่า>) — ข้ามไป")
+        for name in names:
             target = self._pose(data, name)
             if target:
                 self._state(f"pose:{name}")
-                self._move_to(target, p)
-            else:
-                self.get_logger().info(f"ยังไม่ได้สอนท่า '{name}' (arm teach {self.arm} {name}) — โชว์ที่ท่าตั้ง")
+                self._move_to(target, p, fast=True)
         self._hand(gesture)
         self._sleep(float(p["react_hold"]))
         self._hand(p["end_gesture"])
+        self._go_ready(data, ready, p)
+
+    def _program_steps(self, data, name):
+        """ขั้นของแขนนี้ในโปรแกรม name: [(ชื่อท่า, มุม) | ("wait", วินาที)] — ตรวจทุกท่าก่อน (ท่าหาย = ไม่ขยับเลย)"""
+        steps = data["programs"].get(name)
+        if not steps:
+            raise GameError(f"ไม่มีโปรแกรม '{name}' (ทางกลับท่าตั้ง) — สร้างด้วย arm program {name} ... "
+                            "หรือตั้ง return_program")
+        out = []
+        for step in steps:
+            per_arm = programs.step_arms(step)
+            if per_arm is None:
+                out.append(("wait", float(step["wait"])))
+            elif per_arm.get(self.arm, "still") not in programs.STILL:
+                pose = per_arm[self.arm]
+                out.append((pose, self._pose(data, pose, required=True)))
+        return out
+
+    def _go_ready(self, data, ready, p):
+        """ไปท่าตั้ง — อยู่ไกลกว่า near_deg ให้เดินตาม return_program ก่อน (เส้นทางที่สอนไว้) แล้วค่อยเข้าท่าตั้ง"""
+        start = [self.current[n] for n in self.joints]
+        if math.degrees(max(abs(a - b) for a, b in zip(ready, start))) > float(p["near_deg"]):
+            name = p["return_program"]
+            steps = self._program_steps(data, name)
+            self.get_logger().info(f"กลับท่าตั้งผ่านโปรแกรม '{name}': " + " → ".join(k for k, _ in steps))
+            for pose, value in steps:
+                if pose == "wait":
+                    self._sleep(value)
+                else:
+                    self._state(f"return:{pose}")
+                    self._move_to(value, p)
+        self._move_to(ready, p)
 
     def _reveal(self, robot):
         self._hand(robot)
         self._state(f"reveal:{robot}")
 
     # ---------- แขน ----------
-    def _move_to(self, target, p):
+    def _move_to(self, target, p, fast=False):
+        """fast = ท่าโชว์: ถ้าห่างไม่เกิน show_fast_max_deg ใช้ show_speed/show_accel (เร็ว) ไม่งั้นนุ่มเหมือนเดิม"""
         start = [self.current[n] for n in self.joints]
-        speed = min(float(p["move_speed"]), MAX_SPEED)
-        self._trajectory(programs.trapezoid(start, target, speed, float(p["move_accel"]), 1.0))
+        far = math.degrees(max(abs(t - s) for t, s in zip(target, start)))
+        if fast and far <= float(p["show_fast_max_deg"]):
+            speed, accel, min_time = float(p["show_speed"]), float(p["show_accel"]), 0.3
+        else:
+            speed, accel, min_time = float(p["move_speed"]), float(p["move_accel"]), 1.0
+        self._trajectory(programs.trapezoid(start, target, min(speed, MAX_SPEED), accel, min_time))
 
     def _trajectory(self, points, events=()):
         """ส่ง trajectory แล้วรอจนจบ ระหว่างนั้นเรียก events [(วินาทีจากเริ่ม, ฟังก์ชัน)] ตามเวลา — คืนเวลาเริ่ม"""
