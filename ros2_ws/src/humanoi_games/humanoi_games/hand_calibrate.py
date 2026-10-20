@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""hand_calibrate — คาลิเบรตมือ AmazingHand ทีละนิ้วด้วยตา: ท่าตรง (MiddlePos), กำสุด, แบสุด แล้วบันทึกให้เกมใช้
+"""hand_calibrate — คาลิเบรตมือ AmazingHand ทีละนิ้วด้วยตา: แบสุด, กำสุด, เอียง แล้วบันทึกให้เกมใช้
 
-  arm hand-calibrate                         (บน Pi — ปิดเกมก่อน: พอร์ตมือเปิดได้ทีละโปรแกรม)
-  arm hand-calibrate --reset                 เริ่มใหม่จากค่าเดโม (ไฟล์ค่าเดิมเปลี่ยนชื่อเป็น .bak-<เวลา> ไม่ลบ)
+  arm hand-calibrate                 (บน Pi — ปิดเกมก่อน: พอร์ตมือเปิดได้ทีละโปรแกรม)
+  arm hand-calibrate --reset         เริ่มใหม่จากค่าเดโม (ไฟล์ค่าเดิมเปลี่ยนชื่อเป็น .bak-<เวลา> ไม่ลบ)
 
-ทีละนิ้ว 3 ขั้น (นิ้วอื่นกำไว้ไม่ให้บัง):
-  1) ท่าตรง (s):  l / r  เอียงนิ้วไปทางหนึ่ง/อีกทาง   f / b  งอไปหน้า/หลัง   จนนิ้วตั้งตรงแนวฝ่ามือ
-                  (1+ 1- 2+ 2- = ขยับ servo ทีละตัว)
-  2) กำสุด (c):  + / -  กำมากขึ้น / น้อยลง — หยุดตรงที่ปลายนิ้วแตะฝ่ามือพอดี
-                  ได้ยินเสียง servo ครางค้าง = กำเกิน ให้กด - จนเงียบ
-  3) แบสุด (o):  + / -  แบมากขึ้น / น้อยลง — หยุดตรงที่นิ้วแบสุดแล้วยังดูเป็นธรรมชาติ
-ใส่ตัวเลขต่อท้ายได้ทุกคำสั่ง เช่น l3, +5
-  n / p   บันทึก แล้วไปนิ้วถัดไป / ก่อนหน้า        q   บันทึกแล้วออก
-  x หรือ Ctrl+C = ออกโดยไม่บันทึกส่วนที่แก้หลังบันทึกครั้งล่าสุด
+แต่ละนิ้ว (นิ้วอื่นกำไว้ไม่ให้บัง):
+  1. เริ่มที่ท่าแบสุด:  + / -  แบมากขึ้น / น้อยลง      l / r  เอียงนิ้วจนตั้งตรง ไม่เอียงข้าง
+  2. กด c ไปท่ากำสุด:  + / -  กำมากขึ้น / น้อยลง — หยุดตรงที่ปลายนิ้วแตะฝ่ามือพอดี
+                        ได้ยินเสียง servo ครางค้าง = กำเกิน กด - จนเงียบ
+  3. กด n ไปนิ้วถัดไป (บันทึกให้เลย)          o = กลับไปดูท่าแบสุด
+ใส่ตัวเลขต่อท้ายได้ เช่น +5, l3 · p = นิ้วก่อนหน้า · q = บันทึกแล้วออก · x หรือ Ctrl+C = ออกไม่บันทึก
 เกม (amazinghand_node) อ่านไฟล์นี้ตอนเปิด — คาลิเบรตเสร็จแล้วเปิดเกมใหม่
-ทิศของ l/r และ f/b ขึ้นกับการประกอบมือ ลองกดแล้วดูว่านิ้วไปทางไหน
+ทิศของ l / r ขึ้นกับการประกอบมือ ลองกดแล้วดูว่านิ้วไปทางไหน
 """
 import argparse
 import datetime
@@ -23,74 +20,63 @@ import os
 import sys
 
 from humanoi_games import hand_poses
-from humanoi_games.amazinghand_node import DEMO_MIDDLE, MAX_MIDDLE, Hand, calib_file, load_calib
+from humanoi_games.amazinghand_node import SERVO_LIMIT, Hand, calib_file, load_calib
 
 NAMES_TH = {"index": "นิ้วชี้", "middle": "นิ้วกลาง", "ring": "นิ้วนาง", "thumb": "นิ้วโป้ง"}
-VIEW_TH = {"s": "ตรง", "c": "กำสุด", "o": "แบสุด"}
-MAX_OFFSET = MAX_MIDDLE  # ±60° — ปกติแตรคลาดไม่เกินครึ่งฟัน (9°) เกินจากนี้ต้องถอดใส่แตรใหม่
-CLOSE_RANGE = (45.0, 135.0)  # θ กำสุดที่ยอมให้ตั้ง
-OPEN_RANGE = (-80.0, 0.0)    # θ แบสุด (ติดลบ = เลยท่าตรงไปทางแบ)
-HELP = ("ท่าตรง: l/r เอียง f/b งอหน้า/หลัง (1+ 1- 2+ 2- ทีละ servo) · c กำสุด / o แบสุด: +/- ปรับ · "
-        "s ท่าตรง · ใส่ตัวเลขต่อท้ายได้ เช่น l3 +5 · n/p บันทึกแล้วไปนิ้วถัดไป/ก่อนหน้า · q บันทึกแล้วออก · "
-        "x ออกไม่บันทึก")
+VIEW_TH = {"o": "แบสุด", "c": "กำสุด"}
+MIN_GAP = 20.0  # กำสุดต้องมากกว่าแบสุดอย่างน้อยเท่านี้
+HELP = ("ท่าแบสุด (o) / กำสุด (c): + / - ปรับ · l / r เอียง · ใส่ตัวเลขต่อท้ายได้ เช่น +5 l3 · "
+        "n นิ้วถัดไป (บันทึก) · p นิ้วก่อนหน้า · q บันทึกแล้วออก · x ออกไม่บันทึก")
 
 
 def parse(cmd):
     """คำสั่ง -> (ชนิด, จำนวนองศา) หรือ None ถ้าอ่านไม่ออก"""
-    if cmd in ("s", "o", "c", "n", "p", "q", "x"):
+    if cmd in ("o", "c", "n", "p", "q", "x"):
         return cmd, 0
-    if cmd[:1] in ("l", "r", "f", "b", "+", "-") and (cmd[1:] == "" or cmd[1:].isdigit()):
+    if cmd[:1] in ("l", "r", "+", "-") and (cmd[1:] == "" or cmd[1:].isdigit()):
         return cmd[0], int(cmd[1:] or 1)
-    if cmd[:1] in ("1", "2") and cmd[1:2] in ("+", "-") and (cmd[2:] == "" or cmd[2:].isdigit()):
-        return cmd[:2], int(cmd[2:] or 1)
     return None
 
 
-def adjust(middle, finger, kind, n):
-    """แก้ middle (list 8 ค่า) ของนิ้วที่ finger — คืน False ถ้าเกิน ±MAX_OFFSET (ไม่แก้)"""
-    a, b = 2 * finger, 2 * finger + 1
-    da, db = {"l": (n, n), "r": (-n, -n), "f": (n, -n), "b": (-n, n),
-              "1+": (n, 0), "1-": (-n, 0), "2+": (0, n), "2-": (0, -n)}[kind]
-    na, nb = middle[a] + da, middle[b] + db
-    if abs(na) > MAX_OFFSET or abs(nb) > MAX_OFFSET:
+def fits(c):
+    """ค่านิ้วนี้ใช้ได้ไหม: กำสุด > แบสุด อย่างน้อย MIN_GAP และ servo ไม่ทะลุขอบทั้งท่าแบและท่ากำ"""
+    if c["close"] - c["open"] < MIN_GAP:
         return False
-    middle[a], middle[b] = na, nb
-    return True
+    return all(abs(v) <= SERVO_LIMIT for bend in (c["open"], c["close"])
+               for v in hand_poses.finger_servos(c, bend))
 
 
-def adjust_limit(limits, name, view, sign, n):
-    """+/- ที่ท่ากำ = กำมาก/น้อย, ที่ท่าแบ = แบมาก/น้อย — คืน False ถ้าออกนอกช่วง (ไม่แก้)"""
-    lo, hi = CLOSE_RANGE if view == "c" else OPEN_RANGE
-    default = hand_poses.DEFAULT_CLOSE if view == "c" else hand_poses.DEFAULT_OPEN
-    step = n if view == "c" else -n  # แบมากขึ้น = θ ติดลบมากขึ้น
-    value = limits.get(name, default) + (step if sign == "+" else -step)
-    if not lo <= value <= hi:
-        return False
-    limits[name] = value
-    return True
+def adjust(c, view, kind, n):
+    """แก้ค่านิ้ว c ตามคำสั่ง — คืนข้อความเหตุผลถ้าไม่แก้ (None = แก้แล้ว)"""
+    new = dict(c)
+    if kind in ("l", "r"):
+        new["tilt"] += n if kind == "l" else -n
+    elif view == "c":  # + = กำมากขึ้น
+        new["close"] += n if kind == "+" else -n
+    else:              # + = แบมากขึ้น (งอน้อยลง)
+        new["open"] -= n if kind == "+" else -n
+    if not fits(new):
+        return (f"ไม่แก้ — กำสุดต้องมากกว่าแบสุดอย่างน้อย {MIN_GAP:.0f}° และ servo ต้องไม่เกิน ±{SERVO_LIMIT:.0f}°")
+    c.update(new)
+    return None
 
 
-def pose_degrees(middle, finger, view, close, open_):
+def pose_degrees(calib, finger, view):
     """องศาของ servo 8 ตัว: นิ้วที่ตั้งอยู่ในท่า view นิ้วอื่นกำสุด (ท่า c = กำทั้งมือ)"""
     out = []
-    for i, name in enumerate(hand_poses.FINGERS):
-        if i == finger or view == "c":
-            theta = {"s": 0.0, "c": hand_poses.finger_angle("C", name, close, open_),
-                     "o": hand_poses.finger_angle("O", name, close, open_)}[view]
-        else:
-            theta = hand_poses.finger_angle("C", name, close, open_)
-        out += [middle[2 * i] + theta, middle[2 * i + 1] - theta]
+    for i, f in enumerate(hand_poses.FINGERS):
+        c = calib[f]
+        bend = c["open"] if (i == finger and view == "o") else c["close"]
+        out += list(hand_poses.finger_servos(c, bend))
     return out
 
 
 def save(path, calib):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    data = {"middle_pos": [round(v, 1) for v in calib["middle_pos"]],
-            "close": {k: round(v, 1) for k, v in calib["close"].items()},
-            "open": {k: round(v, 1) for k, v in calib["open"].items()},
+    data = {"version": 2,
+            "fingers": {f: {k: round(v, 1) for k, v in c.items()} for f, c in calib.items()},
             "updated": datetime.datetime.now().isoformat(timespec="seconds"),
-            "note": "middle_pos = ท่าตรงของ servo ID 1-8 (ชี้ a b, กลาง a b, นาง a b, โป้ง a b); "
-                    "close / open = θ กำสุด / แบสุดของแต่ละนิ้ว — hand_calibrate"}
+            "note": "ต่อนิ้ว: open = งอตอนแบสุด, close = งอตอนกำสุด, tilt = เอียง (องศา servo) — hand_calibrate"}
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
@@ -98,11 +84,11 @@ def save(path, calib):
 
 
 def copy(calib):
-    return {"middle_pos": list(calib["middle_pos"]), "close": dict(calib["close"]), "open": dict(calib["open"])}
+    return {f: dict(c) for f, c in calib.items()}
 
 
 def main():
-    ap = argparse.ArgumentParser(description="คาลิเบรตมือ AmazingHand ทีละนิ้ว")
+    ap = argparse.ArgumentParser(description="คาลิเบรตมือ AmazingHand ทีละนิ้ว: แบสุด กำสุด เอียง")
     ap.add_argument("--port", default="auto")
     ap.add_argument("--baud", type=int, default=1_000_000, help="ลองค่านี้ก่อน แล้วหาเอง")
     ap.add_argument("--file", default=calib_file())
@@ -115,7 +101,7 @@ def main():
         os.replace(args.file, backup)
         print(f"รีเซ็ตแล้ว — ค่าเดิมสำรองไว้ที่ {backup} (ออกด้วย x = เกมใช้ค่าเดโม)")
     loaded = load_calib(args.file)
-    calib = copy(loaded) if loaded else {"middle_pos": list(DEMO_MIDDLE), "close": {}, "open": {}}
+    calib = copy(loaded or hand_poses.demo_calib())
     saved = copy(calib)
     print(f"ไฟล์: {args.file} ({'ค่าที่บันทึกไว้' if loaded else 'ยังไม่มี — เริ่มจากค่าเดโม'})")
     hand = Hand(args.port, args.baud, list(range(1, 9)), 4.8, 7.4)
@@ -125,24 +111,18 @@ def main():
         sys.exit(f"✗ {exc}")
     print(f"มือพร้อม ({port} @ {hand.found_baud})\n{HELP}")
 
-    finger, view = 0, "s"
+    finger, view = 0, "o"
 
     def show():
-        clipped = hand.move(pose_degrees(calib["middle_pos"], finger, view, calib["close"], calib["open"]),
-                            args.speed)
-        if clipped:
-            print(f"  (servo ID {clipped} ถึงขอบ ±140° ในท่านี้ — ไปต่อไม่ได้)")
+        hand.move(pose_degrees(calib, finger, view), args.speed)
 
     try:
         show()
         while True:
-            name = hand_poses.FINGERS[finger]
-            m = calib["middle_pos"]
-            a, b = 2 * finger, 2 * finger + 1
-            close = hand_poses.finger_angle("C", name, calib["close"], calib["open"])
-            opened = hand_poses.finger_angle("O", name, calib["close"], calib["open"])
-            cmd = input(f"[{NAMES_TH[name]} · ท่า{VIEW_TH[view]}] ID{a + 1}={m[a]:+.0f} ID{b + 1}={m[b]:+.0f}"
-                        f" · กำสุด {close:.0f} · แบสุด {opened:.0f} > ")
+            f = hand_poses.FINGERS[finger]
+            c = calib[f]
+            cmd = input(f"[{NAMES_TH[f]} · ท่า{VIEW_TH[view]}] แบ {c['open']:+.0f} · กำ {c['close']:+.0f} · "
+                        f"เอียง {c['tilt']:+.0f} > ")
             parsed = parse(cmd.strip().lower())
             if parsed is None:
                 print(HELP)
@@ -153,36 +133,25 @@ def main():
             if kind in ("n", "p", "q"):
                 save(args.file, calib)
                 saved = copy(calib)
-                print(f"  บันทึกแล้ว — MiddlePos {[round(v) for v in m]} · กำสุด "
-                      f"{ {k: round(v) for k, v in calib['close'].items()} } · แบสุด "
-                      f"{ {k: round(v) for k, v in calib['open'].items()} }")
+                print(f"  บันทึกแล้ว ({NAMES_TH[f]} แบ {c['open']:+.0f} กำ {c['close']:+.0f} เอียง {c['tilt']:+.0f})")
                 if kind == "q":
                     break
                 finger = (finger + (1 if kind == "n" else -1)) % len(hand_poses.FINGERS)
-                view = "s"
+                view = "o"
             elif kind in VIEW_TH:
                 view = kind
-            elif kind in ("+", "-"):
-                if view == "s":
-                    print("  +/- ใช้ที่ท่ากำสุด (c) หรือแบสุด (o) — กด c หรือ o ก่อน")
+            else:
+                reason = adjust(c, view, kind, n)
+                if reason:
+                    print("  " + reason)
                     continue
-                if not adjust_limit(calib["close" if view == "c" else "open"], name, view, kind, n):
-                    lo, hi = CLOSE_RANGE if view == "c" else OPEN_RANGE
-                    print(f"  นอกช่วง {lo:.0f}..{hi:.0f}° — ไม่แก้")
-                    continue
-            elif not adjust(m, finger, kind, n):
-                print(f"  เกิน ±{MAX_OFFSET:.0f}° — ไม่แก้ (แตร servo ใส่คลาดหลายฟัน ต้องถอดใส่ใหม่)")
-                continue
             show()
     except (KeyboardInterrupt, EOFError):
         print()
     finally:
         hand.relax()
-    before = loaded or {"middle_pos": list(DEMO_MIDDLE), "close": {}, "open": {}}
-    if saved != copy(before):
-        print("บันทึกแล้ว — เปิดเกมใหม่ (arm rps ...) เพื่อใช้ค่าใหม่")
-    else:
-        print("ไม่มีอะไรเปลี่ยน")
+    print("บันทึกแล้ว — เปิดเกมใหม่ (arm rps ...) เพื่อใช้ค่าใหม่" if saved != copy(loaded or hand_poses.demo_calib())
+          else "ไม่มีอะไรเปลี่ยน")
     return 0
 
 

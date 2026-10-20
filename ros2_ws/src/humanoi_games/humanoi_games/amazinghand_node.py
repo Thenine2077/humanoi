@@ -13,7 +13,7 @@
   /hand/status  (pub, String)  ready | gesture:<ท่า> | relaxed | error:<เหตุผล>
 
 baud หาเอง (ลอง baud ที่ตั้งไว้ก่อน แล้วไล่ค่าอื่น — มือนี้เจอทั้ง 1 Mbps และ 250000 ของร้าน)
-MiddlePos (ค่ากลางของแต่ละ servo) อ่านจากไฟล์ที่ hand_calibrate บันทึก (arm hand-calibrate) — ไม่มีไฟล์ = ค่าเดโม
+แบสุด / กำสุด / เอียง ของแต่ละนิ้ว อ่านจากไฟล์ที่ hand_calibrate บันทึก (arm hand-calibrate) — ไม่มีไฟล์ = ค่าเดโม
 ก่อนเปิดแรงบิดเช็กทุกครั้ง (เหมือน tools\\scan_servos.py): servo ครบทุก ID และไฟ 4.8-7.4 V
 ไม่ผ่าน = ไม่ขยับ รายงาน error แล้วลองใหม่ตอนได้คำสั่งถัดไป · ปิดโหนด = ปลดแรงบิดทุกตัว
 """
@@ -32,13 +32,11 @@ from std_msgs.msg import String
 from humanoi_games import hand_poses
 
 ADAPTER_USB = (0x1A86, 0x55D3)  # Waveshare Bus Servo Adapter (A) = CH343 — Nano ของแขนเป็น CH340 (55d3 ≠ 7523)
-DEMO_MIDDLE = [3.0, 0.0, -5.0, -8.0, -2.0, 5.0, -12.0, 0.0]  # MiddlePos ของมือตัวอย่างใน AmazingHand_Demo.py
-MAX_MIDDLE = 60.0  # ปกติคลาดไม่เกินครึ่งฟันแตร (9°) แต่มือนี้นิ้วชี้ต้องเกิน 30° (แตรน่าจะใส่คลาด ~2 ฟัน)
 SERVO_LIMIT = 140.0  # ลิมิตโรงงานของ SCS0009 = ±144° (raw 20-1003) — กันเป้าหมายทะลุช่วงที่หมุนได้
 
 
 def calib_file():
-    """ไฟล์ MiddlePos — อยู่ใน src (ไม่ใช่ install) เหมือน programs.yaml: build ใหม่ไม่ทับ
+    """ไฟล์คาลิเบรตมือ — อยู่ใน src (ไม่ใช่ install) เหมือน programs.yaml: build ใหม่ไม่ทับ
 
     ลำดับ: ตัวแปร HAND_CALIB_FILE > Pi (Docker, /humanoi_ws/src) > PC (WSL) > ~/.config
     """
@@ -52,22 +50,38 @@ def calib_file():
 
 
 def load_calib(path):
-    """ค่าคาลิเบรตมือจากไฟล์ — None ถ้ายังไม่มีไฟล์
+    """ค่าคาลิเบรตมือ {นิ้ว: {open, close, tilt}} จากไฟล์ — None ถ้ายังไม่มีไฟล์ (นิ้วที่ขาด = ค่าเดโม)
 
-    คืน {"middle_pos": [8 ค่า], "close": {นิ้ว: θ}, "open": {นิ้ว: θ}}
-    (close / open ว่างได้ = นิ้วนั้นใช้ค่าเดโม 90 / -35 — ไฟล์รุ่นแรกมีแค่ middle_pos)
+    ไฟล์รุ่นแรก (middle_pos 8 ค่า + close/open แบบเทียบท่าตรง) แปลงให้เอง: งอ0 = (a-b)/2, เอียง = (a+b)/2
     """
     try:
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
     except FileNotFoundError:
         return None
-    values = [float(v) for v in data["middle_pos"]]
-    if len(values) != 8 or any(abs(v) > MAX_MIDDLE for v in values):
-        raise ValueError(f"{path}: middle_pos ต้องมี 8 ค่า แต่ละค่าไม่เกิน ±{MAX_MIDDLE:.0f}°")
-    close = {k: float(v) for k, v in (data.get("close") or {}).items() if k in hand_poses.FINGERS}
-    open_ = {k: float(v) for k, v in (data.get("open") or {}).items() if k in hand_poses.FINGERS}
-    return {"middle_pos": values, "close": close, "open": open_}
+    calib = hand_poses.demo_calib()
+    if "fingers" in data:
+        for f, values in data["fingers"].items():
+            if f in calib:
+                calib[f] = {k: float(values[k]) for k in ("open", "close", "tilt")}
+    else:  # รุ่นแรก
+        mid = [float(v) for v in data["middle_pos"]]
+        for i, f in enumerate(hand_poses.FINGERS):
+            bend0, tilt0 = (mid[2 * i] - mid[2 * i + 1]) / 2, (mid[2 * i] + mid[2 * i + 1]) / 2
+            calib[f] = {"open": bend0 + float((data.get("open") or {}).get(f, hand_poses.DEMO_OPEN)),
+                        "close": bend0 + float((data.get("close") or {}).get(f, hand_poses.DEMO_CLOSE)),
+                        "tilt": tilt0}
+    for f, c in calib.items():
+        if not c["close"] - c["open"] >= 20 or any(abs(v) > SERVO_LIMIT for v in c.values()):
+            raise ValueError(f"{path}: ค่าของ{f} ผิด {c} (กำสุดต้องมากกว่าแบสุด ≥20°, ไม่เกิน ±{SERVO_LIMIT:.0f}°)")
+    return calib
+
+
+def describe(calib):
+    """ค่าคาลิเบรตแบบอ่านง่าย: นิ้ว แบ/กำ/เอียง"""
+    th = {"index": "ชี้", "middle": "กลาง", "ring": "นาง", "thumb": "โป้ง"}
+    return " · ".join(f"{th[f]} แบ {c['open']:+.0f} กำ {c['close']:+.0f} เอียง {c['tilt']:+.0f}"
+                      for f, c in calib.items())
 
 
 def find_port():
@@ -166,9 +180,8 @@ class AmazingHandNode(Node):
         self.declare_parameter("port", "auto")
         self.declare_parameter("baud", 1_000_000)
         self.declare_parameter("ids", [1, 2, 3, 4, 5, 6, 7, 8])
-        # MiddlePos: ไฟล์จาก hand_calibrate ก่อน ไม่มีไฟล์ใช้ middle_pos (ค่าเดโมของ Pollen)
-        self.declare_parameter("middle_pos_file", calib_file())
-        self.declare_parameter("middle_pos", DEMO_MIDDLE)
+        # แบสุด / กำสุด / เอียง ต่อนิ้ว จาก hand_calibrate (ไม่มีไฟล์ = ท่าเหมือนเดโมของ Pollen)
+        self.declare_parameter("calib_file", calib_file())
         self.declare_parameter("side", "right")
         self.declare_parameter("speed", 7.0)  # เท่า MaxSpeed ในเดโม
         self.declare_parameter("min_volts", 4.8)
@@ -176,15 +189,13 @@ class AmazingHandNode(Node):
         self.declare_parameter("dry_run", False)
 
         gp = self.get_parameter
-        path = gp("middle_pos_file").value
-        calib = load_calib(path)
-        if calib is None:
-            self.middle, self.close, self.open = [float(v) for v in gp("middle_pos").value], {}, {}
+        path = gp("calib_file").value
+        self.calib = load_calib(path)
+        if self.calib is None:
+            self.calib = hand_poses.demo_calib()
             self.get_logger().warn(f"ยังไม่ได้คาลิเบรตนิ้ว ({path} ไม่มี) — ใช้ค่าเดโม · คาลิเบรต: arm hand-calibrate")
         else:
-            self.middle, self.close, self.open = calib["middle_pos"], calib["close"], calib["open"]
-            self.get_logger().info(f"คาลิเบรตมือจาก {path}: MiddlePos {self.middle} · กำสุด {self.close or 'ค่าเดโม'}"
-                                   f" · แบสุด {self.open or 'ค่าเดโม'}")
+            self.get_logger().info(f"คาลิเบรตมือจาก {path}: {describe(self.calib)}")
         self.side = gp("side").value
         self.speed = float(gp("speed").value)
         self.dry_run = bool(gp("dry_run").value)
@@ -259,9 +270,9 @@ class AmazingHandNode(Node):
         for pose, hold in steps:
             if self.dry_run:
                 self.get_logger().info(f"[dry_run] ท่า {pose}: " + " ".join(
-                    f"{d:+.0f}" for d in hand_poses.servo_degrees(pose, self.middle, self.side, self.close, self.open)))
+                    f"{d:+.0f}" for d in hand_poses.servo_degrees(pose, self.calib, self.side)))
             else:
-                clipped = self.hand.move(hand_poses.servo_degrees(pose, self.middle, self.side, self.close, self.open), self.speed)
+                clipped = self.hand.move(hand_poses.servo_degrees(pose, self.calib, self.side), self.speed)
                 if clipped:
                     self.get_logger().warn(f"ท่า {pose}: servo ID {clipped} เป้าหมายเกิน ±{SERVO_LIMIT:.0f}° "
                                            "(ค่ากลางนิ้วสูง) — จำกัดไว้ที่ขอบ", throttle_duration_sec=10.0)

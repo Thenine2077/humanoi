@@ -1,31 +1,30 @@
 """ท่ามือ AmazingHand (8× SCS0009: นิ้วชี้ 1-2, กลาง 3-4, นาง 5-6, โป้ง 7-8) สำหรับเกม
 
-มุมเป็นองศาของ servo คู่ (a, b) ต่อนิ้ว บวกกับ MiddlePos ของแต่ละตัว — ระบบเดียวกับ AmazingHand_Demo.py
-ของ Pollen (Side = 1 มือขวา): (a, b) สวนกัน = งอ (θ, -θ), เลื่อนไปทางเดียวกัน = เอียง/กาง
-MiddlePos = ท่านิ้วตรง (θ = 0) และมุมกำสุด / แบสุดของแต่ละนิ้ว ตั้งด้วย hand_calibrate (arm hand-calibrate)
-
-ในตาราง GESTURES ใช้ป้ายแทนมุมที่ต่างกันแต่ละนิ้ว:
-  "C" = กำสุดของนิ้วนั้น   "O" = แบสุดของนิ้วนั้น   "L" = กำหลวมๆ (กึ่งกลางระหว่างแบสุดกับกำสุด)
-หรือใส่ (a, b) ตรงๆ สำหรับท่าที่มีเอียงด้วย (กรรไกร, ส่ายนิ้ว) — ห้ามเกิน ±140° (ลิมิตโรงงาน ±144°)
-มือซ้าย (Side = 2) สะท้อนจากมือขวาให้เอง: (a, b) -> (-b, -a) แบบเดียวกับเดโม
+แต่ละนิ้วมี servo 2 ตัว (a, b): หมุนสวนกัน = งอ/เหยียด, หมุนไปทางเดียวกัน = เอียง/กาง
+  a = งอ + เอียง + กาง        b = -งอ + เอียง + กาง        (องศาของ servo, ระบบเดียวกับ AmazingHand_Demo.py)
+ค่าคาลิเบรตต่อนิ้ว (arm hand-calibrate): open = งอตอนแบสุด, close = งอตอนกำสุด, tilt = เอียงให้นิ้วตรง
+ในตาราง GESTURES แต่ละนิ้วเป็น (ป้ายงอ, กางเพิ่ม):
+  "C" = กำสุด   "O" = แบสุด   "L" = กำหลวมๆ (กึ่งกลางแบสุด-กำสุด)   กางเพิ่ม = องศาเอียงเพิ่มจากนิ้วตรง (ท่า V)
+ผลรวมห้ามเกิน ±140° (ลิมิตโรงงาน ±144° — amazinghand_node จำกัดให้)
+มือซ้าย (Side = 2): กางเพิ่มกลับทิศ (เหมือนเดโมสะท้อน (a, b) -> (-b, -a)) ค่าคาลิเบรตไม่กลับ
 """
 FINGERS = ("index", "middle", "ring", "thumb")
-DEFAULT_CLOSE = 90.0   # กำของเดโม (CloseHand) — ใช้จนกว่าจะคาลิเบรตกำสุด
-DEFAULT_OPEN = -35.0   # แบของเดโม (OpenHand)
-LOOSE_AT = 0.5         # ท่าง้าง "L" = แบสุด + 0.5 × (กำสุด − แบสุด)
+DEMO_MIDDLE = [3.0, 0.0, -5.0, -8.0, -2.0, 5.0, -12.0, 0.0]  # MiddlePos ของมือตัวอย่างใน AmazingHand_Demo.py
+DEMO_OPEN, DEMO_CLOSE = -35.0, 90.0                            # OpenHand / CloseHand ของเดโม (เทียบ MiddlePos)
+LOOSE_AT = 0.5  # "L" = แบสุด + 0.5 × (กำสุด − แบสุด)
 
 GESTURES = {
-    "rock": {"index": "C", "middle": "C", "ring": "C", "thumb": "C"},           # ค้อน = กำสุด
-    "fist": {"index": "C", "middle": "C", "ring": "C", "thumb": "C"},
-    "windup": {"index": "L", "middle": "L", "ring": "L", "thumb": "L"},         # ตอนง้าง (เป่า-ยิ้ง)
-    "paper": {"index": "O", "middle": "O", "ring": "O", "thumb": "O"},          # กระดาษ = แบสุด
-    "scissors": {"index": (-15, 65), "middle": (-65, 15), "ring": "C", "thumb": "C"},  # กรรไกร = Victory()
-    "like": {"index": "C", "middle": "C", "ring": "C", "thumb": "O"},           # ชูนิ้วโป้ง
-    "point": {"index": (-40, 40), "middle": "C", "ring": "C", "thumb": "C"},    # = Index_Pointing()
+    "rock": {f: ("C", 0) for f in FINGERS},                                      # ค้อน = กำสุด
+    "fist": {f: ("C", 0) for f in FINGERS},
+    "windup": {f: ("L", 0) for f in FINGERS},                                    # ตอนง้าง (เป่า-ยิ้ง)
+    "paper": {f: ("O", 0) for f in FINGERS},                                     # กระดาษ = แบสุด
+    "scissors": {"index": ("O", 25), "middle": ("O", -25), "ring": ("C", 0), "thumb": ("C", 0)},  # V = Victory()
+    "like": {"index": ("C", 0), "middle": ("C", 0), "ring": ("C", 0), "thumb": ("O", 0)},       # ชูนิ้วโป้ง
+    "point": {"index": ("O", 0), "middle": ("C", 0), "ring": ("C", 0), "thumb": ("C", 0)},      # ชี้นิ้ว
     # ท่าย่อยของท่าเคลื่อนไหว
-    "snip": {"index": (-50, 20), "middle": (-20, 50), "ring": "C", "thumb": "C"},  # V หุบ (Scissors())
-    "wag_a": {"index": (-10, 80), "middle": "C", "ring": "C", "thumb": "C"},     # ส่ายนิ้วชี้ (Nonono())
-    "wag_b": {"index": (-80, 10), "middle": "C", "ring": "C", "thumb": "C"},
+    "snip": {"index": ("O", -15), "middle": ("O", 15), "ring": ("C", 0), "thumb": ("C", 0)},    # V หุบ (Scissors())
+    "wag_a": {"index": ("O", 35), "middle": ("C", 0), "ring": ("C", 0), "thumb": ("C", 0)},     # ส่ายนิ้ว (Nonono())
+    "wag_b": {"index": ("O", -35), "middle": ("C", 0), "ring": ("C", 0), "thumb": ("C", 0)},
 }
 
 # ท่าเคลื่อนไหว = [(ท่า, รอกี่วินาทีก่อนท่าถัดไป)] ค้างท่าสุดท้าย
@@ -39,28 +38,36 @@ def names():
     return sorted(set(GESTURES) | set(ANIMATIONS))
 
 
-def finger_angle(tag, finger, close=None, open_=None):
-    """ป้าย C / O / L -> θ ของนิ้วนั้น (องศา) ตามค่าคาลิเบรต (ไม่มี = ค่าเดโม)"""
-    c = (close or {}).get(finger, DEFAULT_CLOSE)
-    o = (open_ or {}).get(finger, DEFAULT_OPEN)
-    return {"C": c, "O": o, "L": o + LOOSE_AT * (c - o)}[tag]
+def demo_calib():
+    """ค่าคาลิเบรตที่ให้ท่าเหมือนเดโมของ Pollen ทุกประการ (ใช้ตอนยังไม่ได้คาลิเบรต)"""
+    out = {}
+    for i, f in enumerate(FINGERS):
+        ma, mb = DEMO_MIDDLE[2 * i], DEMO_MIDDLE[2 * i + 1]
+        bend0, tilt0 = (ma - mb) / 2, (ma + mb) / 2
+        out[f] = {"open": bend0 + DEMO_OPEN, "close": bend0 + DEMO_CLOSE, "tilt": tilt0}
+    return out
 
 
-def servo_degrees(gesture, middle_pos, side="right", close=None, open_=None):
+def bend_of(tag, c):
+    """ป้าย C / O / L -> องศางอของนิ้ว (c = ค่าคาลิเบรตของนิ้วนั้น)"""
+    return {"C": c["close"], "O": c["open"], "L": c["open"] + LOOSE_AT * (c["close"] - c["open"])}[tag]
+
+
+def finger_servos(c, bend, spread=0.0, side="right"):
+    """(a, b) ของนิ้วหนึ่ง จากองศางอ + เอียงที่คาลิเบรตไว้ + กางเพิ่ม"""
+    tilt = c["tilt"] + (spread if side != "left" else -spread)
+    return bend + tilt, -bend + tilt
+
+
+def servo_degrees(gesture, calib=None, side="right"):
     """องศาเป้าหมายของ servo 8 ตัวตามลำดับ ID (นิ้วชี้ a, b, กลาง a, b, นาง a, b, โป้ง a, b)
 
-    close / open_ = {นิ้ว: θ} กำสุด / แบสุด จากไฟล์คาลิเบรต (ไม่มี = ค่าเดโม 90 / -35)
+    calib = {นิ้ว: {open, close, tilt}} จากไฟล์คาลิเบรต (ไม่มี / ขาดนิ้วไหน = ค่าเดโม)
     """
-    angles = GESTURES[gesture]
+    base = demo_calib()
     out = []
-    for i, finger in enumerate(FINGERS):
-        spec = angles[finger]
-        if isinstance(spec, str):
-            theta = finger_angle(spec, finger, close, open_)
-            a, b = theta, -theta
-        else:
-            a, b = spec
-        if side == "left":
-            a, b = -b, -a
-        out += [middle_pos[2 * i] + a, middle_pos[2 * i + 1] + b]
+    for f in FINGERS:
+        c = (calib or {}).get(f) or base[f]
+        tag, spread = GESTURES[gesture][f]
+        out += list(finger_servos(c, bend_of(tag, c), spread, side))
     return out
