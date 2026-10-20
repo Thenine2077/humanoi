@@ -364,8 +364,16 @@ EOF
       stop)
         ros2 topic pub --once /rps/stop std_msgs/msg/Empty "{}" >/dev/null && echo "ส่งคำสั่งหยุดเกมแล้ว"
         ;;
-      ""|random|topic|camera)
-        if [ "${1:-}" = camera ]; then
+      ""|random|topic|camera|*:=*)
+        player=random; extra=()
+        for a in "$@"; do
+          case "$a" in
+            random|topic|camera) player=$a ;;
+            *:=*) extra+=("$a") ;;  # ส่งต่อให้ rps.launch.py เช่น pump_deg:=4
+            *) echo "✗ ไม่รู้จัก '$a' — ดู: arm rps help"; exit 1 ;;
+          esac
+        done
+        if [ "$player" = camera ]; then
           echo "✗ บน PC กล้องกับมือจริงอยู่ฝั่ง Windows — WSL มองไม่เห็น ใช้ทดสอบ: arm rps random / arm rps topic"
           exit 1
         fi
@@ -375,15 +383,15 @@ EOF
         fi
         is_running ros2_control_node || { echo "✗ เปิดระบบแขนก่อน (arm start sim หรือ arm start)"; exit 1; }
         if is_running "lib/humanoi_games/rps_game"; then echo "✗ เกมเปิดอยู่แล้ว — เล่น: arm rps play"; exit 1; fi
-        player="${1:-random}"
-        echo "เปิดเกมเป่ายิ้งฉุบ (ผู้เล่น: $player · มือจำลอง — log ท่าแทน) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
+        echo "เปิดเกมเป่ายิ้งฉุบ (ผู้เล่น: $player · มือจำลอง — log ท่าแทน ${extra[*]}) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
         echo "เล่น 1 ตา: arm rps play (อีกหน้าต่าง) · ต้องสอนท่าตั้งก่อน: arm teach left rps_ready"
         [ "$player" = topic ] && echo "ส่งท่าผู้เล่นเอง: ros2 topic pub -r 10 /rps/player_gesture std_msgs/msg/String \"{data: paper}\""
-        ros2 launch humanoi_games rps.launch.py player:="$player" hand:=false
+        ros2 launch humanoi_games rps.launch.py player:="$player" hand:=false "${extra[@]}"
         ;;
       *)
         cat <<'EOF'
-ใช้: arm rps [random|topic]   เปิดเกมแบบทดสอบบน PC (เปิดค้าง) — random = สุ่มแทนผู้เล่น, topic = ส่งท่าผู้เล่นเอง
+ใช้: arm rps [random|topic] [ชื่อ:=ค่า ...]   เปิดเกมแบบทดสอบบน PC (เปิดค้าง) — random = สุ่มแทนผู้เล่น,
+                             topic = ส่งท่าผู้เล่นเอง · ปรับได้ เช่น pump_deg:=4
      arm rps play             เล่น 1 ตา รอจนจบแล้วบอกผล
      arm rps stop             หยุดเกมกลางคัน
 EOF

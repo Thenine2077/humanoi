@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """rps_game — เป่ายิ้งฉุบกับหุ่น
 
-ลำดับ: แขนไปท่าตั้ง (rps_ready — สอนเองด้วย arm teach) มือกำ → ข้อ 1 ยกขึ้น-ลง 3 ครั้ง (เป่า-ยิ้ง-ฉุบ)
+ลำดับ: แขนไปท่าตั้ง (rps_ready — สอนเองด้วย arm teach) มือกำหลวมๆ → ข้อ 1 ยกขึ้น-ลง 3 ครั้ง (เป่า-ยิ้ง-ฉุบ)
 → จังหวะ "ฉุบ" มือออกท่าที่สุ่มไว้ → ดูท่าผู้เล่นจากกล้อง → ผู้เล่นชนะ = ชูนิ้วโป้ง (ไลค์),
 ผู้เล่นแพ้ = ชู 2 นิ้ว, เสมอ = เป่าใหม่ (ไม่เกิน max_draws ครั้ง), ไม่เห็นมือ = ส่ายนิ้ว
 
@@ -62,24 +62,26 @@ PARAMS = {
     "like_pose": "rps_like",      # ท่าแขนตอนชูนิ้วโป้ง (ไม่บังคับ)
     "victory_pose": "rps_v",      # ท่าแขนตอนชู 2 นิ้ว (ไม่บังคับ)
     "pump_joint": 1,              # ข้อที่ขยับขึ้นลง
-    "pump_deg": 8.0,              # ยกกี่องศา
+    "pump_deg": 5.0,              # ยกกี่องศา (8° = 11.6 วินาที, 5° = 8.6, 4° = 7.7, 3° = 6.7 — มือยกราว 0.6 ซม./องศา)
     "auto_up": True,              # true = เลือกทิศข้อ 1 ให้มือ "ขึ้น" เอง (คำนวณจาก TF ที่ท่าตั้ง) ·
                                   # false = ใช้เครื่องหมายของ pump_deg ตรงๆ
     "up_frame": "torso",          # เฟรมที่แกน z ชี้ขึ้นฟ้า
     "pump_count": 3,              # เป่า-ยิ้ง-ฉุบ
     "pump_speed": 0.20,           # rad/s (เพดาน 0.22 เหมือน ar_program — เกินนี้เฟิร์มแวร์ตามไม่ทัน)
-    "pump_accel": 0.15,           # rad/s^2 ต่ำกว่าที่เฟิร์มแวร์เร่งได้ (10°/s^2 = 0.17)
+    "pump_accel": 0.17,           # rad/s^2 — เพดานคือเฟิร์มแวร์ (JOINT_MAX_ACCEL 10°/s^2 = 0.1745) สั่งเกินก็ไม่เร็วขึ้น
+                                  # แขนแค่ตามหลัง · เร็วกว่านี้ต้องแก้เฟิร์มแวร์ (สายพาน J1 เคยรูด)
     "move_speed": 0.19,           # ไป/กลับท่าตั้งและท่าโชว์ — ค่าเดียวกับ arm player
     "move_accel": 0.08,
     "hand_lead": 0.4,             # สั่งมือออกท่าก่อนแขนลงสุดกี่วินาที (นิ้วใช้เวลาราว 0.3 s)
     "robot_choice": "random",     # random | rock | paper | scissors (บังคับท่าหุ่น ไว้ทดสอบ/โชว์)
     "player_source": "camera",    # camera = โหวตจาก /rps/player_gesture · random = สุ่มแทนผู้เล่น (ทดสอบ)
     "settle": 0.2,                # หลัง "ฉุบ" รอให้มือผู้เล่นนิ่งก่อนเริ่มนับ (วินาที)
-    "player_window": 1.5,         # นับท่าผู้เล่นนานเท่าไหร่
+    "player_window": 1.2,         # นับท่าผู้เล่นนานเท่าไหร่ (กล้อง ~12 fps = ~14 เฟรม)
     "min_votes": 4,               # ต้องเห็นมืออย่างน้อยกี่เฟรมในช่วงนั้น
     "max_draws": 2,               # เสมอแล้วเป่าใหม่ได้กี่ครั้ง
     "react_hold": 3.0,            # ค้างท่าโชว์กี่วินาที
     "end_gesture": "paper",       # ท่ามือตอนจบเกม
+    "windup_gesture": "windup",   # ท่ามือตอนง้าง (เป่า-ยิ้ง) — ต่างจากค้อน (กำสุด) ให้เห็นชัดว่าออกท่าแล้ว
 }
 MAX_SPEED = 0.22
 
@@ -211,14 +213,14 @@ class RpsGame(Node):
         pump_speed = min(float(p["pump_speed"]), MAX_SPEED)
         pump_accel = float(p["pump_accel"])
 
-        self._hand("rock")
+        self._hand(p["windup_gesture"])
         self._state("ready")
         self._move_to(ready, p)
         if p["auto_up"] and j == 0:
             amp = self._upward(abs(amp), p["up_frame"])
         for rnd in range(1, int(p["max_draws"]) + 2):
             robot = p["robot_choice"] if p["robot_choice"] in rps_logic.CHOICES else rps_logic.robot_pick()
-            self._hand("rock")
+            self._hand(p["windup_gesture"])
             points, beats = rps_logic.pump_plan(ready, j, amp, int(p["pump_count"]), pump_speed, pump_accel,
                                                 programs.trapezoid)
             events = [(t, functools.partial(self._state, f"beat:{i}")) for i, t in enumerate(beats, 1)]

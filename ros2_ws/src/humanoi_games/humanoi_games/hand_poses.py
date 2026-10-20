@@ -8,9 +8,15 @@
 OPEN = (-35, 35)
 CLOSE = (90, -90)
 FINGERS = ("index", "middle", "ring", "thumb")
+# กำสุด: มุมที่นิ้วเริ่มชนฝ่ามือ (วัดด้วย AmazingHand\tools\find_limits.py: ชี้ 106 กลาง 116 นาง 98 โป้ง 122)
+# ลบ 4° — กำแน่นที่สุดโดยมอเตอร์ไม่ต้องดันค้าง
+TIGHT = {"index": (102, -102), "middle": (112, -112), "ring": (94, -94), "thumb": (118, -118)}
+LOOSE = (30, -30)  # กำหลวมๆ นิ้วกางออก — ระหว่างแบ (-35) กับกำ (90)
 
 GESTURES = {
-    "rock": {"index": CLOSE, "middle": CLOSE, "ring": CLOSE, "thumb": CLOSE},      # ค้อน = CloseHand()
+    "rock": dict(TIGHT),                                                            # ค้อน = กำสุด
+    "windup": {"index": LOOSE, "middle": LOOSE, "ring": LOOSE, "thumb": LOOSE},     # ตอนง้าง (เป่า-ยิ้ง)
+    "fist": {"index": CLOSE, "middle": CLOSE, "ring": CLOSE, "thumb": CLOSE},      # = CloseHand() ของเดโม
     "paper": {"index": OPEN, "middle": OPEN, "ring": OPEN, "thumb": OPEN},          # กระดาษ = OpenHand()
     "scissors": {"index": (-15, 65), "middle": (-65, 15), "ring": CLOSE, "thumb": CLOSE},  # กรรไกร = Victory()
     "like": {"index": CLOSE, "middle": CLOSE, "ring": CLOSE, "thumb": OPEN},        # ชูนิ้วโป้ง

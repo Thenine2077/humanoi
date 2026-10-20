@@ -264,19 +264,28 @@ EOF
       stop)
         ros ros2 topic pub --once /rps/stop std_msgs/msg/Empty "{}" >/dev/null && echo "ส่งคำสั่งหยุดเกมแล้ว"
         ;;
-      ""|camera|random|topic)
-        is_running ros2_control_node || { echo "✗ เปิดระบบแขนก่อน (arm start)"; exit 1; }
+      ""|camera|random|topic|nohand|*:=*)
+        player=camera; hand=true; extra=()
+        for a in "$@"; do
+          case "$a" in
+            camera|random|topic) player=$a ;;
+            nohand) hand=false ;;
+            *:=*) extra+=("$a") ;;  # ส่งต่อให้ rps.launch.py เช่น pump_deg:=4
+            *) echo "✗ ไม่รู้จัก '$a' — ดู: arm rps help"; exit 1 ;;
+          esac
+        done
+        is_running ros2_control_node || { echo "✗ เปิดระบบแขนก่อน (arm start left)"; exit 1; }
         if is_running "lib/humanoi_games/rps_game"; then echo "✗ เกมเปิดอยู่แล้ว — เล่น: arm rps play"; exit 1; fi
-        player="${1:-camera}"; hand=true; [ "${2:-}" = nohand ] && hand=false
         camera=true; is_running astra_camera && camera=false  # กล้องเปิดอยู่แล้ว (เช่นจาก yolo) ไม่ต้องเปิดซ้ำ
-        echo "เปิดเกมเป่ายิ้งฉุบ (ผู้เล่น: $player · มือ: $hand) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
+        echo "เปิดเกมเป่ายิ้งฉุบ (ผู้เล่น: $player · มือ: $hand ${extra[*]}) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
         echo "เล่น 1 ตา: arm rps play (อีกหน้าต่าง) · ต้องสอนท่าตั้งก่อน: arm teach left rps_ready"
-        ros_tty ros2 launch humanoi_games rps.launch.py player:="$player" hand:="$hand" camera:="$camera"
+        ros_tty ros2 launch humanoi_games rps.launch.py player:="$player" hand:="$hand" camera:="$camera" "${extra[@]}"
         ;;
       *)
         cat <<'EOF'
-ใช้: arm rps [camera|random|topic] [nohand]   เปิดเกม (เปิดค้าง) — camera = ดูมือผู้เล่นจากกล้อง (ค่าเริ่ม)
-                                            random = สุ่มแทนผู้เล่น (ทดสอบ) · nohand = ไม่ต่อมือจริง
+ใช้: arm rps [camera|random|topic] [nohand] [ชื่อ:=ค่า ...]   เปิดเกม (เปิดค้าง)
+       camera = ดูมือผู้เล่นจากกล้อง (ค่าเริ่ม) · random = สุ่มแทนผู้เล่น (ทดสอบ) · nohand = ไม่ต่อมือจริง
+       ปรับได้ เช่น pump_deg:=4 (ระยะง้างข้อ 1: 5° = 8.6 วินาที, 4° = 7.7, 3° = 6.7) · robot_choice:=rock
      arm rps play                           เล่น 1 ตา รอจนจบแล้วบอกผล
      arm rps stop                           หยุดเกมกลางคัน
 EOF
@@ -380,6 +389,7 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
 
  เกมเป่ายิ้งฉุบ (คู่มือ docs/RPS_GAME.md — สอนท่าตั้งก่อน: arm teach left rps_ready)
    arm rps [camera|random] [nohand]   เปิดเกม (เปิดค้าง แทน arm player) ดูมือผู้เล่นจากกล้อง / สุ่มแทน
+                                      ปรับระยะง้าง: arm rps camera pump_deg:=4 (ค่าเริ่ม 5°)
    arm rps play                       เล่น 1 ตา: J1 ขึ้นลง 3 ครั้ง → มือออกท่า → ผู้เล่นชนะชูโป้ง แพ้ชู 2 นิ้ว
    arm rps stop                       หยุดเกมกลางคัน
 
