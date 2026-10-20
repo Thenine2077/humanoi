@@ -51,16 +51,23 @@ def calib_file():
     return os.path.expanduser("~/.config/humanoi_games/middle_pos.json")
 
 
-def load_middle(path):
-    """MiddlePos 8 ค่าจากไฟล์ — None ถ้ายังไม่มีไฟล์"""
+def load_calib(path):
+    """ค่าคาลิเบรตมือจากไฟล์ — None ถ้ายังไม่มีไฟล์
+
+    คืน {"middle_pos": [8 ค่า], "close": {นิ้ว: θ}, "open": {นิ้ว: θ}}
+    (close / open ว่างได้ = นิ้วนั้นใช้ค่าเดโม 90 / -35 — ไฟล์รุ่นแรกมีแค่ middle_pos)
+    """
     try:
         with open(path, encoding="utf-8") as fh:
-            values = [float(v) for v in json.load(fh)["middle_pos"]]
+            data = json.load(fh)
     except FileNotFoundError:
         return None
+    values = [float(v) for v in data["middle_pos"]]
     if len(values) != 8 or any(abs(v) > MAX_MIDDLE for v in values):
         raise ValueError(f"{path}: middle_pos ต้องมี 8 ค่า แต่ละค่าไม่เกิน ±{MAX_MIDDLE:.0f}°")
-    return values
+    close = {k: float(v) for k, v in (data.get("close") or {}).items() if k in hand_poses.FINGERS}
+    open_ = {k: float(v) for k, v in (data.get("open") or {}).items() if k in hand_poses.FINGERS}
+    return {"middle_pos": values, "close": close, "open": open_}
 
 
 def find_port():
@@ -170,12 +177,14 @@ class AmazingHandNode(Node):
 
         gp = self.get_parameter
         path = gp("middle_pos_file").value
-        self.middle = load_middle(path)
-        if self.middle is None:
-            self.middle = [float(v) for v in gp("middle_pos").value]
+        calib = load_calib(path)
+        if calib is None:
+            self.middle, self.close, self.open = [float(v) for v in gp("middle_pos").value], {}, {}
             self.get_logger().warn(f"ยังไม่ได้คาลิเบรตนิ้ว ({path} ไม่มี) — ใช้ค่าเดโม · คาลิเบรต: arm hand-calibrate")
         else:
-            self.get_logger().info(f"MiddlePos จาก {path}: {self.middle}")
+            self.middle, self.close, self.open = calib["middle_pos"], calib["close"], calib["open"]
+            self.get_logger().info(f"คาลิเบรตมือจาก {path}: MiddlePos {self.middle} · กำสุด {self.close or 'ค่าเดโม'}"
+                                   f" · แบสุด {self.open or 'ค่าเดโม'}")
         self.side = gp("side").value
         self.speed = float(gp("speed").value)
         self.dry_run = bool(gp("dry_run").value)
@@ -250,9 +259,9 @@ class AmazingHandNode(Node):
         for pose, hold in steps:
             if self.dry_run:
                 self.get_logger().info(f"[dry_run] ท่า {pose}: " + " ".join(
-                    f"{d:+.0f}" for d in hand_poses.servo_degrees(pose, self.middle, self.side)))
+                    f"{d:+.0f}" for d in hand_poses.servo_degrees(pose, self.middle, self.side, self.close, self.open)))
             else:
-                clipped = self.hand.move(hand_poses.servo_degrees(pose, self.middle, self.side), self.speed)
+                clipped = self.hand.move(hand_poses.servo_degrees(pose, self.middle, self.side, self.close, self.open), self.speed)
                 if clipped:
                     self.get_logger().warn(f"ท่า {pose}: servo ID {clipped} เป้าหมายเกิน ±{SERVO_LIMIT:.0f}° "
                                            "(ค่ากลางนิ้วสูง) — จำกัดไว้ที่ขอบ", throttle_duration_sec=10.0)
