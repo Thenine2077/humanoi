@@ -12,6 +12,7 @@
                                หรือ relax = ปลดแรงบิด นิ้วอ่อน — คำสั่งใหม่ตัดท่าเคลื่อนไหวที่ค้างอยู่ทันที
   /hand/status  (pub, String)  ready | gesture:<ท่า> | relaxed | error:<เหตุผล>
 
+baud หาเอง (ลอง baud ที่ตั้งไว้ก่อน แล้วไล่ค่าอื่น — มือนี้เจอทั้ง 1 Mbps และ 250000 ของร้าน)
 ก่อนเปิดแรงบิดเช็กทุกครั้ง (เหมือน tools\\scan_servos.py): servo ครบทุก ID และไฟ 4.8-7.4 V
 ไม่ผ่าน = ไม่ขยับ รายงาน error แล้วลองใหม่ตอนได้คำสั่งถัดไป · ปิดโหนด = ปลดแรงบิดทุกตัว
 """
@@ -49,6 +50,7 @@ class Hand:
         self.port, self.baud, self.ids = port, baud, ids
         self.min_volts, self.max_volts = min_volts, max_volts
         self.c = None
+        self.found_baud = None
 
     def connect(self):
         from rustypot import Scs0009PyController
@@ -57,6 +59,11 @@ class Hand:
             raise RuntimeError("ไม่เจอบอร์ดมือ (Waveshare CH343 1a86:55d3) — เสียบ USB ของมือ")
         if self.c is None:
             self.c = Scs0009PyController(serial_port=port, baudrate=self.baud, timeout=0.05)
+        found = self._find_baud()
+        if found is None:
+            raise RuntimeError(f"ไม่มีเซอร์โวตอบเลยทุก baud ({port}) — เปิดไฟมือหรือยัง, jumper อยู่ที่ B (USB), "
+                               "สายเซอร์โวเสียบช่อง D V G")
+        self.found_baud = found
         bad = []
         for sid in self.ids:
             try:
@@ -73,6 +80,22 @@ class Hand:
             self.c.write_goal_position(sid, scalar(self.c.read_present_position(sid)))
             self.c.write_torque_enable(sid, 1)
         return port
+
+    def _find_baud(self):
+        """baud ที่เซอร์โวตอบ — ลองค่าที่ตั้งไว้ก่อน แล้วไล่ค่าอื่น (อ่านอย่างเดียว ไม่เขียนอะไรลงเซอร์โว)
+
+        มือนี้ร้านตั้งมา 250000 เคยย้ายเป็น 1 Mbps แล้ว แต่ 20 ต.ค. เจอกลับเป็น 250000 — หาเองจะได้ไม่ติดเรื่องนี้
+        """
+        order = [self.baud] + [b for b in sorted(self.c.baudrates(), reverse=True) if b != self.baud]
+        for baud in order:
+            self.c.set_baudrate(baud)
+            for sid in self.ids:  # ตัวไหนตอบก็ได้ — ไม่ให้เซอร์โวตัวแรกเสียตัวเดียวแล้วหา baud ไม่เจอ
+                try:
+                    self.c.read_present_voltage(sid)
+                    return baud
+                except Exception:
+                    continue
+        return None
 
     def move(self, degrees, speed):
         for sid in self.ids:
@@ -138,7 +161,9 @@ class AmazingHandNode(Node):
             self._status(f"error:{exc}")
             return False
         self.ready = True
-        self.get_logger().info(f"มือพร้อม ({port}, ID {self.hand.ids}, {self.side})")
+        if self.hand.found_baud != self.hand.baud:
+            self.get_logger().warn(f"เซอร์โวตอบที่ {self.hand.found_baud} baud ไม่ใช่ {self.hand.baud} ที่ตั้งไว้ — ใช้ค่าที่เจอ")
+        self.get_logger().info(f"มือพร้อม ({port} @ {self.hand.found_baud}, ID {self.hand.ids}, {self.side})")
         self._status("ready")
         return True
 
