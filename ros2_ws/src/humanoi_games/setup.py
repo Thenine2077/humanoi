@@ -28,6 +28,7 @@ setup(
             "rps_game = humanoi_games.rps_game:main",
             "rps_vision = humanoi_games.rps_vision:main",
             "amazinghand_node = humanoi_games.amazinghand_node:main",
+            "hand_calibrate = humanoi_games.hand_calibrate:main",
         ],
     },
 )

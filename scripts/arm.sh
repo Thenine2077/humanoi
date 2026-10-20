@@ -293,6 +293,13 @@ EOF
     esac
     ;;
 
+  hand-calibrate)  # ตั้งค่ากลางนิ้ว (MiddlePos) ของมือ AmazingHand ด้วยตา — humanoi_games/hand_calibrate.py
+    if is_running "lib/humanoi_games/amazinghand_node"; then
+      echo "✗ เกมเปิดอยู่ (ใช้พอร์ตมือ) — ปิดหน้าต่าง arm rps ด้วย Ctrl+C ก่อน"; exit 1
+    fi
+    ros_tty ros2 run humanoi_games hand_calibrate "$@"
+    ;;
+
   stop)
     ros ros2 topic pub --once /arm/stop std_msgs/msg/Empty "{}" >/dev/null && echo "ส่งคำสั่งหยุดแล้ว (ทุกแขน)"
     ;;
@@ -394,6 +401,7 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
                                       ตาต่อไป: ผู้เล่นชูนิ้วชี้ค้างไว้ = เล่นใหม่ (วนได้เรื่อยๆ)
                                       ท่าโชว์ (ไม่บังคับ): arm teach left victory_pose / arm teach left lose_pose
    arm rps stop                       หยุดเกมกลางคัน
+   arm hand-calibrate                 ตั้งค่ากลางนิ้วของมือทีละนิ้ว (ปิดเกมก่อน) — เกมใช้ค่าใหม่ตอนเปิดครั้งถัดไป
 
  ปิด
    arm off                            ปิดทุกอย่างของแขน (รวมเกม)

@@ -13,10 +13,13 @@
   /hand/status  (pub, String)  ready | gesture:<ท่า> | relaxed | error:<เหตุผล>
 
 baud หาเอง (ลอง baud ที่ตั้งไว้ก่อน แล้วไล่ค่าอื่น — มือนี้เจอทั้ง 1 Mbps และ 250000 ของร้าน)
+MiddlePos (ค่ากลางของแต่ละ servo) อ่านจากไฟล์ที่ hand_calibrate บันทึก (arm hand-calibrate) — ไม่มีไฟล์ = ค่าเดโม
 ก่อนเปิดแรงบิดเช็กทุกครั้ง (เหมือน tools\\scan_servos.py): servo ครบทุก ID และไฟ 4.8-7.4 V
 ไม่ผ่าน = ไม่ขยับ รายงาน error แล้วลองใหม่ตอนได้คำสั่งถัดไป · ปิดโหนด = ปลดแรงบิดทุกตัว
 """
+import json
 import math
+import os
 import queue
 import threading
 import time
@@ -29,6 +32,33 @@ from std_msgs.msg import String
 from humanoi_games import hand_poses
 
 ADAPTER_USB = (0x1A86, 0x55D3)  # Waveshare Bus Servo Adapter (A) = CH343 — Nano ของแขนเป็น CH340 (55d3 ≠ 7523)
+DEMO_MIDDLE = [3.0, 0.0, -5.0, -8.0, -2.0, 5.0, -12.0, 0.0]  # MiddlePos ของมือตัวอย่างใน AmazingHand_Demo.py
+
+
+def calib_file():
+    """ไฟล์ MiddlePos — อยู่ใน src (ไม่ใช่ install) เหมือน programs.yaml: build ใหม่ไม่ทับ
+
+    ลำดับ: ตัวแปร HAND_CALIB_FILE > Pi (Docker, /humanoi_ws/src) > PC (WSL) > ~/.config
+    """
+    env = os.environ.get("HAND_CALIB_FILE")
+    if env:
+        return env
+    for src in ("/humanoi_ws/src", "/mnt/c/Users/User/Desktop/Humanoi/ros2_ws/src"):
+        if os.path.isdir(os.path.join(src, "humanoi_games")):
+            return os.path.join(src, "humanoi_games", "config", "middle_pos.json")
+    return os.path.expanduser("~/.config/humanoi_games/middle_pos.json")
+
+
+def load_middle(path):
+    """MiddlePos 8 ค่าจากไฟล์ — None ถ้ายังไม่มีไฟล์"""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            values = [float(v) for v in json.load(fh)["middle_pos"]]
+    except FileNotFoundError:
+        return None
+    if len(values) != 8 or any(abs(v) > 30 for v in values):
+        raise ValueError(f"{path}: middle_pos ต้องมี 8 ค่า แต่ละค่าไม่เกิน ±30°")
+    return values
 
 
 def find_port():
@@ -123,8 +153,9 @@ class AmazingHandNode(Node):
         self.declare_parameter("port", "auto")
         self.declare_parameter("baud", 1_000_000)
         self.declare_parameter("ids", [1, 2, 3, 4, 5, 6, 7, 8])
-        # MiddlePos จากเดโมของ Pollen (ยังไม่ได้คาลิเบรตมือนี้เอง — tools\calibrate.py)
-        self.declare_parameter("middle_pos", [3.0, 0.0, -5.0, -8.0, -2.0, 5.0, -12.0, 0.0])
+        # MiddlePos: ไฟล์จาก hand_calibrate ก่อน ไม่มีไฟล์ใช้ middle_pos (ค่าเดโมของ Pollen)
+        self.declare_parameter("middle_pos_file", calib_file())
+        self.declare_parameter("middle_pos", DEMO_MIDDLE)
         self.declare_parameter("side", "right")
         self.declare_parameter("speed", 7.0)  # เท่า MaxSpeed ในเดโม
         self.declare_parameter("min_volts", 4.8)
@@ -132,7 +163,13 @@ class AmazingHandNode(Node):
         self.declare_parameter("dry_run", False)
 
         gp = self.get_parameter
-        self.middle = [float(v) for v in gp("middle_pos").value]
+        path = gp("middle_pos_file").value
+        self.middle = load_middle(path)
+        if self.middle is None:
+            self.middle = [float(v) for v in gp("middle_pos").value]
+            self.get_logger().warn(f"ยังไม่ได้คาลิเบรตนิ้ว ({path} ไม่มี) — ใช้ค่าเดโม · คาลิเบรต: arm hand-calibrate")
+        else:
+            self.get_logger().info(f"MiddlePos จาก {path}: {self.middle}")
         self.side = gp("side").value
         self.speed = float(gp("speed").value)
         self.dry_run = bool(gp("dry_run").value)
