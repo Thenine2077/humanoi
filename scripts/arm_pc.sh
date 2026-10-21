@@ -322,10 +322,10 @@ EOF
     ;;
 
   hand)  # ลองท่ามือตรงๆ — ต้องมีตัวคุมมือเปิดอยู่ (arm player หรือ arm rps)
-    gestures="rock paper scissors point like windup victory nonono relax"
+    names=$(ros2 run ar_program teach --hand-names 2>/dev/null | tr '\n' ' ')  # ท่าในตัว + ท่าที่สอนเอง
     g="${1:-}"; arm=$(arm_name "${2:-left}")
-    if [ -z "$g" ] || [[ " $gestures " != *" $g "* ]] || [ -z "$arm" ]; then
-      echo "ใช้: arm hand <ท่า> [left|right]   ท่า: $gestures"; exit 1
+    if [ -z "$g" ] || [[ " $names " != *" $g "* ]] || [ -z "$arm" ]; then
+      echo "ใช้: arm hand <ท่า> [left|right]   ท่า: $names"; exit 1
     fi
     topic=/hand/gesture; th=ซ้าย
     [ "$arm" = right ] && topic=/right_hand/gesture && th=ขวา
@@ -351,6 +351,11 @@ EOF
 EOF
       ros2 launch ar_dual dual_moveit.launch.py rviz_config:=none
     fi
+    ;;
+
+  hand-teach|hand-calibrate)
+    echo "✗ arm $cmd ใช้บน Pi (มือต่ออยู่กับ Pi — บน PC มือเป็นแบบจำลอง)"
+    exit 1
     ;;
 
   remote)

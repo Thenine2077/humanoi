@@ -9,6 +9,7 @@
 
 หัวข้อ
   /hand/gesture (sub, String)  ชื่อท่าใน hand_poses (rock paper scissors like point victory nonono ...)
+                               หรือท่าที่สอนเอง (arm hand-teach → programs.yaml hand_poses — ชื่อซ้ำท่าในตัว = ใช้แทน)
                                หรือ relax = ปลดแรงบิด นิ้วอ่อน — คำสั่งใหม่ตัดท่าเคลื่อนไหวที่ค้างอยู่ทันที
   /hand/status  (pub, String)  ready | gesture:<ท่า> | relaxed | error:<เหตุผล>
 
@@ -30,6 +31,11 @@ from rclpy.node import Node
 from std_msgs.msg import String
 
 from humanoi_games import hand_poses
+
+try:  # ท่ามือที่สอนเองอยู่ใน programs.yaml ของ ar_program — ไม่มี ar_program = ใช้ท่าในตัวอย่างเดียว
+    from ar_program import programs
+except ImportError:
+    programs = None
 
 ADAPTER_USB = (0x1A86, 0x55D3)  # Waveshare Bus Servo Adapter (A) = CH343 — Nano ของแขนเป็น CH340 (55d3 ≠ 7523)
 FACTORY_LIMIT = 144.0  # ลิมิตโรงงาน SCS0009 (raw 20-1003) — ใช้เฉพาะตอนอ่านจาก servo ไม่ได้/ค่าแปลก
@@ -194,6 +200,17 @@ class Hand:
                 self.c.write_goal_position(sid, r)
         return clipped
 
+    def torque(self, ids, on):
+        """เปิด/ปิดแรงบิดทีละ servo — เปิด = ถือที่ตำแหน่งปัจจุบันก่อน (นิ้วไม่กระตุก)"""
+        for sid in ids:
+            if on:
+                self.c.write_goal_position(sid, scalar(self.c.read_present_position(sid)))
+            self.c.write_torque_enable(sid, 1 if on else 0)
+
+    def read_degrees(self, ids=None):
+        """ตำแหน่งจริงของ servo (องศา)"""
+        return [math.degrees(scalar(self.c.read_present_position(sid))) for sid in (ids or self.ids)]
+
     def relax(self):
         if self.c is None:
             return
@@ -212,6 +229,7 @@ class AmazingHandNode(Node):
         self.declare_parameter("ids", [1, 2, 3, 4, 5, 6, 7, 8])
         # แบสุด / กำสุด / เอียง ต่อนิ้ว จาก hand_calibrate (ไม่มีไฟล์ = ท่าเหมือนเดโมของ Pollen)
         self.declare_parameter("calib_file", calib_file())
+        self.declare_parameter("programs_file", programs.DEFAULT_FILE if programs else "")  # ท่ามือที่สอนเอง
         self.declare_parameter("side", "right")
         self.declare_parameter("speed", 7.0)  # เท่า MaxSpeed ในเดโม
         self.declare_parameter("min_volts", 4.8)
@@ -263,10 +281,28 @@ class AmazingHandNode(Node):
         self._status("ready")
         return True
 
+    def _taught(self):
+        """ท่ามือที่สอนเอง {ชื่อ: องศา 8 ตัว} — อ่านไฟล์ใหม่ทุกครั้ง สอนเพิ่มแล้วไม่ต้องรีสตาร์ท"""
+        path = self.get_parameter("programs_file").value
+        if programs is None or not path:
+            return {}
+        try:
+            return programs.load(path)["hand_poses"]
+        except Exception as exc:
+            self.get_logger().warn(f"อ่านท่ามือที่สอนเองไม่ได้ ({exc}) — ใช้ท่าในตัว", throttle_duration_sec=30.0)
+            return {}
+
+    def _degrees(self, pose, taught):
+        """องศาเป้าหมายของท่า — ท่าที่สอนเองก่อน ไม่มีค่อยคำนวณจากค่าคาลิเบรต"""
+        if pose in taught and len(taught[pose]) == len(self.hand.ids):
+            return list(taught[pose])
+        return hand_poses.servo_degrees(pose, self.calib, self.side)
+
     def _on_gesture(self, msg):
         name = msg.data.strip()
-        if name != "relax" and name not in hand_poses.names():
-            self.get_logger().warn(f"ไม่รู้จักท่า '{name}' — มี: relax, {', '.join(hand_poses.names())}")
+        known = set(hand_poses.names()) | set(self._taught())
+        if name != "relax" and name not in known:
+            self.get_logger().warn(f"ไม่รู้จักท่า '{name}' — มี: relax, {', '.join(sorted(known))}")
             return
         self.cmds.put(name)
 
@@ -298,14 +334,17 @@ class AmazingHandNode(Node):
             return None
         if not self.dry_run and not self.ready and not self._connect():
             return None
-        steps = hand_poses.ANIMATIONS.get(name, [(name, 0.0)])
+        taught = self._taught()
+        # ท่าที่สอนเองชื่อเดียวกับท่าเคลื่อนไหว (victory / nonono) = ท่านิ่งตามที่สอน
+        steps = [(name, 0.0)] if name in taught else hand_poses.ANIMATIONS.get(name, [(name, 0.0)])
         self._status(f"gesture:{name}")
         for pose, hold in steps:
             if self.dry_run:
                 self.get_logger().info(f"[dry_run] ท่า {pose}: " + " ".join(
-                    f"{d:+.0f}" for d in hand_poses.servo_degrees(pose, self.calib, self.side)))
+                    f"{d:+.0f}" for d in self._degrees(pose, taught))
+                    + (" (ท่าที่สอนเอง)" if pose in taught else ""))
             else:
-                clipped = self.hand.move(hand_poses.servo_degrees(pose, self.calib, self.side), self.speed)
+                clipped = self.hand.move(self._degrees(pose, taught), self.speed)
                 if clipped:
                     self.get_logger().warn(f"ท่า {pose}: servo ID {clipped} เป้าหมายเกินขีดจำกัดของ servo "
                                            f"({self.hand.limits_text()}) — จำกัดไว้ที่ขอบ", throttle_duration_sec=10.0)

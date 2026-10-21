@@ -210,18 +210,18 @@ EOF
     fi
     speed=0.19; hand=true
     for a in "$@"; do case "$a" in nohand) hand=false ;; *) speed=$a ;; esac; done
-    if [ "$hand" = true ] && is_running "lib/humanoi_games/hand_calibrate"; then
-      echo "✗ arm hand-calibrate เปิดอยู่ (ใช้พอร์ตมือ) — ปิดก่อน หรือ arm player $speed nohand"; exit 1
+    if [ "$hand" = true ] && { is_running "lib/humanoi_games/hand_calibrate" || is_running "lib/humanoi_games/hand_teach"; }; then
+      echo "✗ arm hand-calibrate / hand-teach เปิดอยู่ (ใช้พอร์ตมือ) — ปิดก่อน หรือ arm player $speed nohand"; exit 1
     fi
     echo "เปิดตัวเล่นโปรแกรม speed=$speed rad/s + ตัวคุมมือ (มือจริง: $hand) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
     ros_tty ros2 launch humanoi_games player.launch.py speed:="$speed" hand:="$hand"
     ;;
 
   hand)  # ลองท่ามือตรงๆ — ต้องมีตัวคุมมือเปิดอยู่ (arm player หรือ arm rps)
-    gestures="rock paper scissors point like windup victory nonono relax"
+    names=$(ros ros2 run ar_program teach --hand-names 2>/dev/null | tr '\n' ' ')  # ท่าในตัว + ท่าที่สอนเอง
     g="${1:-}"; arm=$(arm_name "${2:-left}")
-    if [ -z "$g" ] || [[ " $gestures " != *" $g "* ]] || [ -z "$arm" ]; then
-      echo "ใช้: arm hand <ท่า> [left|right]   ท่า: $gestures"; exit 1
+    if [ -z "$g" ] || [[ " $names " != *" $g "* ]] || [ -z "$arm" ]; then
+      echo "ใช้: arm hand <ท่า> [left|right]   ท่า: $names"; exit 1
     fi
     topic=/hand/gesture; th=ซ้าย
     [ "$arm" = right ] && topic=/right_hand/gesture && th=ขวา
@@ -320,9 +320,16 @@ EOF
     esac
     ;;
 
+  hand-teach)  # จัดท่ามือเอง (จ็อกทีละนิ้ว / ปล่อยให้ดัดด้วยมือ) แล้วบันทึก — humanoi_games/hand_teach.py
+    if is_running "lib/humanoi_games/amazinghand_node" || is_running "lib/humanoi_games/hand_calibrate"; then
+      echo "✗ มีโปรแกรมใช้พอร์ตมืออยู่ (arm player / arm rps / arm hand-calibrate) — ปิดก่อน"; exit 1
+    fi
+    ros_tty ros2 run humanoi_games hand_teach
+    ;;
+
   hand-calibrate)  # ตั้งค่ากลางนิ้ว (MiddlePos) ของมือ AmazingHand ด้วยตา — humanoi_games/hand_calibrate.py
-    if is_running "lib/humanoi_games/amazinghand_node"; then
-      echo "✗ เกมเปิดอยู่ (ใช้พอร์ตมือ) — ปิดหน้าต่าง arm rps ด้วย Ctrl+C ก่อน"; exit 1
+    if is_running "lib/humanoi_games/amazinghand_node" || is_running "lib/humanoi_games/hand_teach"; then
+      echo "✗ มีโปรแกรมใช้พอร์ตมืออยู่ (arm player / arm rps / arm hand-teach) — ปิดก่อน"; exit 1
     fi
     ros_tty ros2 run humanoi_games hand_calibrate "$@"
     ;;
@@ -426,6 +433,8 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm goto <left|right> <ท่า>        พาแขนเดียวไปท่าเดียว (ใช้ตอนแก้ท่า: goto -> ปรับใน MoveIt -> teach ชื่อเดิม)
    arm stop                           หยุดโปรแกรมกลางคัน (ทุกแขน)
    arm hand <ท่า> [left|right]        ลองท่ามือตรงๆ (ต้องเปิด arm player อยู่) เช่น arm hand rock
+   arm hand-teach                     จัดท่ามือเอง (1-4 เลือกนิ้ว +/- กำแบ l/r เอียง free ดัดด้วยมือ) save <ชื่อ>
+                                      ชื่อซ้ำท่าในตัว (rock paper scissors ...) = ใช้แทน · ปิด arm player ก่อน
 
  เกมเป่ายิ้งฉุบ (คู่มือ docs/RPS_GAME.md — สอนท่าตั้งก่อน: arm teach left rps_ready)
    arm rps [camera|random] [nohand]   เปิดเกม (เปิดค้าง แทน arm player) ดูมือผู้เล่นจากกล้อง / สุ่มแทน
