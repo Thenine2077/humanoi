@@ -103,6 +103,7 @@ case "$cmd" in
     show move_group "MoveIt + RViz      (arm moveit)"
     show "lib/humanoi_base/rc_arm_trigger" "สวิตช์รีโมท        (arm remote)"
     show "lib/humanoi_games/rps_game" "เกมเป่ายิ้งฉุบ      (arm rps)"
+    show "lib/humanoi_games/amazinghand_node" "ตัวคุมมือ           (arm player / arm rps)"
     show "lib/humanoi_base/relay_bridge" "relay_bridge (Mega)"
     if is_running ros2_control_node; then
       echo "ตัวควบคุม:"
@@ -204,9 +205,32 @@ EOF
     if is_running "lib/ar_program/arm_program"; then
       echo "✗ ตัวเล่นโปรแกรมเปิดอยู่แล้ว"; exit 1
     fi
-    speed="${1:-0.19}"
-    echo "เปิดตัวเล่นโปรแกรม speed=$speed rad/s — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
-    ros_tty ros2 launch ar_program arm_program.launch.py speed:="$speed"
+    if is_running "lib/humanoi_games/rps_game"; then
+      echo "✗ เกมเปิดอยู่ (สั่งแขนเดียวกัน + ใช้พอร์ตมือ) — ปิดหน้าต่าง arm rps ก่อน"; exit 1
+    fi
+    speed=0.19; hand=true
+    for a in "$@"; do case "$a" in nohand) hand=false ;; *) speed=$a ;; esac; done
+    if [ "$hand" = true ] && is_running "lib/humanoi_games/hand_calibrate"; then
+      echo "✗ arm hand-calibrate เปิดอยู่ (ใช้พอร์ตมือ) — ปิดก่อน หรือ arm player $speed nohand"; exit 1
+    fi
+    echo "เปิดตัวเล่นโปรแกรม speed=$speed rad/s + ตัวคุมมือ (มือจริง: $hand) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
+    ros_tty ros2 launch humanoi_games player.launch.py speed:="$speed" hand:="$hand"
+    ;;
+
+  hand)  # ลองท่ามือตรงๆ — ต้องมีตัวคุมมือเปิดอยู่ (arm player หรือ arm rps)
+    gestures="rock paper scissors point like windup victory nonono relax"
+    g="${1:-}"; arm=$(arm_name "${2:-left}")
+    if [ -z "$g" ] || [[ " $gestures " != *" $g "* ]] || [ -z "$arm" ]; then
+      echo "ใช้: arm hand <ท่า> [left|right]   ท่า: $gestures"; exit 1
+    fi
+    topic=/hand/gesture; th=ซ้าย
+    [ "$arm" = right ] && topic=/right_hand/gesture && th=ขวา
+    # มีตัวคุมมือฟังอยู่ไหม (มือบนแขนขวายังไม่มี — หัวข้อนี้เผื่อมือที่สอง)
+    if ! ros ros2 topic info "$topic" 2>/dev/null | grep -q "Subscription count: [1-9]"; then
+      echo "✗ ไม่มีตัวคุมมือบนแขน$th ($topic) — เปิด arm player ก่อน"; exit 1
+    fi
+    ros timeout 10 ros2 topic pub --once -w 1 "$topic" std_msgs/msg/String "{data: $g}" >/dev/null 2>&1 \
+      && echo "มือ$th -> $g" || echo "✗ ส่งไม่ถึงตัวคุมมือ ($topic)"
     ;;
 
   moveit)
@@ -275,6 +299,9 @@ EOF
           esac
         done
         is_running ros2_control_node || { echo "✗ เปิดระบบแขนก่อน (arm start left)"; exit 1; }
+        if is_running "lib/ar_program/arm_program"; then
+          echo "✗ ตัวเล่นโปรแกรมเปิดอยู่ (สั่งแขนเดียวกัน + ใช้พอร์ตมือ) — ปิดหน้าต่าง arm player ก่อน"; exit 1
+        fi
         if is_running "lib/humanoi_games/rps_game"; then echo "✗ เกมเปิดอยู่แล้ว — เล่น: arm rps play"; exit 1; fi
         camera=true; is_running astra_camera && camera=false  # กล้องเปิดอยู่แล้ว (เช่นจาก yolo) ไม่ต้องเปิดซ้ำ
         echo "เปิดเกมเป่ายิ้งฉุบ (ผู้เล่น: $player · มือ: $hand ${extra[*]}) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
@@ -322,8 +349,11 @@ EOF
   program)
     [ $# -ge 2 ] || { cat <<'EOF'
 ใช้: arm program <ชื่อโปรแกรม> <ขั้น1> <ขั้น2> ...
-  แต่ละขั้น = <ท่าแขนซ้าย>/<ท่าแขนขวา>   ใช้ - ถ้าแขนนั้นอยู่นิ่งในขั้นนั้น   wait=วินาที = รอ
+  แต่ละขั้น = <แขนซ้าย>/<แขนขวา>[/<มือซ้าย>[/<มือขวา>]]   ใช้ - ถ้าไม่ขยับ   wait=วินาที = รอ
+  ท่ามือ: rock paper scissors point like windup victory nonono relax
+  แขนกับมือในขั้นเดียวกันขยับพร้อมกัน — ให้แขนถึงก่อนแล้วค่อยกำ: แยกขั้น act1/- แล้ว -/-/rock
   เช่น  arm program pick2 act1/act1 act2/- act3/act2 -/act3 wait=1.0 rest/rest
+        arm program grab act1/- -/-/rock act2/-/paper
 EOF
       exit 1; }
     ros ros2 run ar_program teach --program "$@"
@@ -376,13 +406,15 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm calibrate <left|right> [ข้อ...]  calibrate ทีละแขน ทีละข้อตามลำดับ เช่น 6 5 4 1 2 3 (หรือ all = พร้อมกัน)
                                ต้องทำหลังปิดไฟแขน/ถอด USB/แขนชน/สายพานรูด
    arm start [left|right]      เปิดระบบแขน (หน้าต่าง 1 — เปิดค้าง) ไม่ใส่ = สองแขน
-   arm player [speed]          เปิดตัวเล่นโปรแกรม (หน้าต่าง 2 — เปิดค้าง) ค่าเริ่ม 0.19
+   arm player [speed] [nohand] เปิดตัวเล่นโปรแกรม + ตัวคุมมือ (หน้าต่าง 2 — เปิดค้าง) ค่าเริ่ม 0.19
+                               nohand = ไม่ต่อมือจริง · ห้ามเปิดพร้อม arm rps
    arm moveit                  MoveIt + RViz สองแขน บนจอ Pi — Planning Group เลือก left_arm/right_arm/both_arms
    arm remote [โปรแกรม]         สั่งจากรีโมท: SWB โยกลง = เล่นโปรแกรม (ค่าเริ่ม 1), SWD โยกลง = หยุด (เปิดค้าง)
 
  สอนท่า / สร้างโปรแกรม (หน้าต่างไหนก็ได้)
    arm teach <left|right> <ท่า>       บันทึกท่าปัจจุบันของแขนนั้น (ชื่อท่าซ้ำกันข้ามแขนได้)
-   arm program <ชื่อ> <ขั้น...>        แต่ละขั้น <ท่าซ้าย>/<ท่าขวา> ใช้ - = แขนนั้นอยู่นิ่ง, wait=วินาที
+   arm program <ชื่อ> <ขั้น...>        แต่ละขั้น <แขนซ้าย>/<แขนขวา>[/<มือซ้าย>[/<มือขวา>]] - = ไม่ขยับ, wait=วินาที
+                                      ท่ามือ: rock paper scissors point like windup victory nonono relax
                                       เช่น arm program pick2 act1/act1 act2/- act3/act2 -/act3
    arm show <ชื่อ>                    ดูโปรแกรมเป็นตาราง ขั้น | แขนซ้าย | แขนขวา
    arm list                           ดูท่าทุกแขนและโปรแกรมทั้งหมด
@@ -393,6 +425,7 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm run <โปรแกรม>                  เล่นโปรแกรม รอจนจบแล้วบอกผล (ทุกขั้น แขนที่มีท่าเริ่มและถึงพร้อมกัน)
    arm goto <left|right> <ท่า>        พาแขนเดียวไปท่าเดียว (ใช้ตอนแก้ท่า: goto -> ปรับใน MoveIt -> teach ชื่อเดิม)
    arm stop                           หยุดโปรแกรมกลางคัน (ทุกแขน)
+   arm hand <ท่า> [left|right]        ลองท่ามือตรงๆ (ต้องเปิด arm player อยู่) เช่น arm hand rock
 
  เกมเป่ายิ้งฉุบ (คู่มือ docs/RPS_GAME.md — สอนท่าตั้งก่อน: arm teach left rps_ready)
    arm rps [camera|random] [nohand]   เปิดเกม (เปิดค้าง แทน arm player) ดูมือผู้เล่นจากกล้อง / สุ่มแทน

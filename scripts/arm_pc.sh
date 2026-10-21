@@ -197,6 +197,7 @@ case "$cmd" in
     show "lib/ar_program/arm_program" "ตัวเล่นโปรแกรม     (arm player)"
     show move_group "MoveIt + RViz      (arm moveit)"
     show "lib/humanoi_games/rps_game" "เกมเป่ายิ้งฉุบ      (arm rps)"
+    show "lib/humanoi_games/amazinghand_node" "ตัวคุมมือ (จำลอง)   (arm player / arm rps)"
     if is_running ros2_control_node; then
       echo "ตัวควบคุม:"
       timeout 10 ros2 control list_controllers 2>/dev/null | sed 's/^/  /'
@@ -310,9 +311,30 @@ EOF
     if is_running "lib/ar_program/arm_program"; then
       echo "✗ ตัวเล่นโปรแกรมเปิดอยู่แล้ว"; exit 1
     fi
-    speed="${1:-0.19}"
-    echo "เปิดตัวเล่นโปรแกรม speed=$speed rad/s — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
-    ros2 launch ar_program arm_program.launch.py speed:="$speed"
+    if is_running "lib/humanoi_games/rps_game"; then
+      echo "✗ เกมเปิดอยู่ (สั่งแขนเดียวกัน + ใช้พอร์ตมือ) — ปิดหน้าต่าง arm rps ก่อน"; exit 1
+    fi
+    speed=0.19; hand=true
+    for a in "$@"; do case "$a" in nohand) hand=false ;; *) speed=$a ;; esac; done
+    hand=false  # PC: มือจริงต่อฝั่ง Windows WSL มองไม่เห็น — ตัวคุมมือแค่ log ท่า
+    echo "เปิดตัวเล่นโปรแกรม speed=$speed rad/s + ตัวคุมมือ (มือจริง: $hand) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
+    ros2 launch humanoi_games player.launch.py speed:="$speed" hand:=false
+    ;;
+
+  hand)  # ลองท่ามือตรงๆ — ต้องมีตัวคุมมือเปิดอยู่ (arm player หรือ arm rps)
+    gestures="rock paper scissors point like windup victory nonono relax"
+    g="${1:-}"; arm=$(arm_name "${2:-left}")
+    if [ -z "$g" ] || [[ " $gestures " != *" $g "* ]] || [ -z "$arm" ]; then
+      echo "ใช้: arm hand <ท่า> [left|right]   ท่า: $gestures"; exit 1
+    fi
+    topic=/hand/gesture; th=ซ้าย
+    [ "$arm" = right ] && topic=/right_hand/gesture && th=ขวา
+    # มีตัวคุมมือฟังอยู่ไหม (มือบนแขนขวายังไม่มี — หัวข้อนี้เผื่อมือที่สอง)
+    if ! ros2 topic info "$topic" 2>/dev/null | grep -q "Subscription count: [1-9]"; then
+      echo "✗ ไม่มีตัวคุมมือบนแขน$th ($topic) — เปิด arm player ก่อน"; exit 1
+    fi
+    timeout 10 ros2 topic pub --once -w 1 "$topic" std_msgs/msg/String "{data: $g}" >/dev/null 2>&1 \
+      && echo "มือ$th -> $g" || echo "✗ ส่งไม่ถึงตัวคุมมือ ($topic)"
     ;;
 
   moveit)
@@ -382,6 +404,9 @@ EOF
           exit 1
         fi
         is_running ros2_control_node || { echo "✗ เปิดระบบแขนก่อน (arm start sim หรือ arm start)"; exit 1; }
+        if is_running "lib/ar_program/arm_program"; then
+          echo "✗ ตัวเล่นโปรแกรมเปิดอยู่ (สั่งแขนเดียวกัน) — ปิดหน้าต่าง arm player ก่อน"; exit 1
+        fi
         if is_running "lib/humanoi_games/rps_game"; then echo "✗ เกมเปิดอยู่แล้ว — เล่น: arm rps play"; exit 1; fi
         echo "เปิดเกมเป่ายิ้งฉุบ (ผู้เล่น: $player · มือจำลอง — log ท่าแทน ${extra[*]}) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
         echo "เล่น 1 ตา: arm rps play (อีกหน้าต่าง) · ต้องสอนท่าตั้งก่อน: arm teach left rps_ready"
@@ -421,8 +446,11 @@ EOF
   program)
     [ $# -ge 2 ] || { cat <<'EOF'
 ใช้: arm program <ชื่อโปรแกรม> <ขั้น1> <ขั้น2> ...
-  แต่ละขั้น = <ท่าแขนซ้าย>/<ท่าแขนขวา>   ใช้ - ถ้าแขนนั้นอยู่นิ่งในขั้นนั้น   wait=วินาที = รอ
+  แต่ละขั้น = <แขนซ้าย>/<แขนขวา>[/<มือซ้าย>[/<มือขวา>]]   ใช้ - ถ้าไม่ขยับ   wait=วินาที = รอ
+  ท่ามือ: rock paper scissors point like windup victory nonono relax
+  แขนกับมือในขั้นเดียวกันขยับพร้อมกัน — ให้แขนถึงก่อนแล้วค่อยกำ: แยกขั้น act1/- แล้ว -/-/rock
   เช่น  arm program pick2 act1/act1 act2/- act3/act2 -/act3 wait=1.0 rest/rest
+        arm program grab act1/- -/-/rock act2/-/paper
 EOF
       exit 1; }
     ros2 run ar_program teach --program "$@"
@@ -475,17 +503,19 @@ left = แขน 1 (ซ้ายเมื่อมองจากตัวหุ
    arm status                  ดูว่าอะไรเปิดอยู่บ้าง
    arm calibrate <left|right> [ข้อ...]  calibrate ทีละแขน ทีละข้อตามลำดับ เช่น 6 5 4 1 2 3 (หรือ all)
    arm start [left|right|sim]  เปิดระบบแขน (หน้าต่าง 1 — เปิดค้าง) ไม่ใส่ = สองแขนจริง, sim = จำลองทั้งคู่
-   arm player [speed]          เปิดตัวเล่นโปรแกรม (หน้าต่าง 2 — เปิดค้าง) ค่าเริ่ม 0.19
+   arm player [speed]          เปิดตัวเล่นโปรแกรม + ตัวคุมมือจำลอง (หน้าต่าง 2 — เปิดค้าง) ค่าเริ่ม 0.19
    arm moveit                  MoveIt + RViz (RViz เปิดว่าง แล้ว File > Open Config ตามที่ขึ้นบอก)
    arm moveit full             เปิดพร้อม config เลย (บน WSLg เมาส์อาจคลิกในหน้าต่างไม่ได้)
 
  สอนท่า / สร้างโปรแกรม (หน้าต่างไหนก็ได้) — เก็บใน programs.yaml บน PC (คนละไฟล์กับบน Pi)
    arm teach <left|right> <ท่า>       บันทึกท่าปัจจุบันของแขนนั้น
-   arm program <ชื่อ> <ขั้น...>        แต่ละขั้น <ท่าซ้าย>/<ท่าขวา> ใช้ - = แขนนั้นอยู่นิ่ง, wait=วินาที
+   arm program <ชื่อ> <ขั้น...>        แต่ละขั้น <แขนซ้าย>/<แขนขวา>[/<มือซ้าย>[/<มือขวา>]] - = ไม่ขยับ, wait=วินาที
+                                      ท่ามือ: rock paper scissors point like windup victory nonono relax
    arm show <ชื่อ> · arm list · arm delete <left|right> <ท่า> · arm delete-program <ชื่อ>
 
  เล่น
    arm run <โปรแกรม> · arm goto <left|right> <ท่า> · arm stop
+   arm hand <ท่า> [left|right]        ลองท่ามือ (ต้องเปิด arm player อยู่ — บน PC มือแค่ log ท่า)
 
  เกมเป่ายิ้งฉุบ (ทดสอบบน PC: มือจำลอง ไม่มีกล้อง — คู่มือ docs/RPS_GAME.md)
    arm rps [random|topic]             เปิดเกม (เปิดค้าง) · arm rps play = เล่น 1 ตา · arm rps stop = หยุด
