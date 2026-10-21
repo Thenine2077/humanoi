@@ -5,13 +5,15 @@
 
 ท่าเก็บใน programs.yaml (hand_poses — องศา servo 8 ตัวตรงๆ) ใช้ได้ทันทีใน arm program / arm hand
 ชื่อเดียวกับท่าในตัว (rock paper scissors point like windup) = ใช้แทนท่าในตัว — เกมเป่ายิ้งฉุบใช้ตามด้วย
+นิ้วไปไม่ถึงที่สั่ง (ติดนิ้วอื่น / สุดทาง) = ถือไว้ตรงที่ไปถึงแล้วเตือน — ท่าที่ save เป็นท่าที่นิ้วทำได้จริง
+(ดันเลยไปค้างไว้ servo จะตัดแรงบิดตัวเองตอนโหลดเกิน นิ้วอ่อนไปทุกท่าหลังจากนั้น)
 
   1 2 3 4       เลือกนิ้ว ชี้ กลาง นาง โป้ง · 0 = ทุกนิ้ว
   + / -         กำ / แบ นิ้วที่เลือก 5° (+10 = 10°)
   l / r         เอียงนิ้วที่เลือก 5° (l10 = 10°)
   free          ปล่อยนิ้วที่เลือกให้อ่อน — จับดัดด้วยมือได้
   hold          ล็อกนิ้วที่เลือกไว้ตรงที่ดัด
-  load <ชื่อ>    เรียกท่า (ในตัวหรือที่สอนไว้) มาแก้ต่อ
+  load <ชื่อ>    เรียกท่า (ในตัวหรือที่สอนไว้) มาแก้ต่อ — เร็วเท่าตอนเล่นจริง ใช้ดูว่าข้างนอกจะออกมาแบบไหน
   save <ชื่อ>    บันทึกท่าตอนนี้ (นิ้วที่ปล่อยอยู่อ่านตำแหน่งจริงแล้วล็อกให้)
   list          ดูท่าที่สอนไว้        del <ชื่อ>  ลบท่า        q  ออก (นิ้วอ่อนลง)
 """
@@ -20,13 +22,12 @@ import sys
 
 from ar_program import programs
 from humanoi_games import hand_poses
-from humanoi_games.amazinghand_node import Hand, calib_file, load_calib
+from humanoi_games.amazinghand_node import FINGERS_TH, SPEED as PLAY_SPEED, Hand, calib_file, load_calib
 
-FINGERS_TH = ("ชี้", "กลาง", "นาง", "โป้ง")
 HELP = ("1-4 เลือกนิ้ว (0 = ทุกนิ้ว) · +/- กำ/แบ · l/r เอียง (ใส่ตัวเลขได้ เช่น +10) · free ปล่อยให้ดัดด้วยมือ · "
         "hold ล็อก · load/save/del <ชื่อ> · list · q ออก")
 STEP = 5.0
-SPEED = 3.0
+SPEED = 3.0  # ตอนจ็อก — load ใช้ความเร็วเดียวกับตอนเล่นจริง (PLAY_SPEED)
 NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
 
@@ -88,13 +89,13 @@ def main():
         hand.torque(ids, True)
         free.difference_update(fs)
 
-    def show():
+    def show(speed=SPEED):
         held = [i for i in range(4) if i not in free]
         if free:  # นิ้วที่ปล่อยอยู่: เป้าหมาย = ตำแหน่งจริง (servo บางรุ่นเปิดแรงบิดเองเมื่อได้เป้าหมาย — ไม่ให้กระตุก)
             ids = ids_of(sorted(free))
             for sid, deg in zip(ids, hand.read_degrees(ids)):
                 target[hand.ids.index(sid)] = deg
-        clipped = hand.move(target, SPEED) if held else []
+        clipped = hand.move(target, speed, enable=ids_of(held)) if held else []
         if free:  # แล้วปิดแรงบิดซ้ำให้อ่อนต่อ
             hand.torque(ids_of(sorted(free)), False)
         bad = [sid for sid in clipped if hand.ids.index(sid) // 2 in held]
@@ -104,6 +105,17 @@ def main():
                 lo, hi = hand.limits[sid]
                 k = hand.ids.index(sid)
                 target[k] = max(lo + 1, min(hi - 1, target[k]))
+        if not held:
+            return
+        # นิ้วไปไม่ถึงที่สั่ง (ติดนิ้วอื่น / สุดทางกลไก) = หยุดดันตรงนั้น — ดันค้าง servo จะตัดแรงบิดตัวเอง
+        ids = ids_of(held)
+        present, still = hand.settle(ids)
+        stuck = hand.stuck(target, ids, present) if still else {}
+        if stuck:
+            print(f"  ! นิ้วไปต่อไม่ได้: {hand.stuck_text(stuck, target)} — ถือไว้ตรงที่ไปถึง (อย่าดันต่อ)")
+            hand.torque(list(stuck), True)
+            for sid, deg in stuck.items():
+                target[hand.ids.index(sid)] = deg
 
     try:
         show()
@@ -151,7 +163,7 @@ def main():
                     target[:] = taught[val]
                 else:
                     target[:] = hand_poses.servo_degrees(val, calib)
-                show()
+                show(PLAY_SPEED)  # เร็วเท่าตอนเล่นจริง — ท่าที่ load ออกมาเป็นยังไง ใน arm hand / เกมก็เป็นอย่างนั้น
             elif kind == "save":
                 if not NAME.match(val) or val == "relax":
                     print("  ชื่อต้องเป็นภาษาอังกฤษ ขึ้นต้นด้วยตัวอักษร (a-z 0-9 _) และไม่ใช่ relax")

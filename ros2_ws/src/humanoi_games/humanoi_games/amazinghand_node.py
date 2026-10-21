@@ -40,6 +40,10 @@ except ImportError:
 ADAPTER_USB = (0x1A86, 0x55D3)  # Waveshare Bus Servo Adapter (A) = CH343 — Nano ของแขนเป็น CH340 (55d3 ≠ 7523)
 FACTORY_LIMIT = 144.0  # ลิมิตโรงงาน SCS0009 (raw 20-1003) — ใช้เฉพาะตอนอ่านจาก servo ไม่ได้/ค่าแปลก
 LIMIT_MARGIN = 1.0     # เผื่อการปัดเศษตอนแปลงหน่วย
+SPEED = 7.0            # ความเร็วทำท่า (เท่า MaxSpeed ในเดโม) — hand_teach ใช้ค่านี้ตอน load ให้เห็นเหมือนตอนเล่นจริง
+STUCK_DEG = 8.0        # หยุดขยับแล้วแต่ห่างเป้าหมายเกินนี้ = นิ้วไปต่อไม่ได้ (ติดนิ้วอื่น / สุดทางกลไก)
+SETTLE_TIMEOUT = 3.0   # รอท่านิ่งนานสุดกี่วินาที
+FINGERS_TH = ("ชี้", "กลาง", "นาง", "โป้ง")  # servo ID ตามลำดับ (1 2) (3 4) (5 6) (7 8)
 
 
 def calib_file():
@@ -185,20 +189,60 @@ class Hand:
                     continue
         return None
 
-    def move(self, degrees, speed):
-        """สั่งทุก servo — เป้าหมายที่เกินขีดจำกัดของ servo ตัวนั้นถูกจำกัดไว้ที่ขอบ คืน ID ที่ถูกจำกัด (ไว้เตือน)"""
+    def clamp(self, degrees):
+        """เป้าหมายที่ servo ทำได้จริง (เกินขีดจำกัดของตัวนั้น = ขอบ)"""
+        return [max(self.limits[sid][0] + LIMIT_MARGIN, min(self.limits[sid][1] - LIMIT_MARGIN, d))
+                for sid, d in zip(self.ids, degrees)]
+
+    def move(self, degrees, speed, enable=()):
+        """สั่งทุก servo — เป้าหมายที่เกินขีดจำกัดของ servo ตัวนั้นถูกจำกัดไว้ที่ขอบ คืน ID ที่ถูกจำกัด (ไว้เตือน)
+
+        enable = ID ที่เปิดแรงบิดซ้ำหลังตั้งเป้าหมาย — servo ตัดแรงบิดเองตอนโหลดเกิน (unloading condition) แล้วไม่เปิดคืนเอง
+        """
         for sid in self.ids:
             self.c.write_goal_speed(sid, speed)
         clipped = [sid for sid, d in zip(self.ids, degrees) if not self.within(sid, d)]
-        degrees = [max(self.limits[sid][0] + LIMIT_MARGIN, min(self.limits[sid][1] - LIMIT_MARGIN, d))
-                   for sid, d in zip(self.ids, degrees)]
-        rads = [math.radians(d) for d in degrees]
+        rads = [math.radians(d) for d in self.clamp(degrees)]
         try:
             self.c.sync_write_goal_position(self.ids, rads)
         except Exception:
             for sid, r in zip(self.ids, rads):
                 self.c.write_goal_position(sid, r)
+        for sid in enable:
+            self.c.write_torque_enable(sid, 1)
         return clipped
+
+    def unloaded(self):
+        """ID ที่แรงบิดหลุดอยู่ (servo ตัดเองตอนโหลดเกิน / รีเซ็ตเพราะไฟตก)"""
+        return [sid for sid in self.ids if not scalar(self.c.read_torque_enable(sid))]
+
+    def settle(self, ids=None, wait=None):
+        """รอจน servo หยุดขยับ (ตำแหน่งเปลี่ยนไม่ถึง 1° ใน 0.1 s) -> (ตำแหน่งสุดท้าย, หยุดแล้วไหม)
+
+        wait(0.1) แทน sleep ได้ — คืนค่าจริง = เลิกรอทันที (โหนดใช้รับคำสั่งใหม่ระหว่างรอ)
+        """
+        ids = ids or self.ids
+        last = self.read_degrees(ids)
+        for _ in range(int(SETTLE_TIMEOUT / 0.1)):
+            if wait is None:
+                time.sleep(0.1)
+            elif wait(0.1):
+                return last, False
+            now = self.read_degrees(ids)
+            if all(abs(a - b) < 1.0 for a, b in zip(now, last)):
+                return now, True
+            last = now
+        return last, False
+
+    def stuck(self, degrees, ids, present):
+        """servo ที่หยุดแล้วแต่ห่างเป้าหมายเกิน STUCK_DEG -> {ID: ตำแหน่งที่ไปถึง}"""
+        goal = dict(zip(self.ids, self.clamp(degrees)))
+        return {sid: p for sid, p in zip(ids, present) if abs(p - goal[sid]) > STUCK_DEG}
+
+    def stuck_text(self, stuck, degrees):
+        goal = dict(zip(self.ids, self.clamp(degrees)))
+        return ", ".join(f"{FINGERS_TH[self.ids.index(sid) // 2]} ID{sid} ค้างที่ {p:+.0f} (สั่ง {goal[sid]:+.0f})"
+                         for sid, p in stuck.items())
 
     def torque(self, ids, on):
         """เปิด/ปิดแรงบิดทีละ servo — เปิด = ถือที่ตำแหน่งปัจจุบันก่อน (นิ้วไม่กระตุก)"""
@@ -231,7 +275,7 @@ class AmazingHandNode(Node):
         self.declare_parameter("calib_file", calib_file())
         self.declare_parameter("programs_file", programs.DEFAULT_FILE if programs else "")  # ท่ามือที่สอนเอง
         self.declare_parameter("side", "right")
-        self.declare_parameter("speed", 7.0)  # เท่า MaxSpeed ในเดโม
+        self.declare_parameter("speed", SPEED)
         self.declare_parameter("min_volts", 4.8)
         self.declare_parameter("max_volts", 7.4)  # ห้ามจ่ายไฟเซอร์โวเกิน 7.4 V
         self.declare_parameter("dry_run", False)
@@ -338,13 +382,18 @@ class AmazingHandNode(Node):
         # ท่าที่สอนเองชื่อเดียวกับท่าเคลื่อนไหว (victory / nonono) = ท่านิ่งตามที่สอน
         steps = [(name, 0.0)] if name in taught else hand_poses.ANIMATIONS.get(name, [(name, 0.0)])
         self._status(f"gesture:{name}")
+        if not self.dry_run:
+            off = self.hand.unloaded()
+            if off:
+                self.get_logger().warn(f"servo ID {off} แรงบิดหลุดอยู่ (servo ตัดเองตอนดันนานเกิน — ท่าก่อนหน้าสั่งเลย"
+                                       "ที่นิ้วไปได้) — เปิดคืนแล้ว")
         for pose, hold in steps:
+            degrees = self._degrees(pose, taught)
             if self.dry_run:
-                self.get_logger().info(f"[dry_run] ท่า {pose}: " + " ".join(
-                    f"{d:+.0f}" for d in self._degrees(pose, taught))
-                    + (" (ท่าที่สอนเอง)" if pose in taught else ""))
+                self.get_logger().info(f"[dry_run] ท่า {pose}: " + " ".join(f"{d:+.0f}" for d in degrees)
+                                       + (" (ท่าที่สอนเอง)" if pose in taught else ""))
             else:
-                clipped = self.hand.move(self._degrees(pose, taught), self.speed)
+                clipped = self.hand.move(degrees, self.speed, enable=self.hand.ids)
                 if clipped:
                     self.get_logger().warn(f"ท่า {pose}: servo ID {clipped} เป้าหมายเกินขีดจำกัดของ servo "
                                            f"({self.hand.limits_text()}) — จำกัดไว้ที่ขอบ", throttle_duration_sec=10.0)
@@ -354,6 +403,28 @@ class AmazingHandNode(Node):
                     return self.cmds.get(timeout=max(0.0, end - time.monotonic()))
                 except queue.Empty:
                     pass
+        return None if self.dry_run else self._check_reached(pose, degrees)
+
+    def _check_reached(self, pose, degrees):
+        """รอท่านิ่ง แล้วดูว่านิ้วไปถึงไหม — ไม่ถึง (ติดนิ้วอื่น / สุดทางกลไก) = ถือไว้ตรงที่ไปถึง ไม่ให้ servo
+        ดันค้างจนตัดแรงบิดตัวเอง (นิ้วอ่อนไปทุกท่าหลังจากนั้น) · มีคำสั่งใหม่ระหว่างรอ = ไปทำคำสั่งนั้นเลย"""
+        got = []
+
+        def wait(t):
+            try:
+                got.append(self.cmds.get(timeout=t))
+                return True
+            except queue.Empty:
+                return False
+
+        present, still = self.hand.settle(wait=wait)
+        if got:
+            return got[0]
+        stuck = self.hand.stuck(degrees, self.hand.ids, present) if still else {}
+        if stuck:
+            self.hand.torque(list(stuck), True)  # เป้าหมาย = ตำแหน่งจริง (หยุดดัน)
+            self.get_logger().warn(f"ท่า {pose}: นิ้วไปไม่ถึงที่สั่ง {self.hand.stuck_text(stuck, degrees)} "
+                                   "— ถือไว้ตรงที่ไปถึง · สอนท่านี้ใหม่ (arm hand-teach: load แล้ว save)")
         return None
 
     def shutdown(self):
