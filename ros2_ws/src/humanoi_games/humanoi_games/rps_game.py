@@ -3,7 +3,7 @@
 
 ลำดับ: แขนไปท่าตั้ง (rps_ready — สอนเองด้วย arm teach) มือกำหลวมๆ → ข้อ 1 ยกขึ้น-ลง 3 ครั้ง (เป่า-ยิ้ง-ฉุบ)
 → จังหวะ "ฉุบ" มือออกท่าที่สุ่มไว้ → ดูท่าผู้เล่นจากกล้อง → แขนไปท่าโชว์ (ถ้าสอนไว้) แล้วมือค่อยทำท่า:
-หุ่นแพ้ = แขนสลับ victory_pose/lose_pose 3 รอบ + ชูนิ้วโป้ง (ไลค์), หุ่นชนะ = แขนไป victory_pose + ชู 2 นิ้ว,
+ผู้เล่นชนะ = แขนไป victory_pose + ชูนิ้วโป้ง (ไลค์), ผู้เล่นแพ้ = แขนไป lose_pose + ส่ายนิ้ว (nonono),
 เสมอ = เป่าใหม่ (ไม่เกิน max_draws ครั้ง), ไม่เห็นมือ = ส่ายนิ้ว
 โชว์เสร็จแขนกลับท่าตั้งผ่านท่า return_moves (move_readyP1 → move_readyP2 → rps_ready) — ไม่ไปตรงๆ เพราะข้อ 1
 รับน้ำหนักการเหวี่ยงแขนทั้งแขนตรงๆ ไม่ไหว (ตอนเริ่มเกม ถ้าแขนอยู่ไกลจากท่าตั้งก็เดินทางนี้ก่อนเหมือนกัน)
@@ -55,10 +55,10 @@ from humanoi_games import rps_logic
 from humanoi_games.rps_logic import THAI
 
 ARM_TH = {"left": "ซ้าย", "right": "ขวา"}
-RESULT_TH = {"player_win": "ผู้เล่นชนะ → ชูนิ้วโป้ง", "robot_win": "หุ่นชนะ → ชู 2 นิ้ว",
+RESULT_TH = {"player_win": "ผู้เล่นชนะ → ชูนิ้วโป้ง", "robot_win": "ผู้เล่นแพ้ → ส่ายนิ้ว",
              "draw": "เสมอ", "no_player": "ไม่เห็นมือผู้เล่น → ส่ายนิ้ว"}
 # ผล (มุมผู้เล่น) -> (ท่ามือ, พารามิเตอร์ชื่อท่าแขนตอนโชว์ — ไม่ได้สอนท่านั้นไว้ = แขนค้างที่ท่าตั้ง)
-REACTION = {"player_win": ("like", "lose_moves"), "robot_win": ("victory", "victory_moves"),
+REACTION = {"player_win": ("like", "player_win_moves"), "robot_win": ("nonono", "robot_win_moves"),
             "draw": ("paper", None), "no_player": ("nonono", None)}
 PARAMS = {
     "arm": "left",                # แขนที่ติดมือ
@@ -67,8 +67,8 @@ PARAMS = {
     "ready_pose": "rps_ready",    # ท่าตั้งก่อนเป่า (ต้องสอนก่อน: arm teach left rps_ready)
     # ท่าแขนตอนโชว์ = ชื่อท่าเรียงกัน (คั่นด้วยเว้นวรรค) แขนไปทีละท่าจนครบ แล้วมือค่อยทำท่า
     # ท่าที่ยังไม่ได้สอนข้ามไป (ไม่มีสักท่า = แขนค้างที่ท่าตั้ง) — สอน: arm teach left victory_pose / lose_pose
-    "victory_moves": "victory_pose",  # หุ่นชนะ (ชู 2 นิ้ว)
-    "lose_moves": "victory_pose lose_pose victory_pose lose_pose victory_pose lose_pose",  # หุ่นแพ้ (ชูโป้ง)
+    "player_win_moves": "victory_pose",  # ผู้เล่นชนะ (ชูโป้ง)
+    "robot_win_moves": "lose_pose",      # ผู้เล่นแพ้ (ส่ายนิ้ว)
     "show_speed": 0.22,           # ท่าโชว์ที่ใกล้กัน (ไม่เกิน show_fast_max_deg) ขยับด้วยเพดานที่เฟิร์มแวร์ตามทัน:
     "show_accel": 0.17,           # 12.6°/s, 9.7°/s^2 (เฟิร์มแวร์ 10°/s^2) — แกว่ง 39° ครั้งละ ~4.4 s
     "show_fast_max_deg": 45.0,    # ท่าที่ห่างกว่านี้ (เช่นจากท่าตั้ง) ใช้ move_speed/move_accel นุ่มๆ แทน
