@@ -265,9 +265,9 @@ class Hand:
         for n in range(tries):
             try:
                 return read(sid)
-            except Exception:
+            except Exception as exc:
                 if n == tries - 1:
-                    raise
+                    raise RuntimeError(f"servo ID {sid} ไม่ตอบ {tries} ครั้งติด ({exc})") from exc
                 time.sleep(0.05)
 
     def relax(self):
