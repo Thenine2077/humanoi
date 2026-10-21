@@ -110,12 +110,81 @@ def main():
         # นิ้วไปไม่ถึงที่สั่ง (ติดนิ้วอื่น / สุดทางกลไก) = หยุดดันตรงนั้น — ดันค้าง servo จะตัดแรงบิดตัวเอง
         ids = ids_of(held)
         present, still = hand.settle(ids)
+        off = [sid for sid in hand.unloaded() if sid in ids]
+        if off:  # servo รีเซ็ตกลางทาง = ไฟมือตก — เปิดคืนตรงที่อยู่ ตัวเลขให้ตรงของจริง
+            print(f"  ! servo ID {off} แรงบิดหลุด/รีเซ็ตระหว่างขยับ — ไฟมือตก (แหล่งจ่ายไม่พอตอนหลายนิ้วดันพร้อมกัน) "
+                  "· เปิดคืนแล้ว ดูท่าอีกทีก่อน save")
+            hand.torque(off, True)
+            for sid, deg in zip(off, hand.read_degrees(off)):
+                target[hand.ids.index(sid)] = deg
+            return
         stuck = hand.stuck(target, ids, present) if still else {}
         if stuck:
             print(f"  ! นิ้วไปต่อไม่ได้: {hand.stuck_text(stuck, target)} — ถือไว้ตรงที่ไปถึง (อย่าดันต่อ)")
             hand.torque(list(stuck), True)
             for sid, deg in stuck.items():
                 target[hand.ids.index(sid)] = deg
+
+    def run(kind, val, label):
+        """ทำคำสั่งหนึ่ง"""
+        nonlocal picked
+        if kind == "help":
+            print(__doc__)
+        elif kind == "pick":
+            picked = [0, 1, 2, 3] if val == 0 else [val - 1]
+        elif kind == "free":
+            hand.torque(ids_of(picked), False)
+            free.update(picked)
+            print(f"  ปล่อยนิ้ว{label}แล้ว — ดัดด้วยมือได้ เสร็จแล้วพิมพ์ hold หรือ save <ชื่อ>")
+        elif kind == "hold":
+            hold(picked)
+        elif kind in ("+", "-", "l", "r"):
+            hold(picked)
+            jog(target, picked, kind, val)
+            show()
+        elif kind == "list":
+            taught = programs.load(path)["hand_poses"]
+            print(f"  ท่าในตัว: {', '.join(sorted(programs.HAND_GESTURES))}")
+            for name, vals in taught.items():
+                mark = " (แทนท่าในตัว)" if name in programs.HAND_GESTURES else ""
+                print(f"  {name:<12} [" + ", ".join(f"{v:+.0f}" for v in vals) + f"]{mark}")
+            if not taught:
+                print("  (ยังไม่มีท่าที่สอนเอง)")
+        elif kind == "load":
+            taught = programs.load(path)["hand_poses"]
+            if val not in taught and val not in hand_poses.GESTURES:
+                print(f"  ไม่มีท่า '{val}' — ท่าในตัว: {', '.join(sorted(hand_poses.GESTURES))} · ท่าที่สอน: "
+                      f"{', '.join(taught) or '-'}")
+                return
+            hold(sorted(free))  # ล็อกนิ้วที่ปล่อยอยู่ก่อน แล้วค่อยตั้งท่าที่โหลด (ไม่ให้ตำแหน่งจริงทับ)
+            if val in taught:
+                target[:] = taught[val]
+            else:
+                target[:] = hand_poses.servo_degrees(val, calib)
+            show(PLAY_SPEED)  # เร็วเท่าตอนเล่นจริง — ท่าที่ load ออกมาเป็นยังไง ใน arm hand / เกมก็เป็นอย่างนั้น
+        elif kind == "save":
+            if not NAME.match(val) or val == "relax":
+                print("  ชื่อต้องเป็นภาษาอังกฤษ ขึ้นต้นด้วยตัวอักษร (a-z 0-9 _) และไม่ใช่ relax")
+                return
+            hold(sorted(free))  # นิ้วที่ปล่อยอยู่: อ่านตำแหน่งที่ดัดไว้แล้วล็อก
+            data = programs.load(path)
+            old = data["hand_poses"].get(val)
+            data["hand_poses"][val] = [round(v, 1) for v in target]
+            programs.save(path, data)
+            note = " — ใช้แทนท่าในตัว" if val in programs.HAND_GESTURES else ""
+            print(f"  {'แทนที่' if old else 'บันทึก'}ท่า '{val}'{note}: [" + ", ".join(f"{v:+.0f}" for v in target) + "]")
+        elif kind == "del":
+            data = programs.load(path)
+            if data["hand_poses"].pop(val, None) is None:
+                print(f"  ไม่มีท่าที่สอนชื่อ '{val}'")
+                return
+            used = [p for p, steps in data["programs"].items()
+                    if any(val in programs.step_hands(st).values() for st in steps)]
+            if used and val not in programs.HAND_GESTURES:
+                print(f"  ลบไม่ได้ — ยังถูกใช้ในโปรแกรม: {', '.join(used)}")
+                return
+            programs.save(path, data)
+            print(f"  ลบท่า '{val}' แล้ว" + (" (กลับไปใช้ท่าในตัว)" if val in programs.HAND_GESTURES else ""))
 
     try:
         show()
@@ -127,72 +196,17 @@ def main():
             if parsed is None:
                 print(HELP)
                 continue
-            kind, val = parsed
-            if kind == "q":
+            if parsed[0] == "q":
                 break
-            if kind == "help":
-                print(__doc__)
-            elif kind == "pick":
-                picked = [0, 1, 2, 3] if val == 0 else [val - 1]
-            elif kind == "free":
-                hand.torque(ids_of(picked), False)
-                free.update(picked)
-                print(f"  ปล่อยนิ้ว{label}แล้ว — ดัดด้วยมือได้ เสร็จแล้วพิมพ์ hold หรือ save <ชื่อ>")
-            elif kind == "hold":
-                hold(picked)
-            elif kind in ("+", "-", "l", "r"):
-                hold(picked)
-                jog(target, picked, kind, val)
-                show()
-            elif kind == "list":
-                taught = programs.load(path)["hand_poses"]
-                print(f"  ท่าในตัว: {', '.join(sorted(programs.HAND_GESTURES))}")
-                for name, vals in taught.items():
-                    mark = " (แทนท่าในตัว)" if name in programs.HAND_GESTURES else ""
-                    print(f"  {name:<12} [" + ", ".join(f"{v:+.0f}" for v in vals) + f"]{mark}")
-                if not taught:
-                    print("  (ยังไม่มีท่าที่สอนเอง)")
-            elif kind == "load":
-                taught = programs.load(path)["hand_poses"]
-                if val not in taught and val not in hand_poses.GESTURES:
-                    print(f"  ไม่มีท่า '{val}' — ท่าในตัว: {', '.join(sorted(hand_poses.GESTURES))} · ท่าที่สอน: "
-                          f"{', '.join(taught) or '-'}")
-                    continue
-                hold(sorted(free))  # ล็อกนิ้วที่ปล่อยอยู่ก่อน แล้วค่อยตั้งท่าที่โหลด (ไม่ให้ตำแหน่งจริงทับ)
-                if val in taught:
-                    target[:] = taught[val]
-                else:
-                    target[:] = hand_poses.servo_degrees(val, calib)
-                show(PLAY_SPEED)  # เร็วเท่าตอนเล่นจริง — ท่าที่ load ออกมาเป็นยังไง ใน arm hand / เกมก็เป็นอย่างนั้น
-            elif kind == "save":
-                if not NAME.match(val) or val == "relax":
-                    print("  ชื่อต้องเป็นภาษาอังกฤษ ขึ้นต้นด้วยตัวอักษร (a-z 0-9 _) และไม่ใช่ relax")
-                    continue
-                hold(sorted(free))  # นิ้วที่ปล่อยอยู่: อ่านตำแหน่งที่ดัดไว้แล้วล็อก
-                data = programs.load(path)
-                old = data["hand_poses"].get(val)
-                data["hand_poses"][val] = [round(v, 1) for v in target]
-                programs.save(path, data)
-                note = " — ใช้แทนท่าในตัว" if val in programs.HAND_GESTURES else ""
-                print(f"  {'แทนที่' if old else 'บันทึก'}ท่า '{val}'{note}: [" + ", ".join(f"{v:+.0f}" for v in target) + "]")
-            elif kind == "del":
-                data = programs.load(path)
-                if data["hand_poses"].pop(val, None) is None:
-                    print(f"  ไม่มีท่าที่สอนชื่อ '{val}'")
-                    continue
-                used = [p for p, steps in data["programs"].items()
-                        if any(val in programs.step_hands(st).values() for st in steps)]
-                if used and val not in programs.HAND_GESTURES:
-                    print(f"  ลบไม่ได้ — ยังถูกใช้ในโปรแกรม: {', '.join(used)}")
-                    continue
-                programs.save(path, data)
-                print(f"  ลบท่า '{val}' แล้ว" + (" (กลับไปใช้ท่าในตัว)" if val in programs.HAND_GESTURES else ""))
+            try:
+                run(*parsed, label)
+            except Exception as exc:  # คุยกับมือพลาด (servo รีเซ็ตเพราะไฟตก) — ไม่หลุดโปรแกรม ท่าที่บันทึกแล้วไม่หาย
+                print(f"  ✗ คุยกับมือพลาด ({exc}) — เช็กไฟมือ แล้วสั่งใหม่ได้เลย")
     except (KeyboardInterrupt, EOFError):
         print()
     finally:
         hand.relax()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

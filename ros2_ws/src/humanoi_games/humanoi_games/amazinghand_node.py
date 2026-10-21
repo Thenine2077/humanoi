@@ -214,7 +214,7 @@ class Hand:
 
     def unloaded(self):
         """ID ที่แรงบิดหลุดอยู่ (servo ตัดเองตอนโหลดเกิน / รีเซ็ตเพราะไฟตก)"""
-        return [sid for sid in self.ids if not scalar(self.c.read_torque_enable(sid))]
+        return [sid for sid in self.ids if not scalar(self._retry(self.c.read_torque_enable, sid))]
 
     def settle(self, ids=None, wait=None):
         """รอจน servo หยุดขยับ (ตำแหน่งเปลี่ยนไม่ถึง 1° ใน 0.1 s) -> (ตำแหน่งสุดท้าย, หยุดแล้วไหม)
@@ -222,13 +222,19 @@ class Hand:
         wait(0.1) แทน sleep ได้ — คืนค่าจริง = เลิกรอทันที (โหนดใช้รับคำสั่งใหม่ระหว่างรอ)
         """
         ids = ids or self.ids
-        last = self.read_degrees(ids)
+        try:
+            last = self.read_degrees(ids)
+        except Exception:  # อ่านไม่ได้ = ไม่รู้ว่าถึงไหม (ไม่เช็ก) — ไม่ให้ท่าล้มเพราะเรื่องนี้
+            return [], False
         for _ in range(int(SETTLE_TIMEOUT / 0.1)):
             if wait is None:
                 time.sleep(0.1)
             elif wait(0.1):
                 return last, False
-            now = self.read_degrees(ids)
+            try:
+                now = self.read_degrees(ids)
+            except Exception:
+                return last, False
             if all(abs(a - b) < 1.0 for a, b in zip(now, last)):
                 return now, True
             last = now
@@ -252,8 +258,17 @@ class Hand:
             self.c.write_torque_enable(sid, 1 if on else 0)
 
     def read_degrees(self, ids=None):
-        """ตำแหน่งจริงของ servo (องศา)"""
-        return [math.degrees(scalar(self.c.read_present_position(sid))) for sid in (ids or self.ids)]
+        """ตำแหน่งจริงของ servo (องศา) — อ่านพลาดลองซ้ำ (servo ที่เพิ่งรีเซ็ตเพราะไฟตกไม่ตอบชั่วครู่)"""
+        return [math.degrees(scalar(self._retry(self.c.read_present_position, sid))) for sid in (ids or self.ids)]
+
+    def _retry(self, read, sid, tries=4):
+        for n in range(tries):
+            try:
+                return read(sid)
+            except Exception:
+                if n == tries - 1:
+                    raise
+                time.sleep(0.05)
 
     def relax(self):
         if self.c is None:
@@ -420,7 +435,12 @@ class AmazingHandNode(Node):
         present, still = self.hand.settle(wait=wait)
         if got:
             return got[0]
-        stuck = self.hand.stuck(degrees, self.hand.ids, present) if still else {}
+        off = self.hand.unloaded()
+        if off:  # servo รีเซ็ตกลางท่า (ไฟตกตอนหลายนิ้วขยับ/ดันพร้อมกัน) — แรงบิดหลุด speed กลับค่าเริ่ม
+            self.hand.torque(off, True)
+            self.get_logger().warn(f"ท่า {pose}: servo ID {off} แรงบิดหลุดระหว่างทำท่า — ไฟมือน่าจะตก "
+                                   "(แหล่งจ่ายไม่พอตอนนิ้วดันพร้อมกัน) · เปิดคืนแล้ว")
+        stuck = self.hand.stuck(degrees, self.hand.ids, present) if still and not off else {}
         if stuck:
             self.hand.torque(list(stuck), True)  # เป้าหมาย = ตำแหน่งจริง (หยุดดัน)
             self.get_logger().warn(f"ท่า {pose}: นิ้วไปไม่ถึงที่สั่ง {self.hand.stuck_text(stuck, degrees)} "
