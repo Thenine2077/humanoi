@@ -20,8 +20,10 @@
   /rps/play            (sub, Empty)   เริ่ม 1 ตา (ระหว่างเล่นอยู่ไม่รับซ้ำ)
   /rps/stop            (sub, Empty)   หยุดกลางคัน แขนหยุดที่ตำแหน่งปัจจุบัน
   /rps/player_gesture  (sub, String)  ท่าผู้เล่นทีละเฟรม rock|paper|scissors|point|none (rps_vision หรือพิมพ์ส่งเอง)
-  /rps/state           (pub, String)  idle | ready | beat:1..3 | reveal:<ท่าหุ่น> | result:<ผล> | pose:<ท่าโชว์>
-                                      | waiting_replay (รอนิ้วชี้) — ไว้ต่อเสียง/จอ
+  /rps/state           (pub, String)  idle | ready | pump:<ตาที่>:<วินาทีของแต่ละจังหวะ,...> (แขนเริ่มเป่า)
+                                      | beat:1..3 | reveal:<ท่าหุ่น> | result:<ผล>:<ท่าหุ่น>:<ท่าผู้เล่น|none>
+                                      | pose:<ท่าโชว์> | return:<ท่า> | waiting_replay:<วินาทีที่รอ, 0 = ไม่จำกัด>
+                                      — จอ rps_hud ใช้ (นับถอยหลังตามจังหวะแขน)
   /rps/result          (pub, String)  ผลสุดท้ายของเกม (เสมอแล้วเป่าใหม่ = ไม่ส่ง รอผลตาสุดท้าย)
                                       "<ท่าหุ่น>:<ท่าผู้เล่น|none>:<ผล>"
                                       ผล = player_win | robot_win | draw | no_player | stopped | error:<เหตุผล>
@@ -240,7 +242,7 @@ class RpsGame(Node):
                     timeout = float(self.get_parameter("replay_timeout").value)
                     self.replay_until = time.monotonic() + timeout if timeout > 0 else math.inf
             if replay:
-                self._state("waiting_replay")
+                self._state(f"waiting_replay:{timeout:.0f}")
                 self.get_logger().info(
                     "ชูนิ้วชี้ค้างไว้ = เล่นตาใหม่" + (f" (รอ {timeout:.0f} วินาที)" if timeout > 0 else ""))
             else:
@@ -277,13 +279,14 @@ class RpsGame(Node):
             self._hand(p["windup_gesture"])
             points, beats = rps_logic.pump_plan(ready, j, amp, int(p["pump_count"]), pump_speed, pump_accel,
                                                 programs.trapezoid)
-            events = [(t, functools.partial(self._state, f"beat:{i}")) for i, t in enumerate(beats, 1)]
+            events = [(0.0, functools.partial(self._state, f"pump:{rnd}:" + ",".join(f"{b:.2f}" for b in beats)))]
+            events += [(t, functools.partial(self._state, f"beat:{i}")) for i, t in enumerate(beats, 1)]
             events.append((max(0.0, beats[-1] - float(p["hand_lead"])), functools.partial(self._reveal, robot)))
             self.get_logger().info(f"ตาที่ {rnd}: เป่า-ยิ้ง-ฉุบ ({beats[-1]:.1f} วินาที)")
             t0 = self._trajectory(points, events)
             player = self._read_player(t0 + beats[-1], p)
             result = rps_logic.judge(robot, player) if player else "no_player"
-            self._state(f"result:{result}")
+            self._state(f"result:{result}:{robot}:{player or 'none'}")
             self.get_logger().info(
                 f"หุ่นออก {THAI[robot]} · ผู้เล่นออก {THAI[player]}"
                 f"{' (สุ่มทดสอบ)' if p['player_source'] == 'random' else ''} → {RESULT_TH[result]}")

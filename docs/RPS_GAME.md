@@ -77,6 +77,11 @@ arm rps stop              # หยุดกลางคัน · หยุดฉ
 - กรรไกร = ชี้ + กลางเหยียด นาง + ก้อยพับ (นิ้วโป้งไม่นับ)
 - ชูนิ้วชี้อย่างเดียว = เล่นใหม่ (ภาพใน Foxglove ขึ้น `ONE (play again)`)
 - ดูว่ากล้องเห็นอะไร: Foxglove → Image panel → `/rps/vision/image/compressed`
+- **จอให้ผู้เล่น/คนดู:** Foxglove → Image panel → `/rps/hud/image/compressed` (โหนด `rps_hud` เปิดมากับ `arm rps`)
+  ROUND BEGIN → นับ 3-2-1 ตามจังหวะแขนจริง (+ แถบเวลา) → SHOOT! + ท่าหุ่น → YOU WIN! / YOU LOSE / DRAW! / NO HAND SEEN
+  (หุ่น vs ผู้เล่น) → PLAY AGAIN? นับถอยหลังวินาทีที่เหลือ (บอกด้วยถ้าเห็นนิ้วชี้แล้ว) → TIME OUT · คะแนนสะสมมุมขวาบน
+  (นับตั้งแต่เปิดเกม) · ตัวหนังสืออังกฤษ (container ไม่มีฟอนต์ไทย) · วาดเฉพาะตอนมีคนเปิดดู
+  - แนะนำ: Foxglove เปิด 2 panel — HUD เต็มจอฝั่งผู้เล่น, ภาพกล้อง (`/rps/vision/...`) ไว้ดูว่าอ่านมือถูกไหม
 
 **ทดสอบโดยไม่มีกล้อง/มือ:**
 
@@ -104,7 +109,7 @@ ros2 topic pub -r 10 /rps/player_gesture std_msgs/msg/String "{data: paper}"
 | ปุ่มกด / เสียง / หน้าเว็บ | โหนดเล็กๆ ที่ publish `/rps/play` |
 
 ฟังผล: `/rps/result` = `"<ท่าหุ่น>:<ท่าผู้เล่น|none>:<ผล>"` (ผล = `player_win` `robot_win` `draw` `no_player`
-`stopped` `error:...`) · จังหวะระหว่างเล่น: `/rps/state` = `ready` `beat:1..3` `reveal:<ท่า>` `result:<ผล>` `idle`
+`stopped` `error:...`) · จังหวะระหว่างเล่น: `/rps/state` = `ready` `pump:<ตา>:<เวลาจังหวะ,...>` `beat:1..3` `reveal:<ท่า>` `result:<ผล>:<หุ่น>:<ผู้เล่น>` `pose:<ท่า>` `return:<ท่า>` `waiting_replay:<วินาที>` `idle`
 — ไว้ต่อเสียงพูด "เป่า-ยิ้ง-ฉุบ" หรือจอแสดงผลในอนาคต
 
 ## ปรับแต่ง (พารามิเตอร์ของ rps_game)

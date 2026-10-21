@@ -57,6 +57,7 @@ def generate_launch_description():
                 "dry_run": PythonExpression(["'", cfg["hand"], "' != 'true'"]),
             }]),
             Node(package="humanoi_games", executable="rps_vision", output="screen", condition=IfCondition(use_camera)),
+            Node(package="humanoi_games", executable="rps_hud", output="screen"),  # จอสถานะ (Foxglove)
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(camera_launch),
                 condition=IfCondition(PythonExpression([use_camera, " and '", cfg["camera"], "' == 'true'"]))),
