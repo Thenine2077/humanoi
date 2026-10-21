@@ -22,7 +22,7 @@ import sys
 
 from ar_program import programs
 from humanoi_games import hand_poses
-from humanoi_games.amazinghand_node import FINGERS_TH, SPEED as PLAY_SPEED, Hand, calib_file, load_calib
+from humanoi_games.amazinghand_node import FINGERS_TH, SPEED as PLAY_SPEED, Hand, calib_file, hand_side, load_calib
 
 HELP = ("1-4 เลือกนิ้ว (0 = ทุกนิ้ว) · +/- กำ/แบ · l/r เอียง (ใส่ตัวเลขได้ เช่น +10) · free ปล่อยให้ดัดด้วยมือ · "
         "hold ล็อก · load/save/del <ชื่อ> · list · q ออก")
@@ -69,11 +69,13 @@ def main():
         port = hand.connect()  # เช็กไฟ + ครบ 8 ตัว + อ่านขีดจำกัด แล้วถือท่าปัจจุบัน
     except Exception as exc:
         sys.exit(f"✗ {exc}")
-    calib = load_calib(calib_file()) or hand_poses.demo_calib()
+    side = hand_side()  # ชุดมือที่ใส่อยู่ (arm hand-side) — ท่าที่สอนแยกเก็บตามชุดมือ
+    key = programs.HAND_POSE_KEYS[side]
+    calib = load_calib(calib_file(side)) or hand_poses.demo_calib()
     target = hand.read_degrees()
     free = set()
     picked = [0, 1, 2, 3]
-    print(f"มือพร้อม ({port} @ {hand.found_baud}) · ไฟล์ท่า {path}\n{HELP}")
+    print(f"มือพร้อม: ชุดมือ{'ซ้าย' if side == 'left' else 'ขวา'} ({port} @ {hand.found_baud}) · ไฟล์ท่า {path} [{key}]\n{HELP}")
 
     def ids_of(fingers):
         return [hand.ids[2 * i + k] for i in fingers for k in (0, 1)]
@@ -143,7 +145,7 @@ def main():
             jog(target, picked, kind, val)
             show()
         elif kind == "list":
-            taught = programs.load(path)["hand_poses"]
+            taught = programs.load(path)[key]
             print(f"  ท่าในตัว: {', '.join(sorted(programs.HAND_GESTURES))}")
             for name, vals in taught.items():
                 mark = " (แทนท่าในตัว)" if name in programs.HAND_GESTURES else ""
@@ -151,7 +153,7 @@ def main():
             if not taught:
                 print("  (ยังไม่มีท่าที่สอนเอง)")
         elif kind == "load":
-            taught = programs.load(path)["hand_poses"]
+            taught = programs.load(path)[key]
             if val not in taught and val not in hand_poses.GESTURES:
                 print(f"  ไม่มีท่า '{val}' — ท่าในตัว: {', '.join(sorted(hand_poses.GESTURES))} · ท่าที่สอน: "
                       f"{', '.join(taught) or '-'}")
@@ -160,7 +162,7 @@ def main():
             if val in taught:
                 target[:] = taught[val]
             else:
-                target[:] = hand_poses.servo_degrees(val, calib)
+                target[:] = hand_poses.servo_degrees(val, calib, side)
             show(PLAY_SPEED)  # เร็วเท่าตอนเล่นจริง — ท่าที่ load ออกมาเป็นยังไง ใน arm hand / เกมก็เป็นอย่างนั้น
         elif kind == "save":
             if not NAME.match(val) or val == "relax":
@@ -168,14 +170,14 @@ def main():
                 return
             hold(sorted(free))  # นิ้วที่ปล่อยอยู่: อ่านตำแหน่งที่ดัดไว้แล้วล็อก
             data = programs.load(path)
-            old = data["hand_poses"].get(val)
-            data["hand_poses"][val] = [round(v, 1) for v in target]
+            old = data[key].get(val)
+            data[key][val] = [round(v, 1) for v in target]
             programs.save(path, data)
             note = " — ใช้แทนท่าในตัว" if val in programs.HAND_GESTURES else ""
             print(f"  {'แทนที่' if old else 'บันทึก'}ท่า '{val}'{note}: [" + ", ".join(f"{v:+.0f}" for v in target) + "]")
         elif kind == "del":
             data = programs.load(path)
-            if data["hand_poses"].pop(val, None) is None:
+            if data[key].pop(val, None) is None:
                 print(f"  ไม่มีท่าที่สอนชื่อ '{val}'")
                 return
             used = [p for p, steps in data["programs"].items()

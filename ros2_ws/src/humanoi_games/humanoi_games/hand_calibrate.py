@@ -20,7 +20,7 @@ import os
 import sys
 
 from humanoi_games import hand_poses
-from humanoi_games.amazinghand_node import Hand, calib_file, load_calib
+from humanoi_games.amazinghand_node import Hand, calib_file, hand_side, load_calib
 
 NAMES_TH = {"index": "นิ้วชี้", "middle": "นิ้วกลาง", "ring": "นิ้วนาง", "thumb": "นิ้วโป้ง"}
 VIEW_TH = {"o": "แบสุด", "c": "กำสุด"}
@@ -101,7 +101,7 @@ def main():
     ap = argparse.ArgumentParser(description="คาลิเบรตมือ AmazingHand ทีละนิ้ว: แบสุด กำสุด เอียง")
     ap.add_argument("--port", default="auto")
     ap.add_argument("--baud", type=int, default=1_000_000, help="ลองค่านี้ก่อน แล้วหาเอง")
-    ap.add_argument("--file", default=calib_file())
+    ap.add_argument("--file", default=calib_file(hand_side()))  # แยกไฟล์ตามชุดมือ (arm hand-side)
     ap.add_argument("--speed", type=float, default=3.0)
     ap.add_argument("--reset", action="store_true", help="สำรองไฟล์ค่าเดิมแล้วเริ่มใหม่จากค่าเดโม")
     args = ap.parse_args()
@@ -119,7 +119,7 @@ def main():
         port = hand.connect()  # เช็กไฟ + ครบ 8 ตัว ก่อนเปิดแรงบิด
     except Exception as exc:
         sys.exit(f"✗ {exc}")
-    print(f"มือพร้อม ({port} @ {hand.found_baud})")
+    print(f"มือพร้อม: ชุดมือ{'ซ้าย' if hand_side() == 'left' else 'ขวา'} ({port} @ {hand.found_baud}) · ไฟล์ {args.file}")
     print(f"ขีดจำกัดที่อ่านจาก servo (องศา): {hand.limits_text()}")
     for w in hand.limit_warnings:
         print(f"  ! {w} — ใช้ลิมิตโรงงาน ±144°")

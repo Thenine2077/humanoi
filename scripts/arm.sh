@@ -320,6 +320,23 @@ EOF
     esac
     ;;
 
+  hand-side)  # ชุดมือที่ใส่อยู่ (right = ชุดมือขวาตัวแรก, left = ชุดมือซ้าย) — ID 1-8 เหมือนกัน แยกเองไม่ได้
+    f=/humanoi_ws/src/humanoi_games/config/hand_side
+    case "${1:-}" in
+      "")
+        side=$(ros cat "$f" 2>/dev/null || echo right)
+        echo "ชุดมือตอนนี้: $side   (เปลี่ยน: arm hand-side left|right)" ;;
+      left|right)
+        if is_running "lib/humanoi_games/amazinghand_node" || is_running "lib/humanoi_games/hand_teach" \
+          || is_running "lib/humanoi_games/hand_calibrate"; then
+          echo "✗ มีโปรแกรมใช้มืออยู่ (arm player / arm rps / hand-teach / hand-calibrate) — ปิดก่อนแล้วค่อยเปลี่ยน"; exit 1
+        fi
+        ros sh -c "mkdir -p ${f%/*} && echo $1 > $f" && echo "ตั้งเป็นชุดมือ$([ "$1" = left ] && echo ซ้าย || echo ขวา) แล้ว" \
+          "— ค่าคาลิเบรตและท่าที่สอนแยกตามชุดมือ" ;;
+      *) echo "ใช้: arm hand-side [left|right]"; exit 1 ;;
+    esac
+    ;;
+
   hand-teach)  # จัดท่ามือเอง (จ็อกทีละนิ้ว / ปล่อยให้ดัดด้วยมือ) แล้วบันทึก — humanoi_games/hand_teach.py
     if is_running "lib/humanoi_games/amazinghand_node" || is_running "lib/humanoi_games/hand_calibrate"; then
       echo "✗ มีโปรแกรมใช้พอร์ตมืออยู่ (arm player / arm rps / arm hand-calibrate) — ปิดก่อน"; exit 1
@@ -433,6 +450,7 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm goto <left|right> <ท่า>        พาแขนเดียวไปท่าเดียว (ใช้ตอนแก้ท่า: goto -> ปรับใน MoveIt -> teach ชื่อเดิม)
    arm stop                           หยุดโปรแกรมกลางคัน (ทุกแขน)
    arm hand <ท่า> [left|right]        ลองท่ามือตรงๆ (ต้องเปิด arm player อยู่) เช่น arm hand rock
+   arm hand-side [left|right]         ชุดมือที่ใส่อยู่ (เปลี่ยนมือแล้วตั้งก่อน — คาลิเบรต/ท่าที่สอนแยกตามชุดมือ)
    arm hand-teach                     จัดท่ามือเอง (1-4 เลือกนิ้ว +/- กำแบ l/r เอียง free ดัดด้วยมือ) save <ชื่อ>
                                       ชื่อซ้ำท่าในตัว (rock paper scissors ...) = ใช้แทน · ปิด arm player ก่อน
 

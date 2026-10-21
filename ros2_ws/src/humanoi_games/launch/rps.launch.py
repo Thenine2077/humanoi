@@ -25,7 +25,7 @@ ARGS = {
     "camera": ("true", "เปิดกล้อง Astra ด้วย (false ถ้าเปิดอยู่แล้ว) — ใช้เฉพาะ player:=camera"),
     "hand": ("true", "false = ไม่ต่อมือจริง"),
     "hand_port": ("auto", "พอร์ตมือ (auto = หา Waveshare CH343 เอง)"),
-    "hand_side": ("right", "มือขวา/ซ้าย (มือที่มีตอนนี้เป็นมือขวา)"),
+    "hand_side": ("auto", "ชุดมือ right/left — auto = ตามที่ตั้งด้วย arm hand-side"),
     "ready_pose": ("rps_ready", "ท่าตั้งก่อนเป่า"),
     "pump_deg": ("5.0", "ข้อ 1 ยกกี่องศา (8° = 11.6 วินาที, 5° = 8.6, 4° = 7.7, 3° = 6.7)"),
     "pump_count": ("3", "ขยับขึ้นลงกี่ครั้ง"),

@@ -46,18 +46,40 @@ SETTLE_TIMEOUT = 3.0   # รอท่านิ่งนานสุดกี่�
 FINGERS_TH = ("ชี้", "กลาง", "นาง", "โป้ง")  # servo ID ตามลำดับ (1 2) (3 4) (5 6) (7 8)
 
 
-def calib_file():
-    """ไฟล์คาลิเบรตมือ — อยู่ใน src (ไม่ใช่ install) เหมือน programs.yaml: build ใหม่ไม่ทับ
+def config_dir():
+    """ที่เก็บค่าของมือ — อยู่ใน src (ไม่ใช่ install) เหมือน programs.yaml: build ใหม่ไม่ทับ
 
-    ลำดับ: ตัวแปร HAND_CALIB_FILE > Pi (Docker, /humanoi_ws/src) > PC (WSL) > ~/.config
+    ลำดับ: Pi (Docker, /humanoi_ws/src) > PC (WSL) > ~/.config
     """
+    for src in ("/humanoi_ws/src", "/mnt/c/Users/User/Desktop/Humanoi/ros2_ws/src"):
+        if os.path.isdir(os.path.join(src, "humanoi_games")):
+            return os.path.join(src, "humanoi_games", "config")
+    return os.path.expanduser("~/.config/humanoi_games")
+
+
+def hand_side():
+    """ชุดมือที่ใส่อยู่ตอนนี้ (right = ชุดมือขวาตัวแรก, left = ชุดมือซ้าย) — ตั้งด้วย arm hand-side
+
+    ทั้งสองชุดเป็น servo ID 1-8 เหมือนกัน แยกจากการสื่อสารไม่ได้ ต้องบอกเอง · ตัวแปร HAND_SIDE > ไฟล์ > right
+    """
+    side = os.environ.get("HAND_SIDE")
+    if not side:
+        try:
+            with open(os.path.join(config_dir(), "hand_side"), encoding="utf-8") as fh:
+                side = fh.read().strip()
+        except FileNotFoundError:
+            side = "right"
+    if side not in ("left", "right"):
+        raise ValueError(f"ชุดมือ '{side}' ไม่รู้จัก — ตั้งใหม่: arm hand-side left|right")
+    return side
+
+
+def calib_file(side="right"):
+    """ไฟล์คาลิเบรตของชุดมือนั้น (ชุดมือขวา = middle_pos.json เดิม) · ตัวแปร HAND_CALIB_FILE แทนได้"""
     env = os.environ.get("HAND_CALIB_FILE")
     if env:
         return env
-    for src in ("/humanoi_ws/src", "/mnt/c/Users/User/Desktop/Humanoi/ros2_ws/src"):
-        if os.path.isdir(os.path.join(src, "humanoi_games")):
-            return os.path.join(src, "humanoi_games", "config", "middle_pos.json")
-    return os.path.expanduser("~/.config/humanoi_games/middle_pos.json")
+    return os.path.join(config_dir(), "middle_pos.json" if side == "right" else f"middle_pos_{side}.json")
 
 
 def load_calib(path):
@@ -286,10 +308,12 @@ class AmazingHandNode(Node):
         self.declare_parameter("port", "auto")
         self.declare_parameter("baud", 1_000_000)
         self.declare_parameter("ids", [1, 2, 3, 4, 5, 6, 7, 8])
+        self.declare_parameter("side", "auto")  # ชุดมือ right/left — auto = ตามที่ตั้งด้วย arm hand-side
+        side = self.get_parameter("side").value
+        self.side = hand_side() if side == "auto" else side
         # แบสุด / กำสุด / เอียง ต่อนิ้ว จาก hand_calibrate (ไม่มีไฟล์ = ท่าเหมือนเดโมของ Pollen)
-        self.declare_parameter("calib_file", calib_file())
+        self.declare_parameter("calib_file", calib_file(self.side))
         self.declare_parameter("programs_file", programs.DEFAULT_FILE if programs else "")  # ท่ามือที่สอนเอง
-        self.declare_parameter("side", "right")
         self.declare_parameter("speed", SPEED)
         self.declare_parameter("min_volts", 4.8)
         self.declare_parameter("max_volts", 7.4)  # ห้ามจ่ายไฟเซอร์โวเกิน 7.4 V
@@ -303,7 +327,6 @@ class AmazingHandNode(Node):
             self.get_logger().warn(f"ยังไม่ได้คาลิเบรตนิ้ว ({path} ไม่มี) — ใช้ค่าเดโม · คาลิเบรต: arm hand-calibrate")
         else:
             self.get_logger().info(f"คาลิเบรตมือจาก {path}: {describe(self.calib)}")
-        self.side = gp("side").value
         self.speed = float(gp("speed").value)
         self.dry_run = bool(gp("dry_run").value)
         self.hand = Hand(gp("port").value, int(gp("baud").value), list(gp("ids").value),
@@ -346,7 +369,7 @@ class AmazingHandNode(Node):
         if programs is None or not path:
             return {}
         try:
-            return programs.load(path)["hand_poses"]
+            return programs.load(path)[programs.HAND_POSE_KEYS[self.side]]
         except Exception as exc:
             self.get_logger().warn(f"อ่านท่ามือที่สอนเองไม่ได้ ({exc}) — ใช้ท่าในตัว", throttle_duration_sec=30.0)
             return {}
