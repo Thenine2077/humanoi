@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ArUco hand-eye marker id 0</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #000; font-family: sans-serif; }
+  .page { width: 210mm; height: 297mm; position: relative; }
+  .card { position: absolute; }
+  .card svg { width: 100%; height: 100%; display: block; }
+  .lab { position: absolute; font-size: 3.4mm; }
+  h1 { position: absolute; left: 20mm; top: 14mm; margin: 0; font-size: 5mm; font-weight: 500; }
+  .note { position: absolute; left: 20mm; top: 200mm; width: 170mm; font-size: 3.6mm; line-height: 1.55; }
+  .scale { position: absolute; left: 55mm; top: 262mm; width: 100mm; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>ป้ายคาลิเบรตกล้อง-แขน (hand-eye) — ArUco DICT_4X4_50 id 0</h1>
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <!-- id 0: กรอบดำ 6x6 ช่อง ช่องขาวตามแบบของ OpenCV (ตรวจด้วย cv2.aruco.detectMarkers แล้ว) -->
+      <g id="m0">
+        <rect x="0" y="0" width="6" height="6" fill="#000"/>
+        <rect x="1" y="1" width="1" height="1" fill="#fff"/>
+        <rect x="3" y="1" width="2" height="1" fill="#fff"/>
+        <rect x="2" y="2" width="1" height="1" fill="#fff"/>
+        <rect x="4" y="2" width="1" height="1" fill="#fff"/>
+        <rect x="3" y="3" width="2" height="1" fill="#fff"/>
+        <rect x="3" y="4" width="1" height="1" fill="#fff"/>
+      </g>
+    </defs>
+  </svg>
+  <!-- การ์ด 40 mm: ขอบขาว 10 mm รอบป้าย -> การ์ด 60 mm -->
+  <div class="card" style="left:20mm;top:32mm;width:60mm;height:60mm">
+    <svg viewBox="-1.5 -1.5 9 9" shape-rendering="crispEdges"><rect x="-1.5" y="-1.5" width="9" height="9" fill="#fff" stroke="#bbb" stroke-width="0.03"/><use href="#m0"/></svg>
+  </div>
+  <div class="lab" style="left:20mm;top:94mm">40 mm (ค่าเริ่มของเครื่องมือ)</div>
+  <div class="card" style="left:90mm;top:32mm;width:60mm;height:60mm">
+    <svg viewBox="-1.5 -1.5 9 9" shape-rendering="crispEdges"><rect x="-1.5" y="-1.5" width="9" height="9" fill="#fff" stroke="#bbb" stroke-width="0.03"/><use href="#m0"/></svg>
+  </div>
+  <div class="lab" style="left:90mm;top:94mm">40 mm (สำรอง)</div>
+  <!-- การ์ด 60 mm: ขอบขาว 10 mm -> การ์ด 80 mm -->
+  <div class="card" style="left:20mm;top:105mm;width:80mm;height:80mm">
+    <svg viewBox="-1 -1 8 8" shape-rendering="crispEdges"><rect x="-1" y="-1" width="8" height="8" fill="#fff" stroke="#bbb" stroke-width="0.03"/><use href="#m0"/></svg>
+  </div>
+  <div class="lab" style="left:20mm;top:187mm">60 mm — ใช้ถ้าติดที่มือได้ (อ่านแม่นกว่า): ใส่ marker_size:=0.06</div>
+  <div class="note">
+    1. สั่งพิมพ์แบบ <b>ขนาดจริง / Actual size / 100%</b> (ปิด "Fit to page") แล้ววัด: ด้านสี่เหลี่ยมดำต้องได้ 40 mm / 60 mm
+       และแถบด้านล่างยาว 100 mm — ไม่ตรง ใส่ค่าที่วัดได้จริง เช่น <b>marker_size:=0.0385</b><br>
+    2. ตัดตามเส้นเทาอ่อน — <b>เหลือขอบขาวไว้</b> (โปรแกรมต้องเห็นขอบขาวรอบกรอบดำ)<br>
+    3. แปะบนแผ่นแข็ง (ฟิวเจอร์บอร์ด/อะคริลิก) ให้เรียบ แล้วยึดกับมือหรือข้อมือ<b>แน่น ห้ามโยก</b> ระหว่างคาลิเบรต<br>
+    4. ตำแหน่งบนมือไม่ต้องวัด — โปรแกรมคำนวณเอง · ใช้แผ่นเดียว (id 0 ซ้ำกันห้ามให้กล้องเห็นพร้อมกันสองแผ่น)
+  </div>
+  <svg class="scale" viewBox="0 0 100 8" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="2" width="100" height="1.2" fill="#000"/>
+    <rect x="0" y="0" width="0.6" height="5" fill="#000"/>
+    <rect x="99.4" y="0" width="0.6" height="5" fill="#000"/>
+    <text x="50" y="7.8" font-size="3" text-anchor="middle" font-family="sans-serif">100 mm</text>
+  </svg>
+</div>
+</body>
+</html>
