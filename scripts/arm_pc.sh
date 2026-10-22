@@ -353,7 +353,7 @@ EOF
     fi
     ;;
 
-  hand-teach|hand-calibrate|hand-side)
+  hand-teach|hand-calibrate|hand-side|tray|tray-teach)
     echo "✗ arm $cmd ใช้บน Pi (มือต่ออยู่กับ Pi — บน PC มือเป็นแบบจำลอง)"
     exit 1
     ;;

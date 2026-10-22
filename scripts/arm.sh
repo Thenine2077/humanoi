@@ -320,6 +320,22 @@ EOF
     esac
     ;;
 
+  tray)  # กล้อง + หาตำแหน่งกล่องจากป้าย ArUco id 1 (humanoi_vision tray.launch.py) — ดูภาพ /tray/image/compressed
+    if is_running "lib/humanoi_vision/tray_detector"; then
+      echo "✗ ตัวหากล่องเปิดอยู่แล้ว"; exit 1
+    fi
+    ros_tty ros2 launch humanoi_vision tray.launch.py "$@"
+    ;;
+
+  tray-teach)  # สอนจับกล่องหลายตำแหน่ง = คาลิเบรตกล้องกับแขนไปในตัว (humanoi_vision tray_teach)
+    if ! is_running "lib/humanoi_vision/tray_detector"; then
+      echo "✗ เปิดตัวหากล่องก่อน (อีกหน้าต่าง): arm tray"; exit 1
+    fi
+    arm=$(arm_name "${1:-left}")
+    [ -n "$arm" ] || { echo "ใช้: arm tray-teach [left|right]"; exit 1; }
+    ros_tty ros2 run humanoi_vision tray_teach --ros-args -p arm:="$arm"
+    ;;
+
   hand-side)  # ชุดมือที่ใส่อยู่ (right = ชุดมือขวาตัวแรก, left = ชุดมือซ้าย) — ID 1-8 เหมือนกัน แยกเองไม่ได้
     f=/humanoi_ws/src/humanoi_games/config/hand_side
     case "${1:-}" in
@@ -450,6 +466,8 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm goto <left|right> <ท่า>        พาแขนเดียวไปท่าเดียว (ใช้ตอนแก้ท่า: goto -> ปรับใน MoveIt -> teach ชื่อเดิม)
    arm stop                           หยุดโปรแกรมกลางคัน (ทุกแขน)
    arm hand <ท่า> [left|right]        ลองท่ามือตรงๆ (ต้องเปิด arm player อยู่) เช่น arm hand rock
+   arm tray [marker_size:=0.12]       กล้อง + หาตำแหน่งกล่อง (ป้าย id 1 บนพื้นกล่อง) ดูภาพ /tray/image/compressed
+   arm tray-teach [left|right]        สอนจับกล่อง 6-8 ตำแหน่ง = คาลิเบรตกล้องกับแขน (เปิด arm start + arm tray ก่อน)
    arm hand-side [left|right]         ชุดมือที่ใส่อยู่ (เปลี่ยนมือแล้วตั้งก่อน — คาลิเบรต/ท่าที่สอนแยกตามชุดมือ)
    arm hand-teach                     จัดท่ามือเอง (1-4 เลือกนิ้ว +/- กำแบ l/r เอียง free ดัดด้วยมือ) save <ชื่อ>
                                       ชื่อซ้ำท่าในตัว (rock paper scissors ...) = ใช้แทน · ปิด arm player ก่อน
