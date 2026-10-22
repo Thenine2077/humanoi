@@ -159,6 +159,58 @@ def solve_grasp_camera(As, Cs, iters=60):
     return X, Y, pos, ang, spread_ok
 
 
+def solve_contact_point(As, Cs, iters=80):
+    """สอนจับกล่องหลายครั้ง โดยข้อมือเอียงต่างกันได้ — ขอแค่ "จุดบนนิ้ว" แตะ "จุดเดิมบนหูกล่อง" ทุกครั้ง
+
+    จุดบนนิ้ว p (เฟรมข้อมือ link_6) = จุดบนหู q (เฟรมป้าย) ทุกครั้ง:  A·p = X·C·q
+    ไม่รู้ X (ฐานแขน <- กล้อง, 6 ค่า), p (3), q (3) = 12 ค่า · แต่ละครั้งให้ 3 สมการ -> ต้อง >= 5 ครั้ง
+    ข้อมือเอียงต่างกัน = หา p ได้, กล่องหมุนต่างกัน = หา q ได้ (ไม่หมุน: q กับตำแหน่งกล้องแยกไม่ออก
+    — ไม่มีผลถ้ากล่องวางตรงเหมือนตอนสอน)
+    -> (X, p, q, คลาดต่อครั้ง m, การกระจาย 0..1)
+    """
+    As, Cs = [np.asarray(a, float) for a in As], [np.asarray(c, float) for c in Cs]
+    P = np.array([C[:3, 3] for C in Cs])
+    Q = np.array([A[:3, 3] for A in As])
+    sv = np.linalg.svd(P - P.mean(0), compute_uv=False)
+    spread_ok = float(sv[1] / sv[0]) if sv[0] > 1e-9 else 0.0
+    U, _, Vt = np.linalg.svd((P - P.mean(0)).T @ (Q - Q.mean(0)))
+    R = Vt.T @ np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))]) @ U.T
+    x = np.concatenate([np.zeros(3), Q.mean(0) - R @ P.mean(0), np.zeros(6)])  # rotvec แก้ R, t, p, q
+    R0 = R
+
+    def res(x):
+        Rx = exp_so3(x[:3]) @ R0
+        t, p, q = x[3:6], x[6:9], x[9:12]
+        return np.concatenate([Rx @ (C[:3, :3] @ q + C[:3, 3]) + t - (A[:3, :3] @ p + A[:3, 3])
+                               for A, C in zip(As, Cs)])
+
+    lam, r = 1e-3, res(x)
+    for _ in range(iters):
+        J = np.zeros((len(r), 12))
+        for k in range(12):
+            d = np.zeros(12)
+            d[k] = 1e-6
+            J[:, k] = (res(x + d) - r) / 1e-6
+        step = -np.linalg.solve(J.T @ J + lam * np.eye(12), J.T @ r)
+        rn = res(x + step)
+        if rn @ rn < r @ r:
+            x, r, lam = x + step, rn, lam * 0.3
+            if np.linalg.norm(step) < 1e-10:
+                break
+        else:
+            lam *= 10
+    X = mat(exp_so3(x[:3]) @ R0, x[3:6])
+    err = np.linalg.norm(r.reshape(-1, 3), axis=1)
+    return X, x[6:9], x[9:12], err, spread_ok
+
+
+def nearest_grasp(Cs, Gs, C_new):
+    """ท่าจับที่สอนไว้ซึ่งกล่องวางใกล้ตำแหน่งใหม่ที่สุด (Gs = ท่าข้อมือเทียบป้ายของแต่ละครั้ง) -> ข้อมือ = X·C_new·G"""
+    d = [np.linalg.norm(C[:3, 3] - C_new[:3, 3]) + 0.1 * np.linalg.norm(log_so3(C[:3, :3].T @ C_new[:3, :3]))
+         for C in Cs]
+    return Gs[int(np.argmin(d))], int(np.argmin(d))
+
+
 def turn_deg(R_a, R_b):
     """กล่องหมุนต่างกันกี่องศารอบแกนตั้งฉากพื้นกล่อง (z ของป้าย) — ไว้บอกว่าวางเบี้ยวจากตอนสอนเท่าไหร่"""
     x_b = R_a.T @ R_b[:, 0]  # แกน x ของ b ในเฟรมป้าย a
