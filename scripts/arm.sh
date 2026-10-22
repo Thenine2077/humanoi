@@ -324,6 +324,10 @@ EOF
     if is_running "lib/humanoi_vision/tray_detector"; then
       echo "✗ ตัวหากล่องเปิดอยู่แล้ว"; exit 1
     fi
+    if is_running "lib/astra_camera/astra_camera_node"; then  # กล้องเปิดได้ทีละโปรแกรม
+      echo "✗ กล้องถูกเปิดอยู่โดยโปรแกรมอื่น (hand_eye_calibrate / yolo / arm rps) — ปิดหน้าต่างนั้นก่อน"
+      echo "  หรือใช้กล้องตัวที่เปิดอยู่: arm tray camera:=false"; exit 1
+    fi
     ros_tty ros2 launch humanoi_vision tray.launch.py "$@"
     ;;
 
