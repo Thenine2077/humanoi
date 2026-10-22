@@ -299,6 +299,14 @@ class HandEyeCalibrate(Node):
             bad.append(f"ป้ายห่าง link_6 ถึง {100 * np.linalg.norm(m):.0f} cm — ผิดปกติ")
         path = self.out + (".rejected" if bad else "")
         self._write_yaml(path, R_bl, t_bl, m, rms)
+        # ข้อมูลดิบไว้วิเคราะห์ทีหลัง (ผลไม่ผ่านจะได้หาสาเหตุได้ ไม่ต้องเดา) + ท่าที่คลาดมากสุด
+        np.savez(path + ".samples.npz", P=np.array([s["p"] for s in self.samples]),
+                 Rs=np.array([s["R"] for s in self.samples]), ts=np.array([s["t"] for s in self.samples]),
+                 joints=np.array([s["joints"] for s in self.samples]), names=np.array(self.samples[0]["names"]),
+                 res=res, size=self.size)
+        worst = np.argsort(res)[::-1][:5]
+        self.get_logger().info("ท่าที่คลาดมากสุด: " + ", ".join(f"#{i + 1} {1000 * res[i]:.0f} mm" for i in worst)
+                               + f" · ข้อมูลดิบ {path}.samples.npz")
         if bad:
             self.get_logger().error(f"ไม่ใช้ผลนี้ ({' · '.join(bad)}) — เก็บไว้ดูที่ {path} · ทำใหม่: ท่าให้กระจาย"
                                     "ทั้งซ้าย/ขวา/ใกล้/ไกล/สูง/ต่ำ และหมุนข้อมือหลายมุม")
