@@ -72,7 +72,9 @@ class HandEyeCalibrate(Node):
         self.declare_parameter("samples", 15)
         self.declare_parameter("out", "/humanoi_ws/src/humanoi_description/config/camera_to_left_arm.yaml")
         self.declare_parameter("show", False)
+        self.declare_parameter("rate", 5.0)                     # ประมวลผลกี่ภาพ/วินาที (กล้องส่ง 30)
         p = lambda name: self.get_parameter(name).value  # noqa: E731
+        self.rate = float(p("rate"))
         self.base, self.tool, self.mount = str(p("base_frame")), str(p("tool_frame")), str(p("mount_frame"))
         self.marker_id, self.size = int(p("marker_id")), float(p("marker_size"))
         self.depth_offset, self.target = float(p("depth_offset")), int(p("samples"))
@@ -186,9 +188,13 @@ class HandEyeCalibrate(Node):
     def _loop(self):
         prev = None
         last_status, last_log = None, 0.0
+        period, last_proc = 1.0 / max(0.5, self.rate), 0.0
         while self._running:
             if not self._new.wait(timeout=1.0):
                 continue
+            # ไม่ต้องทุกเฟรม (กล้อง 30 fps) — แขนต้องนิ่งอยู่แล้ว ทำแค่ rate ครั้ง/วินาที กิน CPU น้อยลงมาก
+            time.sleep(max(0.0, period - (time.monotonic() - last_proc)))
+            last_proc = time.monotonic()
             with self._lock:
                 msg, depth_msg = self._color, self._depth
                 self._new.clear()
@@ -260,7 +266,7 @@ class HandEyeCalibrate(Node):
         for i, t in enumerate(lines):
             cv2.putText(bgr, t, (6, 22 + 24 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
                         color if i == 0 else (255, 255, 255), 1, cv2.LINE_AA)
-        cv2.imshow("Hand-eye calibration (Ctrl+C in terminal to quit)", cv2.resize(bgr, (960, 720)))
+        cv2.imshow("Hand-eye calibration (Ctrl+C in terminal to quit)", bgr)  # ขนาดจริง (ขยายแล้วเปลือง CPU)
         cv2.waitKey(1)
 
     # ---------- คำนวณ + บันทึก ----------
