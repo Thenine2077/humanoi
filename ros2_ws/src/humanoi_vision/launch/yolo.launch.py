@@ -15,11 +15,8 @@
 มีไฟล์ hand-eye (humanoi_description/config/camera_to_left_arm.yaml จาก hand_eye_calibrate) -> ส่ง TF
 ฐานแขน -> camera_link ให้ด้วย จึงแปลงพิกัดกล้องเป็นพิกัดแขนผ่าน tf2 ได้
 """
-import os
-
-import yaml
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -27,19 +24,7 @@ from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
-
-def camera_tf(context):
-    """TF ฐานแขน -> camera_link จากผล hand_eye_calibrate (ไม่มีไฟล์ = ข้าม แค่บอกใน log)"""
-    path = LaunchConfiguration("camera_tf").perform(context)
-    if not path or not os.path.exists(path):
-        return [LogInfo(msg=f"ยังไม่มีผล hand-eye ({path}) — /yolo/detections_3d อยู่ในเฟรมกล้องอย่างเดียว")]
-    with open(path) as f:
-        c = yaml.safe_load(f)
-    args = []
-    for k in ("x", "y", "z", "qx", "qy", "qz", "qw"):
-        args += [f"--{k}", str(c[k])]
-    return [Node(package="tf2_ros", executable="static_transform_publisher", name="camera_tf",
-                 arguments=args + ["--frame-id", c["parent_frame"], "--child-frame-id", c["child_frame"]])]
+from humanoi_vision.launch_tools import camera_tf
 
 
 def generate_launch_description():

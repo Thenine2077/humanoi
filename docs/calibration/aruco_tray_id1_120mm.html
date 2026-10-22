@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ArUco tray marker id 1 120 mm</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #000; font-family: sans-serif; }
+  .page { width: 210mm; height: 297mm; position: relative; }
+  .marker { position: absolute; left: 25mm; top: 40mm; width: 160mm; height: 160mm; }
+  .note { position: absolute; left: 25mm; top: 212mm; width: 160mm; font-size: 3.6mm; line-height: 1.5; }
+  .scale { position: absolute; left: 55mm; top: 262mm; width: 100mm; }
+  h1 { position: absolute; left: 25mm; top: 18mm; margin: 0; font-size: 5mm; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>ป้ายถาด Humanoi — ArUco DICT_4X4_50 id 1 · ด้านดำ 120 mm</h1>
+  <!-- 160 mm = ขอบขาว 20 mm + ป้ายดำ 120 mm (6 ช่อง × 20 mm) + ขอบขาว 20 mm -->
+  <svg class="marker" viewBox="0 0 8 8" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="0" width="8" height="8" fill="#fff"/>
+    <rect x="1" y="1" width="6" height="6" fill="#000"/>
+    <!-- ช่องขาวของ id 1 (แถว/คอลัมน์ในกรอบ 6x6 นับจาก 0) -->
+    <rect x="2" y="3" width="4" height="1" fill="#fff"/>
+    <rect x="2" y="4" width="1" height="1" fill="#fff"/>
+    <rect x="5" y="4" width="1" height="1" fill="#fff"/>
+    <rect x="2" y="5" width="1" height="1" fill="#fff"/>
+    <rect x="4" y="5" width="1" height="1" fill="#fff"/>
+    <rect x="0.02" y="0.02" width="7.96" height="7.96" fill="none" stroke="#bbb" stroke-width="0.02"/>
+  </svg>
+  <div class="note">
+    1. สั่งพิมพ์แบบ <b>ขนาดจริง / Actual size / 100%</b> (ปิด "Fit to page")<br>
+    2. วัดด้านสี่เหลี่ยมดำ ต้องได้ <b>120 mm</b> และแถบด้านล่างต้องยาว <b>100 mm</b> — ไม่ตรง แจ้งค่าที่วัดได้ (เคยพิมพ์ออกมา 94%)<br>
+    3. ตัดตามเส้นเทาอ่อน (เหลือขอบขาวรอบป้าย 20 mm — ห้ามตัดขอบขาวทิ้ง) แปะเรียบกลางพื้นกล่อง ห้ามงอ/ยับ<br>
+    4. แปะแล้วห้ามย้าย (ท่าจับสอนเทียบป้าย) · ด้านบนของป้าย (หัวกระดาษ) หันไปทางหุ่น
+  </div>
+  <svg class="scale" viewBox="0 0 100 8" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="2" width="100" height="1.2" fill="#000"/>
+    <rect x="0" y="0" width="0.6" height="5" fill="#000"/>
+    <rect x="99.4" y="0" width="0.6" height="5" fill="#000"/>
+    <text x="50" y="7.8" font-size="3" text-anchor="middle" font-family="sans-serif">100 mm</text>
+  </svg>
+</div>
+</body>
+</html>

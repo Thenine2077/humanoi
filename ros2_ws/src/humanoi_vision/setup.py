@@ -28,6 +28,7 @@ setup(
             "calibrate_color = humanoi_vision.calibrate_color:main",
             "check_depth_scale = humanoi_vision.check_depth_scale:main",
             "hand_eye_calibrate = humanoi_vision.hand_eye_calibrate:main",
+            "tray_detector = humanoi_vision.tray_detector:main",
         ],
     },
 )
