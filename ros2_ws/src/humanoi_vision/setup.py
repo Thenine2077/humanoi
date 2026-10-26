@@ -30,6 +30,7 @@ setup(
             "hand_eye_calibrate = humanoi_vision.hand_eye_calibrate:main",
             "tray_detector = humanoi_vision.tray_detector:main",
             "tray_teach = humanoi_vision.tray_teach:main",
+            "tray_pick = humanoi_vision.tray_pick:main",
         ],
     },
 )

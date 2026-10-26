@@ -354,6 +354,21 @@ EOF
     ros_tty ros2 run humanoi_vision tray_teach --ros-args -p arm:="$arm"
     ;;
 
+  tray-pick)  # หยิบกล่องตามกล้อง ด้วยท่าจับที่สอนไว้ (humanoi_vision tray_pick) — ดูแผนก่อน ยืนยันแล้วค่อยขยับ
+    if ! is_running "lib/humanoi_vision/tray_detector"; then
+      echo "✗ เปิดตัวหากล่องก่อน (อีกหน้าต่าง): arm tray"; exit 1
+    fi
+    if ! is_running ros2_control_node; then
+      echo "✗ ระบบแขนยังไม่เปิด — arm start left ก่อน"; exit 1
+    fi
+    if ! is_running "lib/humanoi_games/amazinghand_node"; then
+      echo "✗ ตัวคุมมือยังไม่เปิด — arm player ก่อน (ใช้สั่งนิ้ว tray_grip0 / tray_grip)"; exit 1
+    fi
+    arm=$(arm_name "${1:-left}")
+    [ -n "$arm" ] || { echo "ใช้: arm tray-pick [left|right]"; exit 1; }
+    ros_tty ros2 run humanoi_vision tray_pick --ros-args -p arm:="$arm"
+    ;;
+
   hand-side)  # ชุดมือที่ใส่อยู่ (right = ชุดมือขวาตัวแรก, left = ชุดมือซ้าย) — ID 1-8 เหมือนกัน แยกเองไม่ได้
     f=/humanoi_ws/src/humanoi_games/config/hand_side
     case "${1:-}" in
@@ -494,6 +509,7 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm hand <ท่า> [left|right]        ลองท่ามือตรงๆ (ต้องเปิด arm player อยู่) เช่น arm hand rock
    arm tray [marker_size:=0.12]       กล้อง + หาตำแหน่งกล่อง (ป้าย id 1 บนพื้นกล่อง) ดูภาพ /tray/image/compressed
    arm tray-teach [left|right]        สอนหยิบกล่อง: แตะ 4-6 ครั้งข้อมือมุมเดิม + จับจริง g (เปิด arm start + arm tray ก่อน)
+   arm tray-pick [left|right]         หยิบกล่องตามกล้อง (Enter ดูแผน -> y หยิบ · r วางคืน) เปิด arm start + player + tray ก่อน
    arm hand-side [left|right]         ชุดมือที่ใส่อยู่ (เปลี่ยนมือแล้วตั้งก่อน — คาลิเบรต/ท่าที่สอนแยกตามชุดมือ)
    arm hand-scan                      เช็กบอร์ดมือ: เซอร์โวตอบไหม baud ไหน ไฟเท่าไหร่ (ไม่ขยับ)
    arm hand-teach                     จัดท่ามือเอง (1-4 เลือกนิ้ว +/- กำแบ l/r เอียง free ดัดด้วยมือ) save <ชื่อ>
