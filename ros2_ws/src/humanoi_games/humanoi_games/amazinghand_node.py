@@ -117,12 +117,15 @@ def describe(calib):
                       for f, c in calib.items())
 
 
-def find_port():
+def find_ports():
+    """บอร์ดมือ (CH343) ทุกตัวที่เสียบอยู่ เรียงตามชื่อพอร์ต"""
     from serial.tools import list_ports
-    for p in list_ports.comports():
-        if (p.vid, p.pid) == ADAPTER_USB:
-            return p.device
-    return None
+    return sorted(p.device for p in list_ports.comports() if (p.vid, p.pid) == ADAPTER_USB)
+
+
+def find_port():
+    ports = find_ports()
+    return ports[0] if ports else None
 
 
 def scalar(value):
@@ -137,20 +140,32 @@ class Hand:
         self.min_volts, self.max_volts = min_volts, max_volts
         self.c = None
         self.found_baud = None
+        self.port_used = None
         self.limits = {sid: (-FACTORY_LIMIT, FACTORY_LIMIT) for sid in ids}  # องศา ต่ำสุด/สูงสุดของแต่ละ servo
         self.limit_warnings = []
 
     def connect(self):
         from rustypot import Scs0009PyController
-        port = find_port() if self.port == "auto" else self.port
-        if not port:
-            raise RuntimeError("ไม่เจอบอร์ดมือ (Waveshare CH343 1a86:55d3) — เสียบ USB ของมือ")
         if self.c is None:
-            self.c = Scs0009PyController(serial_port=port, baudrate=self.baud, timeout=0.05)
-        found = self._find_baud()
-        if found is None:
-            raise RuntimeError(f"ไม่มีเซอร์โวตอบเลยทุก baud ({port}) — เปิดไฟมือหรือยัง, jumper อยู่ที่ B (USB), "
-                               "สายเซอร์โวเสียบช่อง D V G")
+            # auto: ลองบอร์ดมือทุกตัว ใช้ตัวแรกที่มีเซอร์โวตอบ (มีบอร์ดเผื่อมือที่สองเสียบไว้ได้ ไม่ต้องถอด)
+            ports = find_ports() if self.port == "auto" else [self.port]
+            if not ports:
+                raise RuntimeError("ไม่เจอบอร์ดมือ (Waveshare CH343 1a86:55d3) — เสียบ USB ของมือ")
+            for port in ports:
+                self.c = Scs0009PyController(serial_port=port, baudrate=self.baud, timeout=0.05)
+                found = self._find_baud()
+                if found is not None:
+                    self.port_used = port
+                    break
+                self.c = None  # ปิดพอร์ตนี้ ลองตัวถัดไป
+            if self.c is None:
+                raise RuntimeError(f"ไม่มีเซอร์โวตอบเลยทุก baud ({', '.join(ports)}) — เปิดไฟมือหรือยัง, jumper อยู่ที่ B "
+                                   "(USB), สายเซอร์โวเสียบช่อง D V G · เช็ก: arm hand-scan")
+        else:
+            found = self._find_baud()
+            if found is None:
+                raise RuntimeError(f"ไม่มีเซอร์โวตอบเลยทุก baud ({self.port_used}) — เปิดไฟมือหรือยัง · เช็ก: arm hand-scan")
+        port = self.port_used
         self.found_baud = found
         bad = []
         for sid in self.ids:

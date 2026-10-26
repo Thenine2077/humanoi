@@ -30,6 +30,7 @@ setup(
             "amazinghand_node = humanoi_games.amazinghand_node:main",
             "hand_calibrate = humanoi_games.hand_calibrate:main",
             "hand_teach = humanoi_games.hand_teach:main",
+            "hand_scan = humanoi_games.hand_scan:main",
             "rps_hud = humanoi_games.rps_hud:main",
         ],
     },

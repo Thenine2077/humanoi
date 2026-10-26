@@ -357,6 +357,13 @@ EOF
     esac
     ;;
 
+  hand-scan)  # เช็กบอร์ดมือทุกตัว: servo ID ไหนตอบ baud ไหน ไฟเท่าไหร่ (อ่านอย่างเดียว) — humanoi_games/hand_scan.py
+    if is_running "lib/humanoi_games/amazinghand_node" || is_running "lib/humanoi_games/hand_teach"       || is_running "lib/humanoi_games/hand_calibrate"; then
+      echo "✗ มีโปรแกรมใช้พอร์ตมืออยู่ (arm player / arm rps / hand-teach / hand-calibrate) — ปิดก่อน"; exit 1
+    fi
+    ros_tty ros2 run humanoi_games hand_scan
+    ;;
+
   hand-teach)  # จัดท่ามือเอง (จ็อกทีละนิ้ว / ปล่อยให้ดัดด้วยมือ) แล้วบันทึก — humanoi_games/hand_teach.py
     if is_running "lib/humanoi_games/amazinghand_node" || is_running "lib/humanoi_games/hand_calibrate"; then
       echo "✗ มีโปรแกรมใช้พอร์ตมืออยู่ (arm player / arm rps / arm hand-calibrate) — ปิดก่อน"; exit 1
@@ -473,6 +480,7 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm tray [marker_size:=0.12]       กล้อง + หาตำแหน่งกล่อง (ป้าย id 1 บนพื้นกล่อง) ดูภาพ /tray/image/compressed
    arm tray-teach [left|right]        สอนจับกล่อง 6-8 ตำแหน่ง = คาลิเบรตกล้องกับแขน (เปิด arm start + arm tray ก่อน)
    arm hand-side [left|right]         ชุดมือที่ใส่อยู่ (เปลี่ยนมือแล้วตั้งก่อน — คาลิเบรต/ท่าที่สอนแยกตามชุดมือ)
+   arm hand-scan                      เช็กบอร์ดมือ: เซอร์โวตอบไหม baud ไหน ไฟเท่าไหร่ (ไม่ขยับ)
    arm hand-teach                     จัดท่ามือเอง (1-4 เลือกนิ้ว +/- กำแบ l/r เอียง free ดัดด้วยมือ) save <ชื่อ>
                                       ชื่อซ้ำท่าในตัว (rock paper scissors ...) = ใช้แทน · ปิด arm player ก่อน
 
