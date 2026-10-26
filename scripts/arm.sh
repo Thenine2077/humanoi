@@ -147,6 +147,16 @@ EOF
     ros ros2 run ar_dual ar_ports.py --dir "$port" "$2"
     ;;
 
+  zero)  # เขียนค่าชดเชยศูนย์ข้อต่อ (ar_dual/config/zero_trims.yaml) ลงบอร์ด — เฟิร์มแวร์ AR4_ROS2_seq v3
+    arm=$(arm_name "${1:-}")
+    [ -n "$arm" ] || { echo "ใช้: arm zero <left|right>   เขียนค่าชดเชยศูนย์จาก ar_dual/config/zero_trims.yaml ลงบอร์ด"; exit 1; }
+    need_no_system
+    resolve_ports
+    port=$LEFT_TEENSY; [ "$arm" = right ] && port=$RIGHT_TEENSY
+    need_port "$port" "$arm"
+    ros ros2 run ar_dual ar_zero.py "$port" "$arm" --apply
+    ;;
+
   calibrate)
     arm=$(arm_name "${1:-}")
     [ -n "$arm" ] || { echo "ใช้: arm calibrate <left|right> [ลำดับข้อ เช่น 6 5 4 1 2 3 | all]   (ทีละแขน)"; exit 1; }
@@ -177,9 +187,10 @@ EOF
  • ดูให้แน่ใจว่าแขนที่ขยับคือแขน$th (ครั้งแรกหลังย้ายสาย) — ไม่ใช่ หรือมือจะชน ให้ปิดไฟแขนทันที
  • รอบแขนต้องโล่ง สาย USB หย่อนพ้นรัศมีแขน (J1 หมุนไปถึง −170°) อีกแขนต้องไม่อยู่ในทาง
  • ถ้า USB หลุดกลางทางไม่เป็นไร — แขนทำต่อเอง โปรแกรมจะรอจนเสร็จ
+ • เสร็จแล้วข้อที่ตั้งไว้ใน ar_dual/config/zero_trims.yaml (after_calibrate) หมุนต่อไปท่านั้น เช่นข้อ 5 ตรง
 EOF
     read -r -p "พร้อมแล้วกด Enter (ยกเลิกกด Ctrl+C) " _
-    ros_tty ros2 run ar_dual ar_calibrate.py "$port" "${order[@]}" \
+    ros_tty ros2 run ar_dual ar_calibrate.py "$port" --arm "$arm" "${order[@]}" \
       && echo "เสร็จแล้ว — calibrate ข้ออื่น/อีกแขน หรือเปิดระบบ: arm start"
     ;;
 
@@ -195,6 +206,9 @@ EOF
     resolve_ports
     [ "$left_hw" = real ] && need_port "$LEFT_TEENSY" ซ้าย
     [ "$right_hw" = real ] && need_port "$RIGHT_TEENSY" ขวา
+    # ค่าชดเชยศูนย์ในบอร์ดต้องตรงกับไฟล์ ไม่งั้นท่าที่สอนไว้จะไปผิดที่ (เช่นแฟลชบอร์ดใหม่แล้วลืม arm zero)
+    [ "$left_hw" = real ] && { ros ros2 run ar_dual ar_zero.py "$LEFT_TEENSY" left || exit 1; }
+    [ "$right_hw" = real ] && { ros ros2 run ar_dual ar_zero.py "$RIGHT_TEENSY" right || exit 1; }
     echo "เปิดระบบแขน (ซ้าย=$left_hw ${LEFT_TEENSY:+@ $LEFT_TEENSY} · ขวา=$right_hw ${RIGHT_TEENSY:+@ $RIGHT_TEENSY})"
     echo "ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C · แขนต้อง calibrate แล้ว ไม่งั้นตำแหน่งที่ระบบเห็นจะผิด"
     ros_tty ros2 launch ar_dual dual_hardware.launch.py left_port:="${LEFT_TEENSY:-none}" \
@@ -450,6 +464,7 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm identify <left|right>   หมุนข้อ 6 ของแขนชื่อนั้น เช็กว่าชื่อตรงกับแขนจริง
    arm name <พอร์ต> <left|right>  ตั้งชื่อแขนให้บอร์ดตรงๆ (ถ้ารู้พอร์ตอยู่แล้ว)
    arm dir <left|right> <J1..J6>   ตั้งข้อที่มอเตอร์หมุนกลับด้าน เช่น arm dir right 000010
+   arm zero <left|right>           เขียนค่าชดเชยศูนย์ข้อต่อ (ar_dual/config/zero_trims.yaml) ลงบอร์ด
    ห้ามถอด/เสียบ USB ของแขนขณะไฟแขนเปิด — ปิดไฟแขนก่อนเสมอ (Pi 5 เคยเสียจากเรื่องนี้)
 
  เริ่มใช้งาน (คำสั่งที่เปิดค้าง ให้ใช้หน้าต่างละคำสั่ง)

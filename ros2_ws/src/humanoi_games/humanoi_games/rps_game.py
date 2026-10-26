@@ -257,7 +257,7 @@ class RpsGame(Node):
         for sign in (1, -1):  # ตรวจทั้งสองทิศก่อนขยับ (ทิศ "ขึ้น" รู้หลังแขนถึงท่าตั้ง)
             up = list(ready)
             up[j] += sign * abs(amp)
-            programs.check_pose(f"ท่ายก ({p['ready_pose']} ข้อ {j + 1} {sign * abs(float(p['pump_deg'])):+.0f}°)", up)
+            programs.check_pose(f"ท่ายก ({p['ready_pose']} ข้อ {j + 1} {sign * abs(float(p['pump_deg'])):+.0f}°)", up, self.arm)
         if not self.client.wait_for_server(timeout_sec=3.0):
             raise GameError(f"ไม่พบตัวคุมแขน{ARM_TH[self.arm]} — เปิดระบบแขนก่อน (arm start)")
         if not all(n in self.current for n in self.joints):
@@ -302,7 +302,7 @@ class RpsGame(Node):
             if required:
                 raise GameError(f"แขน{ARM_TH[self.arm]}ไม่มีท่า '{name}' — สอนก่อน: arm teach {self.arm} {name}")
             return None
-        return programs.check_pose(f"{self.arm}:{name}", data["poses"][self.arm][name])
+        return programs.check_pose(f"{self.arm}:{name}", data["poses"][self.arm][name], self.arm)
 
     def _upward(self, amp, frame):
         """ทิศของข้อ 1 ที่ทำให้มือยกขึ้น ณ ท่าปัจจุบัน — แขนติดข้างเสา แกนข้อ 1 นอนขวาง ทิศขึ้นจึงขึ้นกับท่าตั้ง
