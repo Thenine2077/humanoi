@@ -121,8 +121,7 @@ def solve_grasp_camera(As, Cs, iters=60):
     # ข้อมูลพอไหม: ป้ายต้องเลื่อนไปมากกว่าหนึ่งทิศ (ค่าเอกฐานลำดับ 2 เทียบลำดับ 1)
     sv = np.linalg.svd(P - P.mean(0), compute_uv=False)
     spread_ok = float(sv[1] / sv[0]) if sv[0] > 1e-9 else 0.0
-    U, _, Vt = np.linalg.svd((P - P.mean(0)).T @ (Q - Q.mean(0)))
-    R0 = Vt.T @ np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))]) @ U.T
+    R0 = _kabsch(P, Q)
     X = mat(R0, Q.mean(0) - R0 @ P.mean(0))
     Ys = [inv(C) @ inv(X) @ A for A, C in zip(As, Cs)]
     qs = np.array([mat_to_quat(Y[:3, :3]) for Y in Ys])
@@ -175,8 +174,7 @@ def solve_contact_point(As, Cs, iters=80, p_prior=None, prior_sigma=0.05):
     Q = np.array([A[:3, 3] for A in As])
     sv = np.linalg.svd(P - P.mean(0), compute_uv=False)
     spread_ok = float(sv[1] / sv[0]) if sv[0] > 1e-9 else 0.0
-    U, _, Vt = np.linalg.svd((P - P.mean(0)).T @ (Q - Q.mean(0)))
-    R = Vt.T @ np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))]) @ U.T
+    R = _kabsch(P, Q)
     p0 = np.zeros(3) if p_prior is None else np.asarray(p_prior, float)
     x = np.concatenate([np.zeros(3), Q.mean(0) - R @ P.mean(0), p0, np.zeros(3)])  # rotvec แก้ R, t, p, q
     R0 = R
@@ -206,6 +204,64 @@ def solve_contact_point(As, Cs, iters=80, p_prior=None, prior_sigma=0.05):
     X = mat(exp_so3(x[:3]) @ R0, x[3:6])
     err = np.linalg.norm(r[:3 * len(As)].reshape(-1, 3), axis=1)
     return X, x[6:9], x[9:12], err, spread_ok
+
+
+def rot_deg(R_a, R_b):
+    """สองท่าหมุนต่างกันกี่องศา (รวมทุกแกน)"""
+    return float(np.degrees(np.linalg.norm(log_so3(np.asarray(R_a).T @ np.asarray(R_b)))))
+
+
+def same_wrist_touches(As, Cs, tol_deg=3.0):
+    """ท่าแตะที่ใช้กับทางลัดได้: ข้อมือมุมเดียวกัน และกล่องไม่หมุน (เลื่อนอย่างเดียว) — เลือกกลุ่มที่ใหญ่สุด
+
+    -> (ลำดับที่ใช้, {ลำดับที่ไม่ใช้: (ข้อมือหมุน องศา, กล่องหมุน องศา) เทียบกับกลุ่ม})
+    """
+    As, Cs = [np.asarray(a, float) for a in As], [np.asarray(c, float) for c in Cs]
+
+    def diff(i, j):
+        return rot_deg(As[i][:3, :3], As[j][:3, :3]), turn_deg(Cs[i][:3, :3], Cs[j][:3, :3])
+
+    def ok(i, j):
+        w, t = diff(i, j)
+        return w <= tol_deg and abs(t) <= tol_deg
+
+    n = len(As)
+    ref = max(range(n), key=lambda i: (sum(ok(i, j) for j in range(n)), -i))
+    used = [j for j in range(n) if ok(ref, j)]
+    return used, {j: diff(ref, j) for j in range(n) if j not in used}
+
+
+def _kabsch(P, Q):
+    """การหมุน R ที่ทำให้ Q - ค่าเฉลี่ย ≈ R · (P - ค่าเฉลี่ย)"""
+    U, _, Vt = np.linalg.svd((P - P.mean(0)).T @ (Q - Q.mean(0)))
+    return Vt.T @ np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))]) @ U.T
+
+
+def delta_rotation(As, Cs):
+    """ทางลัด: ท่าแตะที่ข้อมือมุมเดิมทุกครั้ง (กล่องเลื่อนอย่างเดียว) -> ทิศของกล้องเทียบแขน R (ฐานแขน <- กล้อง)
+
+    ข้อมือมุมเดิม + จุดแตะเดิม: ข้อมือเลื่อน = R · ป้ายเลื่อน (ไม่ต้องรู้ตำแหน่งกล้อง ไม่ต้องรู้จุดแตะบนนิ้ว)
+    -> (R, คลาดต่อครั้ง m, การกระจาย 0..1, R แกว่งกี่องศาเมื่อตัดทีละครั้ง (nan ถ้าไม่ถึง 4 ครั้ง))
+    """
+    P = np.array([np.asarray(C, float)[:3, 3] for C in Cs])
+    Q = np.array([np.asarray(A, float)[:3, 3] for A in As])
+    sv = np.linalg.svd(P - P.mean(0), compute_uv=False)
+    spread_ok = float(sv[1] / sv[0]) if sv[0] > 1e-9 else 0.0
+    R = _kabsch(P, Q)
+    err = np.linalg.norm((Q - Q.mean(0)) - (P - P.mean(0)) @ R.T, axis=1)
+    keep = [np.arange(len(P)) != i for i in range(len(P))]
+    wobble = max(rot_deg(R, _kabsch(P[k], Q[k])) for k in keep) if len(P) >= 4 else float("nan")
+    return R, err, spread_ok, wobble
+
+
+def delta_grasp(R, A_grasp, C_grasp, C_new):
+    """ทางลัด: ท่าจับที่สอนไว้ (ข้อมือ A ตอนป้ายอยู่ C) ย้ายตามป้ายที่เลื่อนไป — ข้อมือคงมุมเดิม
+    กล่องหมุน θ ไม่ถูกชดเชย: หูกล่อง (~13 cm จากป้าย) คลาด ~θ·13 cm
+    -> (ข้อมือเป้าหมาย 4x4, กล่องเลื่อน m, กล่องหมุน องศา)"""
+    d = R @ (np.asarray(C_new, float)[:3, 3] - np.asarray(C_grasp, float)[:3, 3])
+    T = np.array(A_grasp, float)
+    T[:3, 3] += d
+    return T, float(np.linalg.norm(d)), turn_deg(np.asarray(C_grasp)[:3, :3], np.asarray(C_new)[:3, :3])
 
 
 def nearest_grasp(Cs, Gs, C_new):

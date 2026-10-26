@@ -331,7 +331,7 @@ EOF
     ros_tty ros2 launch humanoi_vision tray.launch.py "$@"
     ;;
 
-  tray-teach)  # สอนจับกล่องหลายตำแหน่ง = คาลิเบรตกล้องกับแขนไปในตัว (humanoi_vision tray_teach)
+  tray-teach)  # สอนหยิบกล่องแบบทางลัด: ท่าแตะหาทิศกล้อง + ท่าจับจริง (humanoi_vision tray_teach)
     if ! is_running "lib/humanoi_vision/tray_detector"; then
       echo "✗ เปิดตัวหากล่องก่อน (อีกหน้าต่าง): arm tray"; exit 1
     fi
@@ -478,7 +478,7 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm stop                           หยุดโปรแกรมกลางคัน (ทุกแขน)
    arm hand <ท่า> [left|right]        ลองท่ามือตรงๆ (ต้องเปิด arm player อยู่) เช่น arm hand rock
    arm tray [marker_size:=0.12]       กล้อง + หาตำแหน่งกล่อง (ป้าย id 1 บนพื้นกล่อง) ดูภาพ /tray/image/compressed
-   arm tray-teach [left|right]        สอนจับกล่อง 6-8 ตำแหน่ง = คาลิเบรตกล้องกับแขน (เปิด arm start + arm tray ก่อน)
+   arm tray-teach [left|right]        สอนหยิบกล่อง: แตะ 4-6 ครั้งข้อมือมุมเดิม + จับจริง g (เปิด arm start + arm tray ก่อน)
    arm hand-side [left|right]         ชุดมือที่ใส่อยู่ (เปลี่ยนมือแล้วตั้งก่อน — คาลิเบรต/ท่าที่สอนแยกตามชุดมือ)
    arm hand-scan                      เช็กบอร์ดมือ: เซอร์โวตอบไหม baud ไหน ไฟเท่าไหร่ (ไม่ขยับ)
    arm hand-teach                     จัดท่ามือเอง (1-4 เลือกนิ้ว +/- กำแบ l/r เอียง free ดัดด้วยมือ) save <ชื่อ>

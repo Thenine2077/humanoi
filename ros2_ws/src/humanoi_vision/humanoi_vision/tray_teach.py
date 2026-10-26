@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""tray_teach — สอนจับกล่องหลายตำแหน่ง = คาลิเบรตกล้องกับแขนไปในตัว (ไม่ต้องติดป้ายที่มือ ไม่ต้องพาแขนไปทั่วภาพ)
+"""tray_teach — สอนหยิบกล่องแบบทางลัด: สอนท่าจับจริง + ชดเชยระยะที่กล่องเลื่อนไปจากตอนสอน (ไม่ต้องติดป้ายที่มือ)
 
   arm start left · arm moveit (จ็อก) · arm tray (กล้อง + หากล่อง) · arm tray-teach
 
-ขั้น 1 คาลิเบรต (6-8 ครั้ง): วางกล่อง (ป้าย id 1 บนพื้นกล่อง) -> จ็อกแขนให้ "จุดเดิมบนนิ้ว" แตะ "จุดเดิมบนกล่อง"
-  -> กด Enter · แนะนำ: นิ้วท่า point แตะจุดที่ทำเครื่องหมายไว้ข้างกล่อง (แตะเบาๆ ไม่ให้กล่องเลื่อน)
-  ข้อมือเอียงต่างกันแต่ละครั้งได้ (แขนไปทุกตำแหน่งด้วยท่ามือเดิมไม่ได้) — ขอแค่จุดแตะเป็นจุดเดิม
-ขั้น 2 ท่าจับจริง (1-3 ครั้ง หลังขั้น 1 ครบ): นิ้วท่า tray_grip จับหูกล่องจริง -> กด g
-  (ท่าจับเทียบป้ายคิดจากตำแหน่งกล้องของขั้น 1 — ท่าแตะในขั้น 1 ไม่ถูกใช้เป็นท่าจับ)
-ระหว่างครั้ง เลื่อนกล่องซ้าย/ขวา/หน้า/หลัง ~5 cm และหมุนเบี้ยว ±15° (ต้องเลื่อนอย่างน้อย 2 ทิศ + หมุน)
-คำนวณ (tray.solve_contact_point): จุดบนนิ้ว p (ข้อมือ) = จุดบนหู q (ป้าย) ทุกครั้ง -> ตำแหน่งกล้องเทียบแขน + p + q
-ตอนหยิบจริง: ใช้ท่าจับ (ขั้น 2) ของครั้งที่กล่องวางใกล้ที่สุด ย้ายตามป้ายที่เห็น (tray.nearest_grasp)
-ทดสอบจำลอง (สอน 7 ครั้ง ข้อมือเอียงต่าง ±12°): ท่าข้อมือคลาดกลางๆ ~5 mm · แม่นรอบบริเวณที่สอนเท่านั้น
+ขั้น 1 ทิศกล้อง (4-6 ครั้ง): จ็อกให้ "จุดเดิมบนนิ้ว" แตะ "จุดเดิมบนกล่อง" -> แขนนิ่ง -> Enter
+  ข้อมือต้องมุมเดิมทุกครั้ง (ใน RViz ลากแค่ลูกศรเลื่อน ไม่ลากวงหมุน) · กล่องเลื่อนอย่างเดียว ไม่หมุน
+  ระหว่างครั้ง เลื่อนกล่อง ~3-7 cm อย่างน้อย 2 ทิศ (ซ้าย/ขวา + หน้า/หลัง)
+  ท่าแตะที่ข้อมือหรือกล่องหมุนไปจากกลุ่ม (เกิน 3°) ไม่ถูกใช้เอง — ไม่ต้องลบก็ได้
+ขั้น 2 ท่าจับจริง (1 ครั้งขึ้นไป): วางกล่องที่ตำแหน่งปกติ จัดนิ้ว tray_grip จับหูกล่องจริง -> g
+  สอนเพิ่มตอนกล่องอยู่ที่อื่น = ครอบคลุมกว้างขึ้น (ตอนหยิบเลือกท่าที่กล่องใกล้สุด) + วัดความแม่นของทางลัดได้จริง
+คำนวณ (tray.delta_rotation): ข้อมือเลื่อน = R · ป้ายเลื่อน -> ทิศกล้องเทียบแขน R (ไม่ต้องรู้ตำแหน่งกล้อง/จุดแตะบนนิ้ว)
+ตอนหยิบ (tray.delta_grasp): ข้อมือ = ท่าจับที่สอน + R · (ป้ายตอนนี้ − ป้ายตอนสอน) ข้อมือคงมุมเดิม
+  ใช้ได้เมื่อกล่องห่างจากตอนสอนไม่เกิน ~8 cm และหมุนไม่เกิน ~4° (การหมุนไม่ถูกชดเชย)
 
 คำสั่ง: Enter = เก็บท่าแตะ · u = ลบท่าแตะล่าสุด · d <n> = ลบท่าแตะครั้งที่ n · g = เก็บท่าจับจริง
        gu = ลบท่าจับล่าสุด · l = ดูที่เก็บ · w = บันทึกผล · q = ออก
 ทุกครั้งที่เก็บ/ลบ บันทึกข้อมูลดิบไว้ที่ config/tray_teach_<arm>.captures.npz (โปรแกรมปิดไปก็ไม่หาย — เปิดใหม่โหลดคืน)
-ผล (w): humanoi_description/config/camera_to_<arm>_arm.yaml (TF ฐานแขน -> camera_link) +
-        humanoi_description/config/tray_grasp_<arm>.yaml (ท่าจับเทียบป้ายทุกครั้ง + จุดแตะ + มุมข้อต่อ)
+ผล (w): humanoi_description/config/tray_grasp_<arm>.yaml (ทิศกล้อง + ท่าจับ: ป้ายในกล้อง ข้อมือในฐานแขน มุมข้อต่อ)
+  ไม่แก้ camera_to_<arm>_arm.yaml — ข้อมูลเลื่อนอย่างเดียวบอกได้แค่ทิศกล้อง ไม่บอกตำแหน่ง
 """
 import collections
 import os
@@ -39,9 +39,12 @@ from tf2_ros import Buffer, TransformException, TransformListener
 from humanoi_vision import hand_eye, tray
 
 CONFIG = "/humanoi_ws/src/humanoi_description/config"
-MIN_CAPTURES = 5    # ไม่รู้ 12 ค่า แต่ละครั้งให้ 3 สมการ
-GOOD_MM = 10.0      # คลาดต่อครั้งเกินนี้ = ครั้งนั้นน่าสงสัย (แตะคนละจุด / ข้อ 1 รูด / ป้ายอ่านพลาด)
+MIN_TOUCHES = 4     # ทิศกล้อง 3 ค่า · เลื่อน 2 ทิศ + เหลือไว้ตรวจกันเอง
+SAME_DEG = 3.0      # ข้อมือ/กล่องหมุนต่างจากกลุ่มเกินนี้ = ไม่ใช้ท่าแตะนั้น
+GOOD_MM = 15.0      # คลาดต่อครั้งเกินนี้ = ครั้งนั้นน่าสงสัย (แตะคนละจุด / ข้อ 1 รูด) — แตะด้วยตาคลาด ~1 cm เป็นปกติ
 SAME_MM = 2.0       # ข้อมือห่างครั้งก่อนไม่ถึงนี้ = น่าจะกด Enter ซ้ำโดยแขนไม่ได้ขยับ
+MAX_SHIFT = 0.08    # m — กล่องห่างท่าจับที่สอนเกินนี้ ตัวหยิบไม่หยิบ (เขียนลงไฟล์ผล)
+MAX_TURN = 4.0      # องศา — การหมุนไม่ถูกชดเชย: หูกล่องห่างป้าย ~13 cm -> 4° คลาด ~9 mm
 
 
 def tf_mat(tf):
@@ -60,18 +63,16 @@ def yaml_pose(T, indent="  "):
             f"{indent}quat: [{q[0]:.6f}, {q[1]:.6f}, {q[2]:.6f}, {q[3]:.6f}]   # x y z w\n")
 
 
+def vec(v, fmt=".6f"):
+    return "[" + ", ".join(f"{x:{fmt}}" for x in v) + "]"
+
+
 class TrayTeach(Node):
     def __init__(self):
         super().__init__("tray_teach")
         self.declare_parameter("arm", "left")
-        self.declare_parameter("camera_link", "camera_link")
-        # จุดแตะบนนิ้วโดยประมาณ ในเฟรมข้อมือ link_6 (m): มือ AmazingHand ยาว ~17 cm + ตัวยึด 4 cm ตามแกน z
-        # ใช้ปลายแหลม (ปากกา/ไขควง) ที่ยื่นเลยนิ้ว -> ใส่ระยะใหม่ เช่น touch_prior:=[0.0,0.0,0.26]
-        self.declare_parameter("touch_prior", [0.0, 0.0, 0.21])
-        self.touch_prior = np.array(self.get_parameter("touch_prior").value, float)
         self.arm = str(self.get_parameter("arm").value)
         self.base, self.tool = f"{self.arm}_base_link", f"{self.arm}_link_6"
-        self.cam_link = str(self.get_parameter("camera_link").value)
         self.save_path = os.path.join(CONFIG, f"tray_teach_{self.arm}.captures.npz")
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -81,7 +82,7 @@ class TrayTeach(Node):
         self.create_subscription(PoseStamped, "/tray/pose", self._on_tray, 10)
         self.create_subscription(String, "/tray/status", lambda m: setattr(self, "status", m.data), 10)
         self.create_subscription(JointState, "/joint_states", self._on_js, 50)
-        self.caps = []    # ท่าแตะ (คาลิเบรต) dict: A, C, names, joints, frame
+        self.caps = []    # ท่าแตะ (หาทิศกล้อง) dict: A, C, names, joints, frame
         self.grasps = []  # ท่าจับจริง dict แบบเดียวกัน
 
     def _on_tray(self, msg):
@@ -148,7 +149,7 @@ class TrayTeach(Node):
         return {"A": A, "C": pose_mat(msg), "names": still[0], "joints": still[1], "frame": msg.header.frame_id}
 
     def capture(self):
-        """เก็บท่าแตะ (คาลิเบรต) -> ข้อความผล"""
+        """เก็บท่าแตะ (หาทิศกล้อง) -> ข้อความผล"""
         snap = self.snapshot()
         if isinstance(snap, str):
             return snap
@@ -164,89 +165,106 @@ class TrayTeach(Node):
                 warn = "\n  ⚠ ซ้ำกับครั้งก่อน (กล่องกับแขนไม่ได้ขยับ) — กด u ลบ"
         self.caps.append(snap)
         self.autosave()
+        _, skipped = tray.same_wrist_touches([c["A"] for c in self.caps], [c["C"] for c in self.caps], SAME_DEG)
+        if len(self.caps) - 1 in skipped:
+            w, t = skipped[len(self.caps) - 1]
+            warn += (f"\n  ⚠ ข้อมือหมุน {w:.1f}° · กล่องหมุน {t:+.1f}° จากครั้งอื่น — ครั้งนี้จะไม่ถูกใช้ "
+                     "(ข้อมือมุมเดิม: ลากแค่ลูกศรเลื่อน · กล่องเลื่อนอย่างเดียว) กด u ลบแล้วแตะใหม่")
         return (f"✓ ครั้งที่ {len(self.caps)}: ป้ายห่างกล้อง {np.linalg.norm(C[:3, 3]):.3f} m · "
                 f"ข้อมือ ({A[0, 3]:+.3f}, {A[1, 3]:+.3f}, {A[2, 3]:+.3f}) m" + warn)
 
     def grasp(self):
-        """เก็บท่าจับจริง (ขั้น 2) — ต้องคาลิเบรตด้วยท่าแตะครบก่อน -> ข้อความผล"""
-        if len(self.caps) < MIN_CAPTURES or self.solve()[4] < 0.3:
-            return f"✗ เก็บท่าแตะให้ครบก่อน (อย่างน้อย {MIN_CAPTURES} ครั้ง เลื่อน 2 ทิศ) — ท่าจับต้องใช้ตำแหน่งกล้องจากขั้นนั้น"
+        """เก็บท่าจับจริง -> ข้อความผล"""
         snap = self.snapshot()
         if isinstance(snap, str):
             return snap
         self.grasps.append(snap)
         self.autosave()
-        return (f"✓ ท่าจับที่ {len(self.grasps)}: ป้ายห่างกล้อง {np.linalg.norm(snap['C'][:3, 3]):.3f} m · "
-                "บันทึกด้วย w (ถ้ากล่องอาจวางได้หลายแบบ เก็บท่าจับเพิ่มตอนกล่องเลื่อน/หมุนได้)")
+        s = self.solve()
+        check = "" if isinstance(s, str) or len(self.grasps) < 2 else "\n" + self.grasp_checks(s["R"])[-1]
+        return (f"✓ ท่าจับที่ {len(self.grasps)}: ป้ายห่างกล้อง {np.linalg.norm(snap['C'][:3, 3]):.3f} m" + check
+                + ("\n  บันทึกด้วย w" if not isinstance(s, str) else f"\n  ยังบันทึกไม่ได้: {s}"))
 
     # ---------- คำนวณ ----------
     def solve(self):
-        return tray.solve_contact_point([c["A"] for c in self.caps], [c["C"] for c in self.caps],
-                                        p_prior=self.touch_prior)
+        """ทิศกล้องจากท่าแตะ -> dict หรือข้อความบอกว่ายังขาดอะไร"""
+        n = len(self.caps)
+        if n < MIN_TOUCHES:
+            return f"ท่าแตะ {n} ครั้ง — ต้องอย่างน้อย {MIN_TOUCHES} (ข้อมือมุมเดิม กล่องเลื่อน 2 ทิศ)"
+        As, Cs = [c["A"] for c in self.caps], [c["C"] for c in self.caps]
+        used, skipped = tray.same_wrist_touches(As, Cs, SAME_DEG)
+        if len(used) < MIN_TOUCHES:
+            return (f"ท่าแตะที่ข้อมือมุมเดียวกันมีแค่ {len(used)} ครั้ง — ต้องอย่างน้อย {MIN_TOUCHES} "
+                    "(ลากแค่ลูกศรเลื่อน ไม่หมุนข้อมือ)")
+        R, err, spread, wobble = tray.delta_rotation([As[i] for i in used], [Cs[i] for i in used])
+        if spread < 0.3:
+            return f"กล่องเลื่อนทิศเดียว (การกระจาย {spread:.2f}) — เลื่อนอีกทิศ (หน้า-หลัง หรือ ซ้าย-ขวา) แล้วแตะเพิ่ม"
+        return {"R": R, "used": used, "skipped": skipped, "err": err, "spread": spread, "wobble": wobble}
+
+    def grasp_checks(self, R):
+        """ท่าจับที่ 2, 3, ... ทายจากท่าจับที่ 1 ด้วยทางลัด เทียบกับที่สอนจริง = ความแม่นของทางลัดจริงๆ"""
+        if len(self.grasps) < 2:
+            return []
+        g0, lines = self.grasps[0], []
+        for k, g in enumerate(self.grasps[1:], 2):
+            T, shift, turn = tray.delta_grasp(R, g0["A"], g0["C"], g["C"])
+            miss = 1000 * np.linalg.norm(T[:3, 3] - g["A"][:3, 3])
+            wrist = tray.rot_deg(g0["A"][:3, :3], g["A"][:3, :3])
+            lines.append(f"    ท่าจับ {k} ทายจากท่าจับ 1 (กล่องเลื่อน {1000 * shift:.0f} mm หมุน {turn:+.1f}°): "
+                         f"คลาด {miss:.0f} mm" + (f" · ข้อมือสอนต่างมุมกัน {wrist:.1f}°" if wrist > SAME_DEG else ""))
+        return lines
 
     def report(self):
-        n = len(self.caps)
-        if n < MIN_CAPTURES:
-            return f"  เก็บแล้ว {n} ครั้ง — ต้องอย่างน้อย {MIN_CAPTURES} (แนะนำ 6-8: เลื่อน 2 ทิศ + หมุน ±15°)"
-        X, p, q, err, spread = self.solve()
-        turns = [abs(tray.turn_deg(self.caps[0]["C"][:3, :3], c["C"][:3, :3])) for c in self.caps]
-        lines = [f"  {n} ครั้ง: คลาดเฉลี่ย {1000 * np.sqrt(np.mean(err ** 2)):.1f} mm · การกระจาย {spread:.2f}"
-                 + (" (ต่ำ: เลื่อนกล่องอีกทิศ)" if spread < 0.3 else "")
-                 + (" · ยังไม่ได้หมุนกล่อง (หมุน ±15° อย่างละครั้ง)" if max(turns) < 8 else "")
-                 + f" · จุดแตะบนนิ้วห่างข้อมือ {100 * np.linalg.norm(p):.0f} cm"]
-        lines += [f"    #{i + 1}: {1000 * e:.1f} mm" + ("  ← น่าสงสัย (d <n> ลบแล้วเก็บใหม่)" if 1000 * e > GOOD_MM else "")
-                  for i, e in enumerate(err)]
+        s = self.solve()
+        if isinstance(s, str):
+            lines = ["  " + s]
+        else:
+            lines = [f"  ทิศกล้องจากท่าแตะ {len(s['used'])} ครั้ง: การกระจาย {s['spread']:.2f} · แกว่ง ±{s['wobble']:.1f}° "
+                     f"-> กล่องเลื่อน 5 cm มือคลาดเพิ่ม ~{50 * np.radians(s['wobble']):.0f} mm"]
+            rows = {i: f"    #{i + 1}: {1000 * e:.1f} mm" + ("  ← ไม่เข้าพวก (แตะคนละจุด? d <n> ลบแล้วแตะใหม่ได้)"
+                                                          if 1000 * e > GOOD_MM else "")
+                    for i, e in zip(s["used"], s["err"])}
+            rows.update({j: f"    #{j + 1}: ไม่ใช้ (ข้อมือหมุน {w:.1f}° · กล่องหมุน {t:+.1f}°)"
+                         for j, (w, t) in s["skipped"].items()})
+            lines += [rows[i] for i in sorted(rows)]
         lines.append(f"  ท่าจับจริง: {len(self.grasps)} ครั้ง" + ("" if self.grasps else
-                     " — คาลิเบรตครบแล้วให้จัดนิ้ว tray_grip จับหูกล่องจริง แล้วกด g"))
+                     " — วางกล่องที่ตำแหน่งปกติ จัดนิ้ว tray_grip จับหูกล่องจริง แล้วกด g"))
+        if not isinstance(s, str):
+            lines += self.grasp_checks(s["R"])
         return "\n".join(lines)
 
     def write(self):
-        n = len(self.caps)
-        if n < MIN_CAPTURES:
-            return f"✗ ต้องเก็บอย่างน้อย {MIN_CAPTURES} ครั้ง (ตอนนี้ {n})"
-        X, p, q, err, spread = self.solve()
-        if spread < 0.3:
-            return "✗ กล่องเลื่อนทิศเดียว — เลื่อนอีกทิศ (หน้า-หลัง หรือ ซ้าย-ขวา) แล้วเก็บเพิ่มก่อน"
-        try:  # ไดรเวอร์กล้องส่ง camera_link -> optical เอง -> ท่าของ camera_link ในฐานแขน
-            T_lo = tf_mat(self.tf_buffer.lookup_transform(self.cam_link, self.caps[0]["frame"], Time()))
-        except TransformException as exc:
-            return f"✗ ไม่มี TF {self.cam_link} -> {self.caps[0]['frame']} ({exc}) — arm tray เปิดอยู่ไหม"
-        T_bl = X @ tray.inv(T_lo)
-        rms = 1000 * float(np.sqrt(np.mean(err ** 2)))
-        stamp = time.strftime("%Y-%m-%d %H:%M %Z")
-        cam_path = os.path.join(CONFIG, f"camera_to_{self.arm}_arm.yaml")
-        grasp_path = os.path.join(CONFIG, f"tray_grasp_{self.arm}.yaml")
-        for path in (cam_path, grasp_path) if self.grasps else (cam_path,):
-            if os.path.exists(path):
-                shutil.copy2(path, path + time.strftime(".bak-%Y%m%d-%H%M%S"))
-        qc, t = hand_eye.mat_to_quat(T_bl[:3, :3]), T_bl[:3, 3]
-        with open(cam_path, "w", encoding="utf-8") as f:
-            f.write(
-                f"# ตำแหน่งกล้อง Astra Pro เทียบกับฐานแขน{self.arm} — humanoi_vision tray_teach {stamp} จากการสอนจับกล่อง "
-                f"{n} ครั้ง\n# คลาดเฉลี่ย {rms:.1f} mm (จุดแตะ) · แม่นรอบบริเวณที่สอนบนโต๊ะนี้\n"
-                f"parent_frame: {self.base}\nchild_frame: {self.cam_link}\n"
-                f"x: {t[0]:.5f}\ny: {t[1]:.5f}\nz: {t[2]:.5f}\n"
-                f"qx: {qc[0]:.6f}\nqy: {qc[1]:.6f}\nqz: {qc[2]:.6f}\nqw: {qc[3]:.6f}\nrms_mm: {rms:.2f}\nmethod: tray_teach\n")
-        done = f"✓ บันทึกตำแหน่งกล้องแล้ว ({n} ท่าแตะ คลาดเฉลี่ย {rms:.1f} mm)\n  {cam_path}\n"
+        s = self.solve()
+        if isinstance(s, str):
+            return "✗ " + s
         if not self.grasps:
-            return done + ("  ยังไม่มีท่าจับจริง — จัดนิ้ว tray_grip จับหูกล่อง แล้วกด g แล้ว w อีกครั้ง\n"
-                           "  ปิด arm tray แล้วเปิดใหม่ ให้ใช้ตำแหน่งกล้องใหม่")
-        Xinv = tray.inv(X)
-        grasps = "".join(f"  - marker_in_camera:\n{yaml_pose(c['C'], '      ')}"
-                         f"    wrist_in_marker:\n{yaml_pose(tray.inv(c['C']) @ Xinv @ c['A'], '      ')}"
-                         f"    joints: [" + ", ".join(f"{v:.5f}" for v in c["joints"]) + "]\n"
-                         for c in self.grasps)
-        with open(grasp_path, "w", encoding="utf-8") as f:
+            return "✗ ยังไม่มีท่าจับจริง — วางกล่องที่ตำแหน่งปกติ จัดนิ้ว tray_grip จับหูกล่องจริง แล้วกด g ก่อน"
+        R, rms = s["R"], 1000 * float(np.sqrt(np.mean(s["err"] ** 2)))
+        stamp = time.strftime("%Y-%m-%d %H:%M %Z")
+        path = os.path.join(CONFIG, f"tray_grasp_{self.arm}.yaml")
+        if os.path.exists(path):
+            shutil.copy2(path, path + time.strftime(".bak-%Y%m%d-%H%M%S"))
+        up = R @ self.grasps[0]["C"][:3, 2]  # แกน z ป้าย (ตั้งฉากพื้นกล่อง ชี้ขึ้น) ในฐานแขน
+        grasps = "".join(f"  - marker_in_camera:\n{yaml_pose(g['C'], '      ')}"
+                         f"    wrist_in_arm:\n{yaml_pose(g['A'], '      ')}"
+                         f"    joints: {vec(g['joints'], '.5f')}\n"
+                         for g in self.grasps)
+        with open(path, "w", encoding="utf-8") as f:
             f.write(
-                f"# ท่าจับหูกล่องของแขน{self.arm} — tray_teach {stamp} ({len(self.grasps)} ท่าจับ · "
-                f"กล้องจาก {n} ท่าแตะ คลาดเฉลี่ย {rms:.1f} mm)\n"
-                "# ตอนหยิบ: เลือกท่าที่กล่อง (marker_in_camera) ใกล้ตำแหน่งที่เห็นที่สุด แล้วข้อมือ = TF(ฐานแขน <- กล้อง)"
-                " · ป้ายที่เห็น · wrist_in_marker\n"
-                f"tool_frame: {self.tool}\n"
-                f"touch_on_tool: [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]     # จุดแตะบนนิ้วตอนคาลิเบรต (เฟรมข้อมือ)\n"
-                f"touch_on_marker: [{q[0]:.4f}, {q[1]:.4f}, {q[2]:.4f}]   # จุดที่แตะบนกล่อง (เฟรมป้าย)\n"
+                f"# ท่าจับหูกล่องของแขน{self.arm} — tray_teach {stamp} แบบทางลัด ({len(self.grasps)} ท่าจับ · "
+                f"ทิศกล้องจากท่าแตะ {len(s['used'])} ครั้ง คลาดเฉลี่ย {rms:.1f} mm แกว่ง ±{s['wobble']:.1f}°)\n"
+                "# ตอนหยิบ (tray.delta_grasp): เลือกท่าที่ marker_in_camera ใกล้ป้ายที่เห็นที่สุด แล้ว\n"
+                "#   ข้อมือ = wrist_in_arm เลื่อนไป camera_rotation · (ป้ายที่เห็น − marker_in_camera) ข้อมือคงมุมเดิม\n"
+                "# ไม่รู้ตำแหน่งกล้อง -> ไม่ชดเชยกล่องหมุน: ห่างเกิน max_shift_m หรือหมุนเกิน max_turn_deg ไม่หยิบ\n"
+                "method: delta\n"
+                f"arm_frame: {self.base}\ntool_frame: {self.tool}\ncamera_frame: {self.grasps[0]['frame']}\n"
+                f"camera_rotation: {vec(hand_eye.mat_to_quat(R))}   # x y z w — ทิศกล้อง (camera_frame) ในฐานแขน\n"
+                f"table_up: {vec(up, '.5f')}   # ตั้งฉากพื้นกล่อง ชี้ขึ้น ในฐานแขน — ทิศยกมือเข้า/ออกจากหู\n"
+                f"max_shift_m: {MAX_SHIFT}\nmax_turn_deg: {MAX_TURN}\n"
+                f"touch_rms_mm: {rms:.2f}\nrotation_wobble_deg: {s['wobble']:.2f}\n"
                 f"joint_names: [{', '.join(self.grasps[0]['names'])}]\ngrasps:\n{grasps}")
-        return done + f"  {grasp_path} ({len(self.grasps)} ท่าจับ)\n  ปิด arm tray แล้วเปิดใหม่ ให้ใช้ตำแหน่งกล้องใหม่"
+        return (f"✓ บันทึกแล้ว ({len(self.grasps)} ท่าจับ · ทิศกล้องจากท่าแตะ {len(s['used'])} ครั้ง)\n  {path}\n"
+                f"  ใช้ได้เมื่อกล่องห่างท่าจับที่สอนไม่เกิน {100 * MAX_SHIFT:.0f} cm และหมุนไม่เกิน {MAX_TURN:.0f}°")
 
 
 def main():
@@ -256,10 +274,10 @@ def main():
     ex.add_node(node)
     spin = threading.Thread(target=ex.spin, daemon=True)
     spin.start()
-    print(f"สอนจับกล่อง แขน{node.arm}\n"
-          "ขั้น 1 (6-8 ครั้ง): วางกล่อง -> จ็อกให้จุดเดิมบนนิ้ว (เช่นปลายนิ้วชี้ ท่า point) แตะจุดเดิมบนกล่อง -> แขนนิ่ง -> Enter\n"
-          "  ระหว่างครั้ง เลื่อนกล่อง ~5 cm 2 ทิศ และหมุนเบี้ยว ±15° · ข้อมือเอียงต่างกันได้\n"
-          "ขั้น 2 (1-3 ครั้ง): นิ้วท่า tray_grip จับหูกล่องจริง -> g\n"
+    print(f"สอนหยิบกล่องแบบทางลัด แขน{node.arm}\n"
+          f"ขั้น 1 ({MIN_TOUCHES}-6 ครั้ง): จ็อกให้จุดเดิมบนนิ้วแตะจุดเดิมบนกล่อง -> แขนนิ่ง -> Enter\n"
+          "  ข้อมือมุมเดิมทุกครั้ง (ลากแค่ลูกศรเลื่อน) · ระหว่างครั้ง เลื่อนกล่อง 3-7 cm 2 ทิศ ไม่หมุนกล่อง\n"
+          "ขั้น 2 (1 ครั้งขึ้นไป): กล่องที่ตำแหน่งปกติ นิ้วท่า tray_grip จับหูกล่องจริง -> g\n"
           "คำสั่ง: Enter แตะ · u / d <n> ลบท่าแตะ · g ท่าจับ · gu ลบท่าจับล่าสุด · l ดู · w บันทึก · q ออก")
     k = node.load_saved()
     if k:
@@ -272,7 +290,7 @@ def main():
                 break
             if cmd == "":
                 print(node.capture())
-                if len(node.caps) >= MIN_CAPTURES:
+                if len(node.caps) >= MIN_TOUCHES:
                     print(node.report())
             elif cmd == "u" or cmd.startswith("d "):
                 k = len(node.caps) if cmd == "u" else int(cmd[2:]) if cmd[2:].strip().isdigit() else -1
@@ -280,7 +298,7 @@ def main():
                     node.caps.pop(k - 1)
                     node.autosave()
                     print(f"  ลบครั้งที่ {k} แล้ว เหลือ {len(node.caps)} ครั้ง")
-                    if len(node.caps) >= MIN_CAPTURES:
+                    if len(node.caps) >= MIN_TOUCHES:
                         print(node.report())
                 else:
                     print("  ไม่มีครั้งนั้น (d ตามด้วยเลขครั้ง เช่น d 2)")
