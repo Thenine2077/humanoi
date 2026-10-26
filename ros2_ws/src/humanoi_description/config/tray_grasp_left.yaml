@@ -1,0 +1,31 @@
+# ท่าจับหูกล่องของแขนleft — tray_teach 2026-10-26 06:29 UTC แบบทางลัด (2 ท่าจับ · ทิศกล้องจากท่าแตะ 5 ครั้ง คลาดเฉลี่ย 7.3 mm แกว่ง ±3.9°)
+# ตอนหยิบ (tray.delta_grasp): เลือกท่าที่ marker_in_camera ใกล้ป้ายที่เห็นที่สุด แล้ว
+#   ข้อมือ = wrist_in_arm เลื่อนไป camera_rotation · (ป้ายที่เห็น − marker_in_camera) ข้อมือคงมุมเดิม
+# ไม่รู้ตำแหน่งกล้อง -> ไม่ชดเชยกล่องหมุน: ห่างเกิน max_shift_m หรือหมุนเกิน max_turn_deg ไม่หยิบ
+method: delta
+arm_frame: left_base_link
+tool_frame: left_link_6
+camera_frame: camera_color_optical_frame
+camera_rotation: [-0.286421, 0.663596, 0.268619, 0.636748]   # x y z w — ทิศกล้อง (camera_frame) ในฐานแขน
+table_up: [-0.23050, -0.97160, 0.05342]   # ตั้งฉากพื้นกล่อง ชี้ขึ้น ในฐานแขน — ทิศยกมือเข้า/ออกจากหู
+max_shift_m: 0.08
+max_turn_deg: 4.0
+touch_rms_mm: 7.26
+rotation_wobble_deg: 3.89
+joint_names: [left_joint_1, left_joint_2, left_joint_3, left_joint_4, left_joint_5, left_joint_6, right_joint_1, right_joint_2, right_joint_3, right_joint_4, right_joint_5, right_joint_6]
+grasp_offset_up: 0.0050   # m ยกที่จับขึ้นจากท่าที่สอน ตั้งฉากพื้นกล่อง (arm tray-pick: h <cm>)
+grasps:
+  - marker_in_camera:
+      xyz: [0.01755, 0.02655, 0.62407]
+      quat: [0.081116, 0.961598, -0.261678, 0.016552]   # x y z w
+    wrist_in_arm:
+      xyz: [0.31230, 0.29644, 0.14697]
+      quat: [-0.706820, 0.064650, -0.068541, 0.701090]   # x y z w
+    joints: [-2.31714, 0.95585, 0.14783, -0.69306, -1.19280, 0.28559, 0.00000, -0.10190, 0.00000, 0.00000, -0.91030, 0.00000]
+  - marker_in_camera:
+      xyz: [0.04953, 0.03106, 0.62189]
+      quat: [0.054214, 0.964141, -0.259548, 0.011318]   # x y z w
+    wrist_in_arm:
+      xyz: [0.31214, 0.29629, 0.11437]
+      quat: [-0.707901, 0.065146, -0.067844, 0.700021]   # x y z w
+    joints: [-2.31714, 1.05355, 0.13024, -0.67583, -1.25188, 0.23351, 0.00000, -0.10190, 0.00000, 0.00000, -0.91030, 0.00000]
