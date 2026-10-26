@@ -1,4 +1,5 @@
-"""เปิด Gazebo + วางหุ่นรวม (ฐาน mecanum + แขน AR4) + สะพาน ros_gz + robot_state_publisher
+"""เปิด Gazebo + วางหุ่น Humanoi เต็มตัว (ฐาน mecanum + เสา หัว กล้อง + แขน AR4 สองข้าง + มือ)
++ สะพาน ros_gz + robot_state_publisher + ตัวคุมแขนสองข้าง
 
   ros2 launch humanoi_description sim_with_arm.launch.py
   ros2 launch humanoi_description sim_with_arm.launch.py world:=room
@@ -6,15 +7,20 @@
 
 สั่งฐานด้วย keyboard_teleop / Nav2 เหมือนเดิม (/cmd_vel) สั่งแขนด้วย MoveIt อีกหน้าต่าง:
 
-  ros2 launch humanoi_description moveit_full.launch.py use_sim_time:=true
+  ros2 launch humanoi_description moveit_full.launch.py
 
-ต้อง source ทั้งสอง workspace ก่อน (ar4_ws ก่อน แล้วค่อย ros2_ws) เพราะไฟล์นี้อ้าง
-ar_description ของฝั่ง AR4:
+หรือตัวเล่นโปรแกรม (ตัวคุมชื่อ left_arm_controller / right_arm_controller เหมือนแขนจริง):
+
+  ros2 launch ar_program arm_program.launch.py
+
+กล้องจำลองออกหัวข้อชื่อเดียวกับไดรเวอร์จริง: /camera/color/image_raw, /camera/color/camera_info,
+/camera/depth/image_raw (32FC1 หน่วยเมตร — ตัวจริงเป็น 16UC1 หน่วยมม.), /camera/depth/points
+
+ต้อง source ทั้งสอง workspace ก่อน (ar4_ws ก่อน แล้วค่อย ros2_ws) เพราะไฟล์นี้อ้าง ar_dual ของฝั่ง AR4:
   source /mnt/c/Users/User/Desktop/ar4/ar4_ws/install/setup.bash
   source /mnt/c/Users/User/Desktop/Humanoi/ros2_ws/install/setup.bash
 """
 import os
-import re
 
 import xacro
 from ament_index_python.packages import get_package_share_directory
@@ -32,26 +38,21 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
-def full_robot_description(arm_controllers_path: str) -> str:
-    """URDF หุ่นรวม พร้อมแก้ effort/velocity limit ของแขนที่ผู้ขายตั้งเป็น 0
+def controllers_file() -> str:
+    """ตัวคุมสองแขน — ไฟล์เดียวกับระบบแขนจริง (ar_dual)"""
+    return os.path.join(get_package_share_directory("ar_dual"), "config", "controllers.yaml")
 
-    ar_description/urdf/ar_macro.xacro ของผู้ขาย (อ่านอย่างเดียว) ตั้ง effort="0" ไว้แทบทุก
-    ข้อต่อ และ joint_2 ตั้ง velocity="0" ด้วย ค่าพวกนี้ไม่มีผลกับแขนจริง (ฝั่งจริงสั่งผ่าน
-    serial ไม่ได้อ่านค่านี้) แต่ในซิม ฟิสิกส์ใช้ตรงๆ — effort=0 แปลว่ามอเตอร์ออกแรงได้ 0 Nm
-    ข้อต่อจึงเป็นอิสระ แรงโน้มถ่วงดึงแขนตกจนชน hard-stop ภายในไม่กี่สิบวินาที
-    ตรรกะเดียวกับ ar_gz_bringup/launch/ar_gz.launch.py ฝั่ง AR4 เดี่ยว
-    """
-    urdf = xacro.process_file(
+
+def full_robot_description(controllers_path: str = "") -> str:
+    """URDF หุ่นเต็มตัว (moveit_full.launch.py เรียกใช้ด้วย ให้ MoveIt กับ Gazebo เห็นหุ่นตัวเดียวกัน)"""
+    return xacro.process_file(
         os.path.join(
             get_package_share_directory("humanoi_description"),
             "urdf",
             "humanoi_full.urdf.xacro",
         ),
-        mappings={"arm_controllers": arm_controllers_path},
+        mappings={"controllers": controllers_path or controllers_file()},
     ).toxml()
-    urdf = re.sub(r'(<limit[^>]*?)effort="[^"]*"', r'\1effort="100"', urdf)
-    urdf = re.sub(r'(<limit[^>]*?)velocity="[^"]*"', r'\1velocity="3.0"', urdf)
-    return urdf
 
 
 def launch_setup(context, *args, **kwargs):
@@ -63,9 +64,8 @@ def launch_setup(context, *args, **kwargs):
     gui = LaunchConfiguration("gui").perform(context) == "true"
     gz_args = f"-r -v3 {world_file}" if gui else f"-r -s -v3 {world_file}"
 
-    arm_controllers = os.path.join(pkg, "config", "arm_controllers.yaml")
     robot_description = {
-        "robot_description": full_robot_description(arm_controllers),
+        "robot_description": full_robot_description(),
         "use_sim_time": True,
     }
 
@@ -109,18 +109,13 @@ def launch_setup(context, *args, **kwargs):
         condition=IfCondition(LaunchConfiguration("rviz")),
     )
 
-    # controller ของแขนต้องรอให้โมเดลถูก spawn เข้า gz ก่อน (controller_manager เกิดจาก
-    # ปลั๊กอิน gz_ros2_control ที่อยู่ในตัวโมเดล ไม่ใช่โหนดที่รันแยก) — ลำดับเดียวกับ
-    # ar_gz_bringup/launch/ar_gz.launch.py
-    joint_state_broadcaster = Node(
+    # ตัวคุมแขนต้องรอให้โมเดลถูก spawn เข้า gz ก่อน (controller_manager เกิดจากปลั๊กอิน
+    # gz_ros2_control ที่อยู่ในตัวโมเดล ไม่ใช่โหนดที่รันแยก)
+    controllers = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["joint_state_broadcaster", "--controller-manager-timeout", "60"],
-    )
-    joint_trajectory_controller = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["joint_trajectory_controller", "--controller-manager-timeout", "60"],
+        arguments=["joint_state_broadcaster", "left_arm_controller", "right_arm_controller",
+                   "--controller-manager-timeout", "60"],
     )
 
     return [
@@ -129,15 +124,7 @@ def launch_setup(context, *args, **kwargs):
         spawn,
         bridge,
         rviz,
-        RegisterEventHandler(
-            OnProcessExit(target_action=spawn, on_exit=[joint_state_broadcaster])
-        ),
-        RegisterEventHandler(
-            OnProcessExit(
-                target_action=joint_state_broadcaster,
-                on_exit=[joint_trajectory_controller],
-            )
-        ),
+        RegisterEventHandler(OnProcessExit(target_action=spawn, on_exit=[controllers])),
     ]
 
 

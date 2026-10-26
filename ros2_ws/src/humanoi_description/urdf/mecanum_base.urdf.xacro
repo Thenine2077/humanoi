@@ -1,26 +1,34 @@
 <?xml version="1.0"?>
 <!-- ฐานหุ่น Humanoi : 4 ล้อ mecanum ขับเคลื่อนแบบ holonomic
-     ค่าทั้งหมดปรับได้ที่บล็อก property ด้านล่าง (ยังเป็นค่าสมมติจนกว่าจะวัดฐานจริง)
+     ค่าทั้งหมดปรับได้ที่บล็อก property ด้านล่าง (วัดจริงแล้วบางส่วน — ดูหมายเหตุแต่ละค่า)
 
      หมายเหตุ sim: ใช้ปลั๊กอิน VelocityControl (ขยับตัวถังตาม /cmd_vel ตรงๆ แบบ kinematic)
      ไม่ได้ขับผ่านแรงเสียดทานล้อ เพราะล้อทรงกระบอกไม่มีลูกกลิ้ง mecanum จริง จึงสไลด์ข้างไม่ได้
      ล้อในโมเดลจึงเป็นแค่ visual (ยังไม่หมุนตาม) — odom มาจากตำแหน่งจริงของหุ่น -->
 <robot name="humanoi_base" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <!-- ===================== ค่าที่ปรับได้ ===================== -->
-  <xacro:property name="base_x"    value="0.45"/>   <!-- ยาว (หน้า-หลัง) เมตร -->
-  <xacro:property name="base_y"    value="0.35"/>   <!-- กว้าง (ซ้าย-ขวา) เมตร -->
-  <xacro:property name="base_z"    value="0.12"/>   <!-- สูงของกล่องฐาน เมตร -->
-  <xacro:property name="base_mass" value="14.0"/>   <!-- กก. (ประมาณ ฐาน+แบต) -->
+  <!-- ===================== ค่าที่ปรับได้ =====================
+       วัดจากหุ่นจริง 19 ต.ค. 2026: ยาวฐาน (A), ความหนาแผ่นฐาน (B), พื้น->ใต้แผ่น (C), ล้อ Ø (D), ไลดาร์สูง (F)
+       ค่าที่เขียนว่า "ยังไม่ได้วัด" เป็นค่าประมาณ -->
+  <xacro:property name="base_x"    value="0.51"/>   <!-- A: ยาว (หน้า-หลัง) -->
+  <xacro:property name="base_y"    value="0.40"/>   <!-- กว้าง (ซ้าย-ขวา) — ยังไม่ได้วัด -->
+  <xacro:property name="base_z"    value="0.01"/>   <!-- B: ฐานเป็นแผ่นหนา 1 cm -->
+  <xacro:property name="plate_bottom" value="0.195"/> <!-- C: พื้น -> ใต้แผ่นฐาน -->
+  <xacro:property name="base_mass" value="14.0"/>   <!-- กก. (ประมาณ ฐาน+แบต) — ยังไม่ได้ชั่ง -->
 
-  <xacro:property name="wheel_radius" value="0.075"/>  <!-- ล้อ Ø150 mm -->
-  <xacro:property name="wheel_width"  value="0.05"/>
+  <xacro:property name="wheel_radius" value="0.075"/>  <!-- D: ล้อ Ø150 mm -->
+  <xacro:property name="wheel_width"  value="0.05"/>   <!-- ยังไม่ได้วัด -->
   <xacro:property name="wheel_mass"   value="0.6"/>
 
-  <!-- ระยะติดตั้งล้อ วัดจากจุดศูนย์กลางฐาน (ครึ่งระยะ) -->
-  <xacro:property name="track_half"     value="0.20"/>  <!-- ครึ่งระยะ ซ้าย-ขวา ระหว่างล้อ -->
-  <xacro:property name="wheelbase_half" value="0.16"/>  <!-- ครึ่งระยะ หน้า-หลัง ระหว่างล้อ -->
-  <xacro:property name="clearance"      value="0.04"/>  <!-- ระยะกล่องฐานลอยเหนือแกนล้อ -->
+  <!-- ระยะติดตั้งล้อ วัดจากจุดศูนย์กลางฐาน (ครึ่งระยะ) — ยังไม่ได้วัดทั้งคู่ -->
+  <xacro:property name="track_half"     value="0.20"/>  <!-- ครึ่งระยะ ซ้าย-ขวา ระหว่างกลางล้อ -->
+  <xacro:property name="wheelbase_half" value="0.17"/>  <!-- ครึ่งระยะ หน้า-หลัง ระหว่างแกนล้อ -->
+  <!-- แกนล้อ -> กึ่งกลางแผ่นฐาน (คำนวณจาก C, B, D) -->
+  <xacro:property name="clearance" value="${plate_bottom + base_z / 2 - wheel_radius}"/>
+
+  <!-- ไลดาร์ LDROBOT STL-19P: สูงจากพื้นถึงกลางตัว 22.25 cm (F) วางบนแผ่นฐาน -->
+  <xacro:property name="lidar_z" value="0.2225"/>
+  <xacro:property name="lidar_x" value="0.16"/>     <!-- หน้าเสา ค่อนไปขอบหน้า — ยังไม่ได้วัด -->
   <!-- ======================================================= -->
 
   <material name="hull">   <color rgba="0.90 0.50 0.10 1"/></material>
@@ -48,6 +56,18 @@
       <geometry><box size="${base_x} ${base_y} ${base_z}"/></geometry>
       <material name="hull"/>
     </visual>
+    <!-- ขายึดมอเตอร์ล้อใต้แผ่นฐาน (ดูอย่างเดียว ขนาดประมาณ) — แผ่นอยู่สูงกว่ายอดล้อ 4.5 cm -->
+    <xacro:macro name="wheel_bracket" params="x y">
+      <visual>
+        <origin xyz="${x} ${y} ${-(clearance + base_z / 2) / 2}" rpy="0 0 0"/>
+        <geometry><box size="0.06 0.03 ${clearance - base_z / 2}"/></geometry>
+        <material name="rubber"/>
+      </visual>
+    </xacro:macro>
+    <xacro:wheel_bracket x="${ wheelbase_half}" y="${ track_half - wheel_width / 2 - 0.02}"/>
+    <xacro:wheel_bracket x="${ wheelbase_half}" y="${-track_half + wheel_width / 2 + 0.02}"/>
+    <xacro:wheel_bracket x="${-wheelbase_half}" y="${ track_half - wheel_width / 2 - 0.02}"/>
+    <xacro:wheel_bracket x="${-wheelbase_half}" y="${-track_half + wheel_width / 2 + 0.02}"/>
     <collision>
       <geometry><box size="${base_x} ${base_y} ${base_z}"/></geometry>
     </collision>
@@ -60,8 +80,10 @@
     </inertial>
   </link>
 
-  <!-- ล้อ 1 ตัว : visual + inertial เท่านั้น (ไม่มี collision — ดูหมายเหตุด้านบน)
-       ศูนย์กลางล้ออยู่สูง wheel_radius จากพื้น -> ล้อแตะพื้นพอดี -->
+  <!-- ล้อ 1 ตัว : ศูนย์กลางล้ออยู่สูง wheel_radius จากพื้น -> ล้อแตะพื้นพอดี
+       collision เป็นทรงกลมไร้แรงเสียดทาน (mu = 0) แค่รองรับน้ำหนักให้หุ่นยืนบนพื้น
+       (VelocityControl ไม่ล็อกแกน Z — ถ้าไม่มีอะไรรับ หุ่นจะร่วงจนแผ่นฐานแตะพื้น)
+       ไร้แรงเสียดทานเพื่อไม่ให้ล้อทรงกลม/กระบอกไปฝืนการสไลด์ข้างของ VelocityControl -->
   <xacro:macro name="wheel" params="name x y">
     <link name="${name}_wheel">
       <visual>
@@ -69,6 +91,9 @@
         <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
         <material name="rubber"/>
       </visual>
+      <collision>
+        <geometry><sphere radius="${wheel_radius}"/></geometry>
+      </collision>
       <inertial>
         <mass value="${wheel_mass}"/>
         <inertia
@@ -84,6 +109,10 @@
       <axis xyz="0 1 0"/>
       <dynamics damping="0.05" friction="0.0"/>
     </joint>
+    <gazebo reference="${name}_wheel">
+      <mu1>0.0</mu1>
+      <mu2>0.0</mu2>
+    </gazebo>
   </xacro:macro>
 
   <xacro:wheel name="front_left"  x="${ wheelbase_half}" y="${ track_half}"/>
@@ -110,8 +139,7 @@
   <joint name="laser_joint" type="fixed">
     <parent link="chassis_link"/>
     <child  link="laser_link"/>
-    <!-- กลางฐาน ค่อนไปหน้า สูงพ้นฝาบน -->
-    <origin xyz="${wheelbase_half} 0 ${base_z/2 + 0.04}" rpy="0 0 0"/>
+    <origin xyz="${lidar_x} 0 ${lidar_z - wheel_radius - clearance}" rpy="0 0 0"/>
   </joint>
 
   <gazebo reference="laser_link">
