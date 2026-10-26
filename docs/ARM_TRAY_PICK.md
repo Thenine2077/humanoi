@@ -29,6 +29,8 @@
 กล่อง 26.5×23.5×10 cm หูกล่อง 1×1 cm ด้านยาว · ป้าย ArUco id 1 ขนาด 120 mm แปะกลางพื้นกล่อง
 (`docs/calibration/aruco_tray_id1_120mm.pdf`) · กล้อง Astra Pro ใต้คาง
 
+![ภาพจาก arm tray: กล่อง + ป้าย, ตำแหน่ง, ความนิ่ง](calibration/tray_detector_view.jpg)
+
 ```
 arm start left        ระบบแขน
 arm player            ตัวคุมมือ (นิ้ว tray_grip0 / tray_grip)
