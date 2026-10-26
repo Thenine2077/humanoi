@@ -28,6 +28,7 @@ import time
 
 import numpy as np
 import rclpy
+import yaml
 from geometry_msgs.msg import PoseStamped
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -242,8 +243,11 @@ class TrayTeach(Node):
         R, rms = s["R"], 1000 * float(np.sqrt(np.mean(s["err"] ** 2)))
         stamp = time.strftime("%Y-%m-%d %H:%M %Z")
         path = os.path.join(CONFIG, f"tray_grasp_{self.arm}.yaml")
+        offset = 0.0  # ยกที่จับที่ตั้งไว้ใน arm tray-pick (h <cm>) — เก็บต่อ ไม่ล้างตอนบันทึกใหม่
         if os.path.exists(path):
             shutil.copy2(path, path + time.strftime(".bak-%Y%m%d-%H%M%S"))
+            with open(path, encoding="utf-8") as f:
+                offset = float((yaml.safe_load(f) or {}).get("grasp_offset_up", 0.0))
         up = R @ self.grasps[0]["C"][:3, 2]  # แกน z ป้าย (ตั้งฉากพื้นกล่อง ชี้ขึ้น) ในฐานแขน
         grasps = "".join(f"  - marker_in_camera:\n{yaml_pose(g['C'], '      ')}"
                          f"    wrist_in_arm:\n{yaml_pose(g['A'], '      ')}"
@@ -262,9 +266,12 @@ class TrayTeach(Node):
                 f"table_up: {vec(up, '.5f')}   # ตั้งฉากพื้นกล่อง ชี้ขึ้น ในฐานแขน — ทิศยกมือเข้า/ออกจากหู\n"
                 f"max_shift_m: {MAX_SHIFT}\nmax_turn_deg: {MAX_TURN}\n"
                 f"touch_rms_mm: {rms:.2f}\nrotation_wobble_deg: {s['wobble']:.2f}\n"
+                f"grasp_offset_up: {offset:.4f}   # m ยกที่จับขึ้นจากท่าที่สอน ตั้งฉากพื้นกล่อง (arm tray-pick: h <cm>)\n"
                 f"joint_names: [{', '.join(self.grasps[0]['names'])}]\ngrasps:\n{grasps}")
         return (f"✓ บันทึกแล้ว ({len(self.grasps)} ท่าจับ · ทิศกล้องจากท่าแตะ {len(s['used'])} ครั้ง)\n  {path}\n"
-                f"  ใช้ได้เมื่อกล่องห่างท่าจับที่สอนไม่เกิน {100 * MAX_SHIFT:.0f} cm และหมุนไม่เกิน {MAX_TURN:.0f}°")
+                f"  ใช้ได้เมื่อกล่องห่างท่าจับที่สอนไม่เกิน {100 * MAX_SHIFT:.0f} cm และหมุนไม่เกิน {MAX_TURN:.0f}°"
+                + (f"\n  ยังยกที่จับ {100 * offset:+.1f} cm ตามที่ตั้งไว้ (ท่าจับใหม่สูงพอดีแล้ว: arm tray-pick แล้ว h 0)"
+                   if offset else ""))
 
 
 def main():

@@ -9,11 +9,12 @@
 ที่จับ = ท่าจับที่สอน (ตัวที่กล่องวางใกล้สุด) เลื่อนตามกล่อง (tray.delta_grasp) · IK จากโมเดลแขนเอง (ไม่ต้องเปิด MoveIt)
 กล่องห่างท่าที่สอนเกิน max_shift_m หรือหมุนเกิน max_turn_deg (ในไฟล์ท่าจับ) = ไม่หยิบ
 
-คำสั่ง: Enter = ดูแผน (ยังไม่ขยับ) แล้วถามยืนยัน · r = วางคืน · q = ออก
+คำสั่ง: Enter = ดูแผน (ยังไม่ขยับ) แล้วถามยืนยัน · r = วางคืน · h <cm> = ยกที่จับขึ้น/ลง (เก็บในไฟล์) · q = ออก
        ระหว่างแขนขยับ Ctrl+C = หยุดทันที (ยกเลิกคำสั่งที่ตัวคุมแขน)
 """
 import math
 import os
+import re
 import sys
 import threading
 import time
@@ -186,6 +187,10 @@ class TrayPick(Node):
             raise PickError(f"{info} — หมุนเกิน {float(g['max_turn_deg']):.0f}° (วิธีนี้ชดเชยการหมุนไม่ได้) วางกล่องให้ตรง")
         up = R @ C[:3, 2]
         up /= np.linalg.norm(up)
+        off = float(g.get("grasp_offset_up", 0.0))  # ปรับความสูงที่จับจากท่าที่สอน (h <cm>)
+        if off:
+            T[:3, 3] += off * up
+            info += f" · ยกที่จับ {100 * off:+.1f} cm"
         q_T, pos, rot = self.chain.ik(T, seeds[k])
         if pos > 1e-3 or rot > math.radians(0.5):
             raise PickError(f"{info} — แขนไปที่จับไม่ถึง (คลาด {1000 * pos:.0f} mm)")
@@ -219,6 +224,23 @@ class TrayPick(Node):
         return {"info": info, "T": T, "hover": hover, "lift": lift, "q_now": q_now, "q_hover": q_hover,
                 "down": down, "up": up_path, "height": height, "h_hover": H * i_h / n, "h_lift": H * i_l / n,
                 "short": short}
+
+    def set_offset(self, cm):
+        """ยกที่จับขึ้น cm (ลบ = ลง) ตั้งฉากพื้นกล่อง จากท่าที่สอน — เก็บในไฟล์ท่าจับ (grasp_offset_up)"""
+        if abs(cm) > 3.0:
+            raise PickError("ปรับได้ไม่เกิน ±3 cm — ต่างมากกว่านี้ให้สอนท่าจับใหม่ (arm tray-teach)")
+        self.load_grasps()
+        with open(self.grasp_file, encoding="utf-8") as f:
+            text = f.read()
+        line = f"grasp_offset_up: {cm / 100:.4f}   # m ยกที่จับขึ้นจากท่าที่สอน ตั้งฉากพื้นกล่อง (arm tray-pick: h <cm>)"
+        if re.search(r"^grasp_offset_up:.*$", text, flags=re.M):
+            text = re.sub(r"^grasp_offset_up:.*$", lambda _: line, text, flags=re.M)
+        else:
+            text = text.replace("\ngrasps:\n", f"\n{line}\ngrasps:\n", 1)
+        tmp = self.grasp_file + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, self.grasp_file)
 
     def describe(self, pl):
         go = arm_chain.timed_path([pl["q_now"], pl["q_hover"]], float(self.p["speed"]), float(self.p["accel"]))
@@ -333,7 +355,8 @@ def main():
     spin = threading.Thread(target=ex.spin, daemon=True)
     spin.start()
     print(f"หยิบกล่องตามกล้อง แขน{node.p['arm']} — ท่าจับจาก {node.grasp_file}\n"
-          "Enter = ดูแผน (ยังไม่ขยับ) แล้วยืนยัน · r = วางคืนที่เดิม · q = ออก · Ctrl+C ระหว่างขยับ = หยุด")
+          "Enter = ดูแผน (ยังไม่ขยับ) แล้วยืนยัน · r = วางคืนที่เดิม · h <cm> = ยกที่จับ · q = ออก · "
+          "Ctrl+C ระหว่างขยับ = หยุด")
     try:
         while True:
             cmd = input("[ถือกล่องอยู่] > " if node.holding else "> ").strip().lower()
@@ -349,6 +372,18 @@ def main():
                     if input("  หยิบเลย? พิมพ์ y แล้ว Enter (อย่างอื่น = ยกเลิก) ").strip().lower() == "y":
                         node.pick(pl)
                         print("✓ หยิบแล้ว — ค้างไว้ · r = วางคืน")
+                elif cmd == "h" or cmd.startswith("h "):
+                    if cmd == "h":
+                        off = float(node.load_grasps().get("grasp_offset_up", 0.0))
+                        print(f"  ยกที่จับจากท่าที่สอน {100 * off:+.1f} cm · ตั้งใหม่: h <cm> เช่น h 0.5 (ลบ = ลง)")
+                        continue
+                    try:
+                        cm = float(cmd[2:])
+                    except ValueError:
+                        print("  h ตามด้วยตัวเลข cm เช่น h 0.5")
+                        continue
+                    node.set_offset(cm)
+                    print(f"✓ ยกที่จับ {cm:+.1f} cm จากท่าที่สอน (บันทึกในไฟล์ท่าจับแล้ว — มีผลตั้งแต่ครั้งหยิบถัดไป)")
                 elif cmd == "r":
                     if not node.holding:
                         print("  ยังไม่ได้ถือกล่อง")
@@ -357,7 +392,7 @@ def main():
                         node.place_back()
                         print("✓ วางคืนแล้ว")
                 else:
-                    print("  Enter = ดูแผนแล้วหยิบ · r = วางคืน · q = ออก")
+                    print("  Enter = ดูแผนแล้วหยิบ · r = วางคืน · h <cm> = ยกที่จับ (h = ดูค่า) · q = ออก")
             except PickError as exc:
                 print(f"✗ {exc}")
     except (KeyboardInterrupt, EOFError):
