@@ -159,13 +159,15 @@ def solve_grasp_camera(As, Cs, iters=60):
     return X, Y, pos, ang, spread_ok
 
 
-def solve_contact_point(As, Cs, iters=80):
+def solve_contact_point(As, Cs, iters=80, p_prior=None, prior_sigma=0.05):
     """สอนจับกล่องหลายครั้ง โดยข้อมือเอียงต่างกันได้ — ขอแค่ "จุดบนนิ้ว" แตะ "จุดเดิมบนหูกล่อง" ทุกครั้ง
 
     จุดบนนิ้ว p (เฟรมข้อมือ link_6) = จุดบนหู q (เฟรมป้าย) ทุกครั้ง:  A·p = X·C·q
     ไม่รู้ X (ฐานแขน <- กล้อง, 6 ค่า), p (3), q (3) = 12 ค่า · แต่ละครั้งให้ 3 สมการ -> ต้อง >= 5 ครั้ง
     ข้อมือเอียงต่างกัน = หา p ได้, กล่องหมุนต่างกัน = หา q ได้ (ไม่หมุน: q กับตำแหน่งกล้องแยกไม่ออก
     — ไม่มีผลถ้ากล่องวางตรงเหมือนตอนสอน)
+    p_prior = จุดแตะบนนิ้วโดยประมาณ (ขนาดมือจริง) ใส่เป็นข้อมูลอ่อนๆ ±prior_sigma — ข้อมูลหมุนน้อยจะไม่บิด p
+    ไปไกลเป็นเมตร (ข้อมูลหมุนพอ = ข้อมูลชนะค่านี้เอง)
     -> (X, p, q, คลาดต่อครั้ง m, การกระจาย 0..1)
     """
     As, Cs = [np.asarray(a, float) for a in As], [np.asarray(c, float) for c in Cs]
@@ -175,14 +177,16 @@ def solve_contact_point(As, Cs, iters=80):
     spread_ok = float(sv[1] / sv[0]) if sv[0] > 1e-9 else 0.0
     U, _, Vt = np.linalg.svd((P - P.mean(0)).T @ (Q - Q.mean(0)))
     R = Vt.T @ np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))]) @ U.T
-    x = np.concatenate([np.zeros(3), Q.mean(0) - R @ P.mean(0), np.zeros(6)])  # rotvec แก้ R, t, p, q
+    p0 = np.zeros(3) if p_prior is None else np.asarray(p_prior, float)
+    x = np.concatenate([np.zeros(3), Q.mean(0) - R @ P.mean(0), p0, np.zeros(3)])  # rotvec แก้ R, t, p, q
     R0 = R
+    w_prior = 0.0 if p_prior is None else 0.003 / prior_sigma  # คลาดจาก p_prior เท่า sigma = คลาด 3 mm
 
     def res(x):
         Rx = exp_so3(x[:3]) @ R0
         t, p, q = x[3:6], x[6:9], x[9:12]
         return np.concatenate([Rx @ (C[:3, :3] @ q + C[:3, 3]) + t - (A[:3, :3] @ p + A[:3, 3])
-                               for A, C in zip(As, Cs)])
+                               for A, C in zip(As, Cs)] + [w_prior * (p - p0)])
 
     lam, r = 1e-3, res(x)
     for _ in range(iters):
@@ -200,7 +204,7 @@ def solve_contact_point(As, Cs, iters=80):
         else:
             lam *= 10
     X = mat(exp_so3(x[:3]) @ R0, x[3:6])
-    err = np.linalg.norm(r.reshape(-1, 3), axis=1)
+    err = np.linalg.norm(r[:3 * len(As)].reshape(-1, 3), axis=1)
     return X, x[6:9], x[9:12], err, spread_ok
 
 

@@ -65,6 +65,10 @@ class TrayTeach(Node):
         super().__init__("tray_teach")
         self.declare_parameter("arm", "left")
         self.declare_parameter("camera_link", "camera_link")
+        # จุดแตะบนนิ้วโดยประมาณ ในเฟรมข้อมือ link_6 (m): มือ AmazingHand ยาว ~17 cm + ตัวยึด 4 cm ตามแกน z
+        # ใช้ปลายแหลม (ปากกา/ไขควง) ที่ยื่นเลยนิ้ว -> ใส่ระยะใหม่ เช่น touch_prior:=[0.0,0.0,0.26]
+        self.declare_parameter("touch_prior", [0.0, 0.0, 0.21])
+        self.touch_prior = np.array(self.get_parameter("touch_prior").value, float)
         self.arm = str(self.get_parameter("arm").value)
         self.base, self.tool = f"{self.arm}_base_link", f"{self.arm}_link_6"
         self.cam_link = str(self.get_parameter("camera_link").value)
@@ -177,7 +181,8 @@ class TrayTeach(Node):
 
     # ---------- คำนวณ ----------
     def solve(self):
-        return tray.solve_contact_point([c["A"] for c in self.caps], [c["C"] for c in self.caps])
+        return tray.solve_contact_point([c["A"] for c in self.caps], [c["C"] for c in self.caps],
+                                        p_prior=self.touch_prior)
 
     def report(self):
         n = len(self.caps)
