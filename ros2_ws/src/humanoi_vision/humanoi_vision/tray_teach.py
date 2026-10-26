@@ -249,7 +249,8 @@ def main():
     node = TrayTeach()
     ex = MultiThreadedExecutor()
     ex.add_node(node)
-    threading.Thread(target=ex.spin, daemon=True).start()
+    spin = threading.Thread(target=ex.spin, daemon=True)
+    spin.start()
     print(f"สอนจับกล่อง แขน{node.arm}\n"
           "ขั้น 1 (6-8 ครั้ง): วางกล่อง -> จ็อกให้จุดเดิมบนนิ้ว (เช่นปลายนิ้วชี้ ท่า point) แตะจุดเดิมบนกล่อง -> แขนนิ่ง -> Enter\n"
           "  ระหว่างครั้ง เลื่อนกล่อง ~5 cm 2 ทิศ และหมุนเบี้ยว ±15° · ข้อมือเอียงต่างกันได้\n"
@@ -295,8 +296,10 @@ def main():
                 print("  Enter แตะ · u / d <n> ลบท่าแตะ · g ท่าจับ · gu ลบท่าจับล่าสุด · l ดู · w บันทึก · q ออก")
     except (KeyboardInterrupt, EOFError):
         print()
-    finally:
-        ex.shutdown()
+    finally:  # หยุดตัวรับข้อมูล (อีกเธรด) ให้เสร็จก่อนทำลายโหนด — ไม่งั้นมีข้อความ "exception was never retrieved"
+        ex.shutdown(timeout_sec=2.0)
+        spin.join(timeout=2.0)
+        ex.remove_node(node)
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
