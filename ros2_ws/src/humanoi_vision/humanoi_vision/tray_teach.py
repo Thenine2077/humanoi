@@ -3,14 +3,18 @@
 
   arm start left · arm moveit (จ็อก) · arm tray (กล้อง + หากล่อง) · arm tray-teach
 
-ทำซ้ำ 6-8 ครั้ง: วางกล่อง (ป้าย id 1 บนพื้นกล่อง) -> จ็อกแขนให้ "จุดเดิมบนนิ้ว" แตะ "จุดเดิมบนหูกล่อง" -> กด Enter
-ข้อมือเอียงต่างกันแต่ละครั้งได้ (แขนไปทุกตำแหน่งด้วยท่ามือเดิมไม่ได้) — ขอแค่จุดแตะเป็นจุดเดิม
+ขั้น 1 คาลิเบรต (6-8 ครั้ง): วางกล่อง (ป้าย id 1 บนพื้นกล่อง) -> จ็อกแขนให้ "จุดเดิมบนนิ้ว" แตะ "จุดเดิมบนกล่อง"
+  -> กด Enter · แนะนำ: นิ้วท่า point แตะจุดที่ทำเครื่องหมายไว้ข้างกล่อง (แตะเบาๆ ไม่ให้กล่องเลื่อน)
+  ข้อมือเอียงต่างกันแต่ละครั้งได้ (แขนไปทุกตำแหน่งด้วยท่ามือเดิมไม่ได้) — ขอแค่จุดแตะเป็นจุดเดิม
+ขั้น 2 ท่าจับจริง (1-3 ครั้ง หลังขั้น 1 ครบ): นิ้วท่า tray_grip จับหูกล่องจริง -> กด g
+  (ท่าจับเทียบป้ายคิดจากตำแหน่งกล้องของขั้น 1 — ท่าแตะในขั้น 1 ไม่ถูกใช้เป็นท่าจับ)
 ระหว่างครั้ง เลื่อนกล่องซ้าย/ขวา/หน้า/หลัง ~5 cm และหมุนเบี้ยว ±15° (ต้องเลื่อนอย่างน้อย 2 ทิศ + หมุน)
 คำนวณ (tray.solve_contact_point): จุดบนนิ้ว p (ข้อมือ) = จุดบนหู q (ป้าย) ทุกครั้ง -> ตำแหน่งกล้องเทียบแขน + p + q
-ตอนหยิบจริง: ใช้ท่าข้อมือของครั้งที่สอนซึ่งกล่องวางใกล้ที่สุด ย้ายตามป้ายที่เห็น (tray.nearest_grasp)
+ตอนหยิบจริง: ใช้ท่าจับ (ขั้น 2) ของครั้งที่กล่องวางใกล้ที่สุด ย้ายตามป้ายที่เห็น (tray.nearest_grasp)
 ทดสอบจำลอง (สอน 7 ครั้ง ข้อมือเอียงต่าง ±12°): ท่าข้อมือคลาดกลางๆ ~5 mm · แม่นรอบบริเวณที่สอนเท่านั้น
 
-คำสั่ง: Enter = เก็บครั้งนี้ · u = ลบครั้งล่าสุด · d <n> = ลบครั้งที่ n · l = ดูที่เก็บ · w = บันทึกผล · q = ออก
+คำสั่ง: Enter = เก็บท่าแตะ · u = ลบท่าแตะล่าสุด · d <n> = ลบท่าแตะครั้งที่ n · g = เก็บท่าจับจริง
+       gu = ลบท่าจับล่าสุด · l = ดูที่เก็บ · w = บันทึกผล · q = ออก
 ทุกครั้งที่เก็บ/ลบ บันทึกข้อมูลดิบไว้ที่ config/tray_teach_<arm>.captures.npz (โปรแกรมปิดไปก็ไม่หาย — เปิดใหม่โหลดคืน)
 ผล (w): humanoi_description/config/camera_to_<arm>_arm.yaml (TF ฐานแขน -> camera_link) +
         humanoi_description/config/tray_grasp_<arm>.yaml (ท่าจับเทียบป้ายทุกครั้ง + จุดแตะ + มุมข้อต่อ)
@@ -73,7 +77,8 @@ class TrayTeach(Node):
         self.create_subscription(PoseStamped, "/tray/pose", self._on_tray, 10)
         self.create_subscription(String, "/tray/status", lambda m: setattr(self, "status", m.data), 10)
         self.create_subscription(JointState, "/joint_states", self._on_js, 50)
-        self.caps = []  # dict: A, C, names, joints, frame
+        self.caps = []    # ท่าแตะ (คาลิเบรต) dict: A, C, names, joints, frame
+        self.grasps = []  # ท่าจับจริง dict แบบเดียวกัน
 
     def _on_tray(self, msg):
         with self.lock:
@@ -85,13 +90,20 @@ class TrayTeach(Node):
 
     # ---------- เก็บ / โหลดข้อมูลดิบ ----------
     def autosave(self):
-        if not self.caps:
+        if not self.caps and not self.grasps:
             if os.path.exists(self.save_path):
                 os.remove(self.save_path)
             return
-        np.savez(self.save_path, A=np.array([c["A"] for c in self.caps]), C=np.array([c["C"] for c in self.caps]),
-                 joints=np.array([c["joints"] for c in self.caps]), names=np.array(self.caps[0]["names"]),
-                 frame=np.array(self.caps[0]["frame"]))
+        first = (self.caps or self.grasps)[0]
+        nj = len(first["joints"])
+
+        def arr(lst, key, shape):
+            return np.array([c[key] for c in lst]) if lst else np.zeros(shape)
+
+        np.savez(self.save_path, A=arr(self.caps, "A", (0, 4, 4)), C=arr(self.caps, "C", (0, 4, 4)),
+                 joints=arr(self.caps, "joints", (0, nj)), GA=arr(self.grasps, "A", (0, 4, 4)),
+                 GC=arr(self.grasps, "C", (0, 4, 4)), Gjoints=arr(self.grasps, "joints", (0, nj)),
+                 names=np.array(first["names"]), frame=np.array(first["frame"]))
 
     def load_saved(self):
         if not os.path.exists(self.save_path):
@@ -100,7 +112,10 @@ class TrayTeach(Node):
         names, frame = [str(n) for n in d["names"]], str(d["frame"])
         self.caps = [{"A": A, "C": C, "names": names, "joints": j, "frame": frame}
                      for A, C, j in zip(d["A"], d["C"], d["joints"])]
-        return len(self.caps)
+        if "GA" in d:
+            self.grasps = [{"A": A, "C": C, "names": names, "joints": j, "frame": frame}
+                           for A, C, j in zip(d["GA"], d["GC"], d["Gjoints"])]
+        return len(self.caps) + len(self.grasps)
 
     # ---------- เก็บครั้งใหม่ ----------
     def arm_still(self, window=0.8, tol=0.002):
@@ -113,33 +128,52 @@ class TrayTeach(Node):
         pos = np.array([j[2] for j in js if j[1] == names])
         return (names, pos[-1]) if np.ptp(pos, axis=0).max() <= tol else None
 
-    def capture(self):
-        """-> ข้อความผล"""
+    def snapshot(self):
+        """ตอนนี้: dict (A ข้อมือในฐานแขน, C ป้ายในกล้อง, มุมข้อต่อ) หรือข้อความบอกว่าทำไมยังเก็บไม่ได้"""
         with self.lock:
             msg, age = self.tray_msg, time.monotonic() - self.tray_t
         if msg is None or age > 1.0 or self.status != "ok":
             return f"✗ ยังไม่เห็นกล่องนิ่ง (สถานะ {self.status}) — เปิด arm tray และดูว่ากล้องเห็นป้ายทั้งแผ่น"
         still = self.arm_still()
         if still is None:
-            return "✗ แขนยังขยับอยู่ (หรือไม่มี /joint_states) — รอแขนนิ่งแล้วกด Enter ใหม่"
+            return "✗ แขนยังขยับอยู่ (หรือไม่มี /joint_states) — รอแขนนิ่งแล้วกดใหม่"
         try:
             A = tf_mat(self.tf_buffer.lookup_transform(self.base, self.tool, Time()))
         except TransformException as exc:
             return f"✗ ไม่มี TF {self.base} -> {self.tool} ({exc}) — เปิด arm start ก่อน"
-        C = pose_mat(msg)
+        return {"A": A, "C": pose_mat(msg), "names": still[0], "joints": still[1], "frame": msg.header.frame_id}
+
+    def capture(self):
+        """เก็บท่าแตะ (คาลิเบรต) -> ข้อความผล"""
+        snap = self.snapshot()
+        if isinstance(snap, str):
+            return snap
+        A, C = snap["A"], snap["C"]
         warn = ""
         if self.caps:
             dA = np.linalg.norm(A[:3, 3] - self.caps[-1]["A"][:3, 3]) * 1000
             dC = np.linalg.norm(C[:3, 3] - self.caps[-1]["C"][:3, 3]) * 1000
             if dA < SAME_MM and dC > 5:
-                warn = (f"\n  ⚠ ข้อมือแทบไม่ขยับ ({dA:.1f} mm) แต่กล่องเลื่อนไป {dC:.0f} mm — มือแตะหูจริงไหม? "
+                warn = (f"\n  ⚠ ข้อมือแทบไม่ขยับ ({dA:.1f} mm) แต่กล่องเลื่อนไป {dC:.0f} mm — นิ้วแตะจุดจริงไหม? "
                         "ถ้าไม่ใช่ กด u ลบ")
             elif dA < SAME_MM and dC < 2:
                 warn = "\n  ⚠ ซ้ำกับครั้งก่อน (กล่องกับแขนไม่ได้ขยับ) — กด u ลบ"
-        self.caps.append({"A": A, "C": C, "names": still[0], "joints": still[1], "frame": msg.header.frame_id})
+        self.caps.append(snap)
         self.autosave()
         return (f"✓ ครั้งที่ {len(self.caps)}: ป้ายห่างกล้อง {np.linalg.norm(C[:3, 3]):.3f} m · "
                 f"ข้อมือ ({A[0, 3]:+.3f}, {A[1, 3]:+.3f}, {A[2, 3]:+.3f}) m" + warn)
+
+    def grasp(self):
+        """เก็บท่าจับจริง (ขั้น 2) — ต้องคาลิเบรตด้วยท่าแตะครบก่อน -> ข้อความผล"""
+        if len(self.caps) < MIN_CAPTURES or self.solve()[4] < 0.3:
+            return f"✗ เก็บท่าแตะให้ครบก่อน (อย่างน้อย {MIN_CAPTURES} ครั้ง เลื่อน 2 ทิศ) — ท่าจับต้องใช้ตำแหน่งกล้องจากขั้นนั้น"
+        snap = self.snapshot()
+        if isinstance(snap, str):
+            return snap
+        self.grasps.append(snap)
+        self.autosave()
+        return (f"✓ ท่าจับที่ {len(self.grasps)}: ป้ายห่างกล้อง {np.linalg.norm(snap['C'][:3, 3]):.3f} m · "
+                "บันทึกด้วย w (ถ้ากล่องอาจวางได้หลายแบบ เก็บท่าจับเพิ่มตอนกล่องเลื่อน/หมุนได้)")
 
     # ---------- คำนวณ ----------
     def solve(self):
@@ -157,6 +191,8 @@ class TrayTeach(Node):
                  + f" · จุดแตะบนนิ้วห่างข้อมือ {100 * np.linalg.norm(p):.0f} cm"]
         lines += [f"    #{i + 1}: {1000 * e:.1f} mm" + ("  ← น่าสงสัย (d <n> ลบแล้วเก็บใหม่)" if 1000 * e > GOOD_MM else "")
                   for i, e in enumerate(err)]
+        lines.append(f"  ท่าจับจริง: {len(self.grasps)} ครั้ง" + ("" if self.grasps else
+                     " — คาลิเบรตครบแล้วให้จัดนิ้ว tray_grip จับหูกล่องจริง แล้วกด g"))
         return "\n".join(lines)
 
     def write(self):
@@ -175,7 +211,7 @@ class TrayTeach(Node):
         stamp = time.strftime("%Y-%m-%d %H:%M %Z")
         cam_path = os.path.join(CONFIG, f"camera_to_{self.arm}_arm.yaml")
         grasp_path = os.path.join(CONFIG, f"tray_grasp_{self.arm}.yaml")
-        for path in (cam_path, grasp_path):
+        for path in (cam_path, grasp_path) if self.grasps else (cam_path,):
             if os.path.exists(path):
                 shutil.copy2(path, path + time.strftime(".bak-%Y%m%d-%H%M%S"))
         qc, t = hand_eye.mat_to_quat(T_bl[:3, :3]), T_bl[:3, 3]
@@ -186,22 +222,26 @@ class TrayTeach(Node):
                 f"parent_frame: {self.base}\nchild_frame: {self.cam_link}\n"
                 f"x: {t[0]:.5f}\ny: {t[1]:.5f}\nz: {t[2]:.5f}\n"
                 f"qx: {qc[0]:.6f}\nqy: {qc[1]:.6f}\nqz: {qc[2]:.6f}\nqw: {qc[3]:.6f}\nrms_mm: {rms:.2f}\nmethod: tray_teach\n")
+        done = f"✓ บันทึกตำแหน่งกล้องแล้ว ({n} ท่าแตะ คลาดเฉลี่ย {rms:.1f} mm)\n  {cam_path}\n"
+        if not self.grasps:
+            return done + ("  ยังไม่มีท่าจับจริง — จัดนิ้ว tray_grip จับหูกล่อง แล้วกด g แล้ว w อีกครั้ง\n"
+                           "  ปิด arm tray แล้วเปิดใหม่ ให้ใช้ตำแหน่งกล้องใหม่")
         Xinv = tray.inv(X)
         grasps = "".join(f"  - marker_in_camera:\n{yaml_pose(c['C'], '      ')}"
                          f"    wrist_in_marker:\n{yaml_pose(tray.inv(c['C']) @ Xinv @ c['A'], '      ')}"
                          f"    joints: [" + ", ".join(f"{v:.5f}" for v in c["joints"]) + "]\n"
-                         for c in self.caps)
+                         for c in self.grasps)
         with open(grasp_path, "w", encoding="utf-8") as f:
             f.write(
-                f"# ท่าจับหูกล่องของแขน{self.arm} — tray_teach {stamp} ({n} ครั้ง คลาดเฉลี่ย {rms:.1f} mm)\n"
-                "# ตอนหยิบ: เลือกครั้งที่กล่อง (marker_in_camera) ใกล้ตำแหน่งที่เห็นที่สุด แล้วข้อมือ = TF(ฐานแขน <- กล้อง)"
+                f"# ท่าจับหูกล่องของแขน{self.arm} — tray_teach {stamp} ({len(self.grasps)} ท่าจับ · "
+                f"กล้องจาก {n} ท่าแตะ คลาดเฉลี่ย {rms:.1f} mm)\n"
+                "# ตอนหยิบ: เลือกท่าที่กล่อง (marker_in_camera) ใกล้ตำแหน่งที่เห็นที่สุด แล้วข้อมือ = TF(ฐานแขน <- กล้อง)"
                 " · ป้ายที่เห็น · wrist_in_marker\n"
                 f"tool_frame: {self.tool}\n"
-                f"contact_on_tool: [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]     # จุดแตะบนนิ้ว (เฟรมข้อมือ)\n"
-                f"contact_on_marker: [{q[0]:.4f}, {q[1]:.4f}, {q[2]:.4f}]   # จุดบนหูกล่อง (เฟรมป้าย)\n"
-                f"joint_names: [{', '.join(self.caps[0]['names'])}]\ngrasps:\n{grasps}")
-        return (f"✓ บันทึกแล้ว ({n} ครั้ง คลาดเฉลี่ย {rms:.1f} mm)\n  {cam_path}\n  {grasp_path}\n"
-                "  ปิด arm tray แล้วเปิดใหม่ ให้ใช้ตำแหน่งกล้องใหม่")
+                f"touch_on_tool: [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]     # จุดแตะบนนิ้วตอนคาลิเบรต (เฟรมข้อมือ)\n"
+                f"touch_on_marker: [{q[0]:.4f}, {q[1]:.4f}, {q[2]:.4f}]   # จุดที่แตะบนกล่อง (เฟรมป้าย)\n"
+                f"joint_names: [{', '.join(self.grasps[0]['names'])}]\ngrasps:\n{grasps}")
+        return done + f"  {grasp_path} ({len(self.grasps)} ท่าจับ)\n  ปิด arm tray แล้วเปิดใหม่ ให้ใช้ตำแหน่งกล้องใหม่"
 
 
 def main():
@@ -210,16 +250,18 @@ def main():
     ex = MultiThreadedExecutor()
     ex.add_node(node)
     threading.Thread(target=ex.spin, daemon=True).start()
-    print(f"สอนจับกล่อง แขน{node.arm} — Enter = เก็บ · u = ลบล่าสุด · d <n> = ลบครั้งที่ n · l = ดู · w = บันทึก · q = ออก\n"
-          "แต่ละครั้ง: วางกล่อง -> จ็อกแขนให้จุดเดิมบนนิ้วแตะจุดเดิมบนหู (ข้อมือเอียงต่างกันได้) -> รอแขนนิ่ง -> Enter\n"
-          "ระหว่างครั้ง เลื่อนกล่อง ~5 cm 2 ทิศ และหมุนเบี้ยว ±15° · แนะนำ 6-8 ครั้ง")
+    print(f"สอนจับกล่อง แขน{node.arm}\n"
+          "ขั้น 1 (6-8 ครั้ง): วางกล่อง -> จ็อกให้จุดเดิมบนนิ้ว (เช่นปลายนิ้วชี้ ท่า point) แตะจุดเดิมบนกล่อง -> แขนนิ่ง -> Enter\n"
+          "  ระหว่างครั้ง เลื่อนกล่อง ~5 cm 2 ทิศ และหมุนเบี้ยว ±15° · ข้อมือเอียงต่างกันได้\n"
+          "ขั้น 2 (1-3 ครั้ง): นิ้วท่า tray_grip จับหูกล่องจริง -> g\n"
+          "คำสั่ง: Enter แตะ · u / d <n> ลบท่าแตะ · g ท่าจับ · gu ลบท่าจับล่าสุด · l ดู · w บันทึก · q ออก")
     k = node.load_saved()
     if k:
-        print(f"  โหลดที่เก็บไว้ครั้งก่อน {k} ครั้ง ({node.save_path}) — เก็บต่อได้เลย หรือ d/u ลบ")
+        print(f"  โหลดที่เก็บไว้ครั้งก่อน: ท่าแตะ {len(node.caps)} · ท่าจับ {len(node.grasps)} ({node.save_path})")
         print(node.report())
     try:
         while True:
-            cmd = input(f"[{len(node.caps)} ครั้ง] > ").strip().lower()
+            cmd = input(f"[แตะ {len(node.caps)} · จับ {len(node.grasps)}] > ").strip().lower()
             if cmd == "q":
                 break
             if cmd == "":
@@ -236,12 +278,21 @@ def main():
                         print(node.report())
                 else:
                     print("  ไม่มีครั้งนั้น (d ตามด้วยเลขครั้ง เช่น d 2)")
+            elif cmd == "g":
+                print(node.grasp())
+            elif cmd == "gu":
+                if node.grasps:
+                    node.grasps.pop()
+                    node.autosave()
+                    print(f"  ลบท่าจับล่าสุดแล้ว เหลือ {len(node.grasps)}")
+                else:
+                    print("  ยังไม่มีท่าจับ")
             elif cmd == "l":
                 print(node.report())
             elif cmd == "w":
                 print(node.write())
             else:
-                print("  Enter = เก็บ · u = ลบล่าสุด · d <n> = ลบครั้งที่ n · l = ดู · w = บันทึก · q = ออก")
+                print("  Enter แตะ · u / d <n> ลบท่าแตะ · g ท่าจับ · gu ลบท่าจับล่าสุด · l ดู · w บันทึก · q ออก")
     except (KeyboardInterrupt, EOFError):
         print()
     finally:
