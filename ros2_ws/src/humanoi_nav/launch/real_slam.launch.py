@@ -4,7 +4,7 @@
 
 ลิดาร์ STL-19P -> /scan -> rf2o_laser_odometry -> /odom + TF odom->base_footprint
                        +-> slam_toolbox -> /map + TF map->odom
-ดูใน Foxglove (ws://192.168.1.68:8765): 3D panel, Display frame = map, เปิด /map กับ /scan
+ดูใน Foxglove (ws://EIT-Raspberry-Pi-5.local:8765): 3D panel, Display frame = map, เปิด /map กับ /scan
 
 ถือลิดาร์เดินช้าๆ (หรือขับฐาน) ให้ทั่วห้อง — rf2o เดาการเคลื่อนที่จากสแกนที่ต่อเนื่องกัน
 หมุนเร็วหรือเดินเร็วเกินจะหลุด ให้ช้าไว้ก่อน แล้วเซฟแผนที่:

@@ -9,7 +9,7 @@
   ros2 launch humanoi_vision yolo.launch.py camera:=false                   # กล้องเปิดอยู่แล้วจากที่อื่น
   bash ~/Humanoi/scripts/yolo_view.sh        # บน Pi นอก container: มีหน้าต่างภาพ + รายการที่เจอขึ้นจอ Pi
 
-ดูผลใน Foxglove (ws://192.168.1.68:8765): Image panel ที่ /yolo/image/compressed (กรอบ + ระยะ)
+ดูผลใน Foxglove (ws://EIT-Raspberry-Pi-5.local:8765): Image panel ที่ /yolo/image/compressed (กรอบ + ระยะ)
 3D panel: /yolo/markers + /camera/depth/points (Display frame = camera_color_optical_frame)
 กรอบที่ตรวจเจอ (พิกเซล) อยู่ที่ /yolo/detections · พิกัด 3D (เมตร ในเฟรมกล้อง) อยู่ที่ /yolo/detections_3d
 มีไฟล์ hand-eye (humanoi_description/config/camera_to_left_arm.yaml จาก hand_eye_calibrate) -> ส่ง TF

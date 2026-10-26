@@ -5,7 +5,7 @@
 
 กระดาษ: docs/calibration/checkerboard_9x6_25mm.pdf พิมพ์ A4 แบบ 100% ติดแผ่นแข็งเรียบ
 ขนาดช่องไม่มีผลกับค่าเลนส์ แต่ใส่ให้ตรงของจริงไว้ (วัด 10 ช่องแล้วหาร 10) — cols/rows = จำนวน "มุมด้านใน"
-ดูใน Foxglove (ws://192.168.1.68:8765): Image panel ที่ /calibration/image/compressed
+ดูใน Foxglove (ws://EIT-Raspberry-Pi-5.local:8765): Image panel ที่ /calibration/image/compressed
 เสร็จแล้วได้ humanoi_description/config/astra_color.yaml — colcon build humanoi_description หนึ่งครั้ง
 แล้ว camera.launch.py จะโหลดไฟล์นี้ให้ไดรเวอร์เอง
 """

@@ -6,7 +6,7 @@
   # มี foxglove_bridge รันอยู่แล้วจากที่อื่น — เปิดแค่กล้อง + บีบอัด
   ros2 launch humanoi_description camera.launch.py foxglove:=false
 
-ดูภาพจาก PC: Foxglove -> Open connection -> Foxglove WebSocket -> ws://192.168.1.68:8765
+ดูภาพจาก PC: Foxglove -> Open connection -> Foxglove WebSocket -> ws://EIT-Raspberry-Pi-5.local:8765
 แล้วเปิด Image panel ที่ /camera/color/image_raw/compressed
 
 ทำไมต้องบีบอัด: Pi ต่อ WiFi อย่างเดียว ภาพสีดิบ 640x480@30 ~27 MB/s ส่งไม่ทัน (SSH หลุดได้)

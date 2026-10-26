@@ -15,6 +15,10 @@ services:
       - ./ros2_ws:/humanoi_ws   # โค้ดกับผล build อยู่บน Pi ไม่หายตอนลบ container
     environment:
       - ROS_DOMAIN_ID=0
+    # ไม่เขียนไฟล์ core dump: move_group / ros2_control_node / rviz2 ของ Jazzy มักแครชตอนถูกปิด
+    # แล้วทิ้งไฟล์ core.<pid> ขนาด ~400 MB ไว้ใน ros2_ws ทุกครั้ง (เคยสะสม 6.2 GB จนดิสก์ Pi เต็ม)
+    ulimits:
+      core: 0
     restart: unless-stopped
     stdin_open: true
     tty: true

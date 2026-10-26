@@ -3,7 +3,7 @@
 Pi 5 (8GB) ยังใช้ Raspberry Pi OS (Debian 13 trixie) ตัวเดิม เพราะงาน Hailo / YOLO อยู่บนนั้น
 ROS 2 Jazzy เลยรันใน Docker container ชื่อ `humanoi_ros` (ข้างในเป็น Ubuntu 24.04 แบบเดียวกับ WSL บน PC)
 
-- Pi: `eitlaser@192.168.1.68` (เข้าด้วย SSH key จาก PC ได้แล้ว)
+- Pi: `eitlaser@EIT-Raspberry-Pi-5.local` (เรียกด้วยชื่อเครื่อง — IP เปลี่ยนได้ เช่นหลังเปลี่ยนบอร์ด · เข้าด้วย SSH key จาก PC)
 - โค้ดบน Pi: `~/Humanoi` (ส่งจาก PC ด้วย `scripts/sync_to_pi.sh`)
 - container ใช้ network ของเครื่องจริง (`network_mode: host`) และเห็นพอร์ต USB ทุกตัว (`privileged` + `/dev`)
 - workspace `~/Humanoi/ros2_ws` ถูก mount เป็น `/humanoi_ws` ใน container: build ครั้งเดียวแล้วอยู่บน Pi ถาวร
@@ -30,7 +30,7 @@ ros2 topic list
 
 ```bash
 bash scripts/sync_to_pi.sh                       # บน PC (Git Bash / WSL)
-ssh eitlaser@192.168.1.68 'docker exec humanoi_ros /entrypoint.sh bash -c "cd /humanoi_ws && colcon build --symlink-install"'
+ssh eitlaser@EIT-Raspberry-Pi-5.local 'docker exec humanoi_ros /entrypoint.sh bash -c "cd /humanoi_ws && colcon build --symlink-install"'
 ```
 
 ## ขับฐานจริงจาก ROS (Mega เสียบที่ Pi)
@@ -193,7 +193,7 @@ Foxglove ที่ `/calibration/image/compressed` (เก็บภาพเอ�
 ## ดูหุ่นจาก PC
 
 ใน container รัน `ros2 launch foxglove_bridge foxglove_bridge_launch.xml`
-แล้วเปิด Foxglove บน PC ต่อ `ws://192.168.1.68:8765`
+แล้วเปิด Foxglove บน PC ต่อ `ws://EIT-Raspberry-Pi-5.local:8765`
 
 ## หมายเหตุ
 

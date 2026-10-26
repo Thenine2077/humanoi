@@ -4,7 +4,7 @@
 # ต้องตั้ง SSH key ไว้แล้ว (เข้า Pi ได้โดยไม่ถามรหัส)
 set -euo pipefail
 
-PI="${1:-eitlaser@192.168.1.68}"
+PI="${1:-eitlaser@EIT-Raspberry-Pi-5.local}"
 cd "$(dirname "$0")/.."
 
 tar --exclude='*/build' --exclude='*/install' --exclude='*/log' --exclude='__pycache__' \

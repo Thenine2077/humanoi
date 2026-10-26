@@ -8,7 +8,7 @@
 ทุกคำสั่งพิมพ์ใน **Terminal ของ Pi** (นอก container) — เปิดได้ 2 ทาง:
 
 - **Raspberry Pi Connect** → Terminal บนเดสก์ท็อป Pi (ต้องใช้ทางนี้ถ้าจะเปิด MoveIt)
-- **จาก PC:** `ssh eitlaser@192.168.1.68`
+- **จาก PC:** `ssh eitlaser@EIT-Raspberry-Pi-5.local`
 
 พิมพ์ `arm help` เพื่อดูรายการคำสั่งทั้งหมดได้ตลอด · **ใช้บน PC (WSL) ได้ด้วยคำสั่งชุดเดียวกัน** — ดูหัวข้อ 6
 
