@@ -267,13 +267,19 @@ EOF
     fi
     port=$(cached_port "$arm")
     need_port "$port" "$th"
+    default=$LEFT_CAL_ORDER; [ "$arm" = right ] && default=$RIGHT_CAL_ORDER
+    if [ "$cmd" = recal ] && [ $# -eq 0 ] && [ -z "$default" ]; then  # เช็กก่อนปิดตัวคุม ไม่งั้นแขนค้างปิด
+      echo "ใส่ข้อที่จะ calibrate ด้วย เช่น  arm recal $arm all  (ทุกข้อ) · arm recal $arm 1  (เฉพาะข้อ 1)"; exit 1
+    fi
     if is_running "lib/ar_program/arm_program"; then
       echo "หมายเหตุ: ตัวเล่นโปรแกรมเปิดอยู่ — โปรแกรมที่สั่งแขน$th จะล้มจนกว่าแขนจะกลับมา (แขนอื่นใช้ได้ปกติ)"
     fi
     stop_arm "$arm"
+    trap 'echo; echo "✗ ยกเลิก — ตัวคุมแขน$th ยังปิดอยู่ เปิดกลับ: arm reconnect $arm"; exit 130' INT
     if [ "$cmd" = recal ]; then
       bash "$0" calibrate "$arm" "$@" || { echo "✗ คาลิเบรตไม่สำเร็จ — ตัวคุมแขน$th ยังปิดอยู่ (เปิด: arm reconnect $arm)"; exit 1; }
     fi
+    trap - INT
     ros ros2 run ar_dual ar_zero.py "$port" "$arm" || exit 1  # เช็กชื่อบอร์ด + ค่าชดเชยก่อนเปิด
     echo "เปิดตัวคุมแขน$th @ $port — ปล่อยหน้าต่างนี้เปิดไว้ · Ctrl+C = ปิดเฉพาะแขน$th"
     ros_tty ros2 launch ar_dual arm_hardware.launch.py arm:="$arm" hw:=real port:="$port"
