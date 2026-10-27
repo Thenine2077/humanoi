@@ -1,18 +1,27 @@
 {
-  "middle_pos": [
-    -4.0,
-    23.0,
-    -55.0,
-    60.0,
-    -22.0,
-    55.0,
-    -40.0,
-    32.0
-  ],
-  "close": {
-    "index": 83.0
+  "version": 2,
+  "fingers": {
+    "index": {
+      "open": -73.5,
+      "close": 82.5,
+      "tilt": -23.5
+    },
+    "middle": {
+      "open": -71.5,
+      "close": 91.5,
+      "tilt": -1.5
+    },
+    "ring": {
+      "open": -88.5,
+      "close": 46.5,
+      "tilt": 31.5
+    },
+    "thumb": {
+      "open": -61.0,
+      "close": 84.0,
+      "tilt": -6.0
+    }
   },
-  "open": {},
-  "updated": "2026-10-20T09:26:42",
-  "note": "middle_pos = ท่าตรงของ servo ID 1-8 (ชี้ a b, กลาง a b, นาง a b, โป้ง a b); close / open = θ กำสุด / แบสุดของแต่ละนิ้ว — hand_calibrate"
+  "updated": "2026-10-27T04:04:05",
+  "note": "ต่อนิ้ว: open = งอตอนแบสุด, close = งอตอนกำสุด, tilt = เอียง (องศา servo) — hand_calibrate"
 }
