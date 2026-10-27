@@ -11,9 +11,9 @@
  *   encoder YT3806 360 P/R ล้อละตัว (A = เขียว, B = ขาว) -> A8-A15 (port K ทั้งหมด, PCINT2)
  *       E1 A8/A9   E2 A10/A11   E3 A12/A13   E4 A14/A15   (ตั้งใจให้ E1-E4 = FL FR RL RR
  *       ต่อผิดล้อ/นับกลับด้านไม่ต้องย้ายสาย — relay_bridge มี encoder_map / encoder_signs, หาค่าด้วย arm wheel-check)
- *       ไฟ encoder 8-24V (ป้ายบนตัว) จากตัวแปลงไฟ 12V · GND ร่วมกับ Mega
- *       ขาสัญญาณต่อตรงเข้า Mega ได้เฉพาะเมื่อแน่ใจว่าเป็น NPN open collector (ไม่มี pull-up ไป 12V ข้างใน)
- *       ไม่แน่ใจ = ผ่านบอร์ด opto ก่อน — ดู docs/wiring_encoders.md
+ *       ไฟ encoder 24V จากบัส (ป้าย 8-24V) · GND ร่วมกับ Mega
+ *       สัญญาณ 24V ผ่านตัวแบ่งแรงดัน 10k/2.2k ต่อเส้น (open collector ต่อตรงได้)
+ *       ห้ามผ่าน step-down — ดู docs/wiring_encoders.md
  *   USB ของ Mega -> Raspberry Pi (ใน container เห็นเป็น /dev/ttyACM0)
  *   pin 13 = LED: กะพริบเร็ว = ไม่มีสัญญาณรีโมท, กะพริบช้า = ไม่ ARM,
  *                 ติดค้าง = รีโมทคุม, ติดแล้วดับแวบทุก 1 วิ = ROS คุม
