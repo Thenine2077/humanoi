@@ -53,6 +53,23 @@ def bend_of(tag, c):
     return {"C": c["close"], "O": c["open"], "L": c["open"] + LOOSE_AT * (c["close"] - c["open"])}[tag]
 
 
+def convert_pose(degrees, calib_from, side_from, calib_to, side_to):
+    """ท่าที่สอนเอง (องศา servo 8 ตัว) ของชุดมือหนึ่ง -> ท่าเดียวกันบนอีกชุดมือ
+
+    องศา servo ลอกตรงๆ ไม่ได้: แต่ละชุดค่าคาลิเบรตต่างกัน และมือซ้ายกางกลับทิศ — แปลงเป็นรูปนิ้วก่อน
+    (งอกี่ส่วนของช่วงแบสุด-กำสุด + กางเพิ่มจากนิ้วตรง) แล้วสร้างองศาใหม่ด้วยค่าคาลิเบรตของชุดปลายทาง
+    """
+    out = []
+    for i, f in enumerate(FINGERS):
+        a, b = degrees[2 * i], degrees[2 * i + 1]
+        cf, ct = calib_from[f], calib_to[f]
+        frac = ((a - b) / 2 - cf["open"]) / (cf["close"] - cf["open"])
+        spread = ((a + b) / 2 - cf["tilt"]) * (-1 if side_from == "left" else 1)
+        bend = ct["open"] + frac * (ct["close"] - ct["open"])
+        out += [max(-140.0, min(140.0, v)) for v in finger_servos(ct, bend, spread, side_to)]
+    return out
+
+
 def finger_servos(c, bend, spread=0.0, side="right"):
     """(a, b) ของนิ้วหนึ่ง จากองศางอ + เอียงที่คาลิเบรตไว้ + กางเพิ่ม"""
     tilt = c["tilt"] + (spread if side != "left" else -spread)

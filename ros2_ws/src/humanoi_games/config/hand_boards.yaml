@@ -1,0 +1,7 @@
+# บอร์ดมือ (Waveshare Bus Servo Adapter, CH343) ของแต่ละแขน — ผูกด้วยหมายเลขบอร์ด (serial ใน /dev/serial/by-id)
+# มือสองข้างเป็น servo ID 1-8 เหมือนกัน และลำดับ ttyACM สลับได้ทุกครั้งที่เสียบ จึงต้องบอกเองว่าบอร์ดไหนของแขนไหน
+#   kit = ชุดมือที่ติดแขนนั้น (left = ชุดมือซ้าย, right = ชุดมือขวา) -> ไฟล์คาลิเบรต + ท่าที่สอน (programs.yaml)
+#         ชุดมือขวา: middle_pos.json + hand_poses · ชุดมือซ้าย: middle_pos_left.json + hand_poses_left
+# ดูหมายเลขบอร์ดที่เสียบอยู่: arm hand-scan · ไม่มีไฟล์นี้ = มือข้างเดียวแบบเดิม (หาบอร์ดเอง, ชุดมือจาก arm hand-side)
+left: {board: 5B91044327, kit: left}
+right: {board: 5B91030501, kit: right}

@@ -3,11 +3,15 @@
 
 ตัวนี้ตัวเดียวเป็นเจ้าของพอร์ตมือ (เปิดพอร์ตได้ทีละโปรแกรม — ปิด tools\\*.py / robot_hand.py ก่อน)
 
-  ros2 run humanoi_games amazinghand_node                                  # หาพอร์ตเอง (CH343 1a86:55d3)
+  ros2 run humanoi_games amazinghand_node                                  # มือแขนซ้าย
+  ros2 run humanoi_games amazinghand_node --ros-args -p arm:=right -r __node:=amazinghand_right   # มือแขนขวา
   ros2 run humanoi_games amazinghand_node --ros-args -p dry_run:=true      # ไม่ต่อมือ แค่ log ว่าจะทำท่าอะไร
   ros2 topic pub --once /hand/gesture std_msgs/msg/String "{data: paper}"
 
-หัวข้อ
+บอร์ดมือของแต่ละแขนผูกด้วยหมายเลขบอร์ดใน config/hand_boards.yaml (มือสองข้างเป็น servo ID 1-8 เหมือนกัน
+และลำดับ ttyACM สลับได้) — ไม่มีไฟล์ = มือข้างเดียวแบบเดิม (หาบอร์ดเอง ชุดมือจาก arm hand-side)
+
+หัวข้อ (แขนซ้าย /hand/... · แขนขวา /right_hand/...)
   /hand/gesture (sub, String)  ชื่อท่าใน hand_poses (rock paper scissors like point victory nonono ...)
                                หรือท่าที่สอนเอง (arm hand-teach → programs.yaml hand_poses — ชื่อซ้ำท่าในตัว = ใช้แทน)
                                หรือ relax = ปลดแรงบิด นิ้วอ่อน — คำสั่งใหม่ตัดท่าเคลื่อนไหวที่ค้างอยู่ทันที
@@ -117,6 +121,58 @@ def describe(calib):
                       for f, c in calib.items())
 
 
+def hand_boards():
+    """บอร์ดมือของแต่ละแขน {แขน: {board: หมายเลขบอร์ด, kit: ชุดมือ}} จาก config/hand_boards.yaml — {} ถ้าไม่มีไฟล์
+
+    มีมือสองข้าง = ต้องผูกบอร์ดกับแขนด้วยหมายเลขบอร์ด (ลำดับ ttyACM สลับได้ทุกครั้งที่เสียบ)
+    """
+    try:
+        import yaml
+        with open(os.path.join(config_dir(), "hand_boards.yaml"), encoding="utf-8") as fh:
+            data = yaml.safe_load(fh) or {}
+    except FileNotFoundError:
+        return {}
+    out = {}
+    for arm, v in data.items():
+        if arm not in ("left", "right") or not isinstance(v, dict) or v.get("kit") not in ("left", "right"):
+            raise ValueError(f"hand_boards.yaml: '{arm}' ต้องเป็น left/right และมี board + kit (left/right)")
+        out[arm] = {"board": str(v["board"]), "kit": v["kit"]}
+    return out
+
+
+def arm_hand(arm):
+    """(พอร์ต, ชุดมือ) ของมือบนแขนนั้น ตาม hand_boards.yaml — RuntimeError ถ้าไม่ได้ตั้ง / บอร์ดไม่ได้เสียบ"""
+    from serial.tools import list_ports
+    boards = hand_boards()
+    if arm not in boards:
+        raise RuntimeError(f"hand_boards.yaml ไม่มีมือของแขน {arm}")
+    serial = boards[arm]["board"]
+    for p in list_ports.comports():
+        if (p.vid, p.pid) == ADAPTER_USB and p.serial_number == serial:
+            return p.device, boards[arm]["kit"]
+    raise RuntimeError(f"ไม่เจอบอร์ดมือแขน{'ซ้าย' if arm == 'left' else 'ขวา'} ({serial}) — เสียบ USB ของมือนั้น · "
+                       "ดูบอร์ดที่เสียบอยู่: arm hand-scan")
+
+
+def resolve_hand(arm="left", port="auto", side="auto"):
+    """(พอร์ตที่ส่งให้ Hand, ชุดมือ) ของมือบนแขนนั้น
+
+    มี hand_boards.yaml + port auto -> บอร์ดตามหมายเลข (arm:<แขน>) และชุดมือตามไฟล์
+    ไม่มีไฟล์ (มือข้างเดียว) -> แบบเดิม: port ตามที่ให้ / หาเอง, ชุดมือจาก arm hand-side
+    """
+    boards = hand_boards()
+    if boards:
+        if arm not in boards:
+            raise RuntimeError(f"hand_boards.yaml ไม่มีมือของแขน {arm} (มี: {', '.join(boards)})")
+        return (f"arm:{arm}" if port == "auto" else port), (boards[arm]["kit"] if side == "auto" else side)
+    return port, (hand_side() if side == "auto" else side)
+
+
+def topic_prefix(arm):
+    """หัวข้อของมือบนแขนนั้น: แขนซ้าย /hand (ชื่อเดิม) · แขนขวา /right_hand"""
+    return "/hand" if arm == "left" else f"/{arm}_hand"
+
+
 def find_ports():
     """บอร์ดมือ (CH343) ทุกตัวที่เสียบอยู่ เรียงตามชื่อพอร์ต"""
     from serial.tools import list_ports
@@ -147,8 +203,12 @@ class Hand:
     def connect(self):
         from rustypot import Scs0009PyController
         if self.c is None:
-            # auto: ลองบอร์ดมือทุกตัว ใช้ตัวแรกที่มีเซอร์โวตอบ (มีบอร์ดเผื่อมือที่สองเสียบไว้ได้ ไม่ต้องถอด)
-            ports = find_ports() if self.port == "auto" else [self.port]
+            # arm:<แขน> = บอร์ดของแขนนั้นตาม hand_boards.yaml (หาใหม่ทุกครั้ง — ลำดับพอร์ตเปลี่ยนได้)
+            # auto: ลองบอร์ดมือทุกตัว ใช้ตัวแรกที่มีเซอร์โวตอบ (ใช้ได้เฉพาะตอนมีมือข้างเดียว)
+            if self.port.startswith("arm:"):
+                ports = [arm_hand(self.port[4:])[0]]
+            else:
+                ports = find_ports() if self.port == "auto" else [self.port]
             if not ports:
                 raise RuntimeError("ไม่เจอบอร์ดมือ (Waveshare CH343 1a86:55d3) — เสียบ USB ของมือ")
             for port in ports:
@@ -320,12 +380,13 @@ class Hand:
 class AmazingHandNode(Node):
     def __init__(self):
         super().__init__("amazinghand")
-        self.declare_parameter("port", "auto")
+        self.declare_parameter("arm", "left")    # แขนที่มือนี้ติด — เลือกบอร์ด (hand_boards.yaml) และหัวข้อ
+        self.declare_parameter("port", "auto")   # auto = บอร์ดของแขนนี้ตาม hand_boards.yaml (ไม่มีไฟล์ = หาเอง)
         self.declare_parameter("baud", 1_000_000)
         self.declare_parameter("ids", [1, 2, 3, 4, 5, 6, 7, 8])
-        self.declare_parameter("side", "auto")  # ชุดมือ right/left — auto = ตามที่ตั้งด้วย arm hand-side
-        side = self.get_parameter("side").value
-        self.side = hand_side() if side == "auto" else side
+        self.declare_parameter("side", "auto")  # ชุดมือ right/left — auto = ตาม hand_boards.yaml / arm hand-side
+        self.arm = self.get_parameter("arm").value
+        port, self.side = resolve_hand(self.arm, self.get_parameter("port").value, self.get_parameter("side").value)
         # แบสุด / กำสุด / เอียง ต่อนิ้ว จาก hand_calibrate (ไม่มีไฟล์ = ท่าเหมือนเดโมของ Pollen)
         self.declare_parameter("calib_file", calib_file(self.side))
         self.declare_parameter("programs_file", programs.DEFAULT_FILE if programs else "")  # ท่ามือที่สอนเอง
@@ -344,12 +405,13 @@ class AmazingHandNode(Node):
             self.get_logger().info(f"คาลิเบรตมือจาก {path}: {describe(self.calib)}")
         self.speed = float(gp("speed").value)
         self.dry_run = bool(gp("dry_run").value)
-        self.hand = Hand(gp("port").value, int(gp("baud").value), list(gp("ids").value),
+        self.hand = Hand(port, int(gp("baud").value), list(gp("ids").value),
                          float(gp("min_volts").value), float(gp("max_volts").value))
         self.ready = False
         self.cmds = queue.Queue()
-        self.status_pub = self.create_publisher(String, "/hand/status", 10)
-        self.create_subscription(String, "/hand/gesture", self._on_gesture, 10)
+        prefix = topic_prefix(self.arm)
+        self.status_pub = self.create_publisher(String, f"{prefix}/status", 10)
+        self.create_subscription(String, f"{prefix}/gesture", self._on_gesture, 10)
         threading.Thread(target=self._worker, daemon=True).start()
         if self.dry_run:
             self.get_logger().warn("dry_run — ไม่ต่อมือจริง แค่ log ท่าที่ได้รับ")
@@ -371,7 +433,8 @@ class AmazingHandNode(Node):
         self.ready = True
         if self.hand.found_baud != self.hand.baud:
             self.get_logger().warn(f"เซอร์โวตอบที่ {self.hand.found_baud} baud ไม่ใช่ {self.hand.baud} ที่ตั้งไว้ — ใช้ค่าที่เจอ")
-        self.get_logger().info(f"มือพร้อม ({port} @ {self.hand.found_baud}, ID {self.hand.ids}, {self.side}) · "
+        self.get_logger().info(f"มือแขน{'ซ้าย' if self.arm == 'left' else 'ขวา'}พร้อม ({port} @ {self.hand.found_baud}, "
+                               f"ID {self.hand.ids}, ชุดมือ{'ซ้าย' if self.side == 'left' else 'ขวา'}) · "
                                f"ขีดจำกัดจาก servo: {self.hand.limits_text()}")
         for w in self.hand.limit_warnings:
             self.get_logger().warn(w + " — ใช้ลิมิตโรงงาน ±144°")

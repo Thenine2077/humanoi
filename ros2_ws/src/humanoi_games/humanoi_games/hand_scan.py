@@ -9,7 +9,7 @@ import glob
 import os
 import sys
 
-from humanoi_games.amazinghand_node import find_ports, scalar
+from humanoi_games.amazinghand_node import find_ports, hand_boards, scalar
 
 IDS = list(range(1, 9)) + list(range(11, 19))  # ชุดมือขวา 1-8 · เผื่อชุดที่ตั้งเป็น 11-18
 BAUDS = (1_000_000, 500_000, 250_000, 115_200)
@@ -20,6 +20,7 @@ def main():
     from rustypot import Scs0009PyController
     from serial.tools import list_ports
     serials = {p.device: p.serial_number for p in list_ports.comports()}
+    owner = {v["board"]: (arm, v["kit"]) for arm, v in hand_boards().items()}  # หมายเลขบอร์ด -> (แขน, ชุดมือ)
     ports = find_ports()
     if not ports:
         print("✗ ไม่เจอบอร์ดมือเลย (Waveshare CH343 1a86:55d3) — เสียบ USB ของบอร์ดมือ")
@@ -27,7 +28,10 @@ def main():
     ok_any = False
     for port in ports:
         byid = [os.path.basename(p) for p in glob.glob("/dev/serial/by-id/*") if os.path.realpath(p) == port]
-        print(f"บอร์ด {port}  serial {serials.get(port, '?')}  {byid[0] if byid else ''}")
+        arm, kit = owner.get(serials.get(port), (None, None))
+        th = {"left": "ซ้าย", "right": "ขวา"}
+        print(f"บอร์ด {port}  serial {serials.get(port, '?')}  {byid[0] if byid else ''}  "
+              + (f"= มือแขน{th[arm]} (ชุดมือ{th[kit]})" if arm else "(ไม่อยู่ใน hand_boards.yaml)"))
         try:
             c = Scs0009PyController(serial_port=port, baudrate=BAUDS[0], timeout=0.02)
         except Exception as exc:
@@ -50,7 +54,8 @@ def main():
         if not found_any:
             print("  ✗ ไม่มีเซอร์โวตอบ — ไฟมือปิด / สายเซอร์โวไม่ได้ต่อ (ช่อง D V G) / jumper ไม่อยู่ที่ B (USB)")
         del c
-    print(f"ไฟที่ปลอดภัย {VOLT_MIN}-{VOLT_MAX} V (⚠ = นอกช่วง ห้ามสั่งขยับ) · มือที่ใช้จริง: โปรแกรมเลือกบอร์ดที่มีเซอร์โวตอบเอง")
+    print(f"ไฟที่ปลอดภัย {VOLT_MIN}-{VOLT_MAX} V (⚠ = นอกช่วง ห้ามสั่งขยับ) · บอร์ดของแต่ละแขน: "
+          "humanoi_games/config/hand_boards.yaml")
     return 0 if ok_any else 1
 
 

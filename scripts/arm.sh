@@ -371,6 +371,13 @@ EOF
 
   hand-side)  # ชุดมือที่ใส่อยู่ (right = ชุดมือขวาตัวแรก, left = ชุดมือซ้าย) — ID 1-8 เหมือนกัน แยกเองไม่ได้
     f=/humanoi_ws/src/humanoi_games/config/hand_side
+    boards=/humanoi_ws/src/humanoi_games/config/hand_boards.yaml
+    if ros test -f "$boards"; then  # มือสองข้าง: บอร์ด/ชุดมือของแต่ละแขนอยู่ในไฟล์นี้ — hand-side ไม่ใช้แล้ว
+      echo "มือของแต่ละแขนตั้งใน $boards (ผูกด้วยหมายเลขบอร์ด):"
+      ros grep -E "^(left|right):" "$boards" | sed 's/^/  /'
+      echo "  แก้ไฟล์นั้นถ้าย้ายชุดมือ/บอร์ด · ดูหมายเลขบอร์ดที่เสียบอยู่: arm hand-scan"
+      exit 0
+    fi
     case "${1:-}" in
       "")
         side=$(ros cat "$f" 2>/dev/null || echo right)
@@ -397,14 +404,18 @@ EOF
     if is_running "lib/humanoi_games/amazinghand_node" || is_running "lib/humanoi_games/hand_calibrate"; then
       echo "✗ มีโปรแกรมใช้พอร์ตมืออยู่ (arm player / arm rps / arm hand-calibrate) — ปิดก่อน"; exit 1
     fi
-    ros_tty ros2 run humanoi_games hand_teach
+    arm=$(arm_name "${1:-left}")
+    [ -n "$arm" ] || { echo "ใช้: arm hand-teach [left|right]   (มือบนแขนไหน)"; exit 1; }
+    ros_tty ros2 run humanoi_games hand_teach --arm "$arm"
     ;;
 
   hand-calibrate)  # ตั้งค่ากลางนิ้ว (MiddlePos) ของมือ AmazingHand ด้วยตา — humanoi_games/hand_calibrate.py
     if is_running "lib/humanoi_games/amazinghand_node" || is_running "lib/humanoi_games/hand_teach"; then
       echo "✗ มีโปรแกรมใช้พอร์ตมืออยู่ (arm player / arm rps / arm hand-teach) — ปิดก่อน"; exit 1
     fi
-    ros_tty ros2 run humanoi_games hand_calibrate "$@"
+    arm=left
+    case "${1:-}" in left|l|1|ซ้าย|right|r|2|ขวา) arm=$(arm_name "$1"); shift ;; esac
+    ros_tty ros2 run humanoi_games hand_calibrate --arm "$arm" "$@"
     ;;
 
   stop)
@@ -510,9 +521,9 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm tray [marker_size:=0.12]       กล้อง + หาตำแหน่งกล่อง (ป้าย id 1 บนพื้นกล่อง) ดูภาพ /tray/image/compressed
    arm tray-teach [left|right]        สอนหยิบกล่อง: แตะ 4-6 ครั้งข้อมือมุมเดิม + จับจริง g (เปิด arm start + arm tray ก่อน)
    arm tray-pick [left|right]         หยิบกล่องตามกล้อง (Enter ดูแผน -> y หยิบ · r วางคืน) เปิด arm start + player + tray ก่อน
-   arm hand-side [left|right]         ชุดมือที่ใส่อยู่ (เปลี่ยนมือแล้วตั้งก่อน — คาลิเบรต/ท่าที่สอนแยกตามชุดมือ)
+   arm hand-side [left|right]         ดูว่ามือ/บอร์ดไหนอยู่แขนไหน (hand_boards.yaml) · มือข้างเดียว: ตั้งชุดมือ
    arm hand-scan                      เช็กบอร์ดมือ: เซอร์โวตอบไหม baud ไหน ไฟเท่าไหร่ (ไม่ขยับ)
-   arm hand-teach                     จัดท่ามือเอง (1-4 เลือกนิ้ว +/- กำแบ l/r เอียง free ดัดด้วยมือ) save <ชื่อ>
+   arm hand-teach [left|right]        จัดท่ามือเอง (1-4 เลือกนิ้ว +/- กำแบ l/r เอียง free ดัดด้วยมือ) save <ชื่อ>
                                       ชื่อซ้ำท่าในตัว (rock paper scissors ...) = ใช้แทน · ปิด arm player ก่อน
 
  เกมเป่ายิ้งฉุบ (คู่มือ docs/RPS_GAME.md — สอนท่าตั้งก่อน: arm teach left rps_ready)
@@ -522,7 +533,7 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
                                       ตาต่อไป: ผู้เล่นชูนิ้วชี้ค้างไว้ = เล่นใหม่ (วนได้เรื่อยๆ)
                                       ท่าโชว์ (ไม่บังคับ): arm teach left victory_pose / arm teach left lose_pose
    arm rps stop                       หยุดเกมกลางคัน
-   arm hand-calibrate                 ตั้งค่ากลางนิ้วของมือทีละนิ้ว (ปิดเกมก่อน) — เกมใช้ค่าใหม่ตอนเปิดครั้งถัดไป
+   arm hand-calibrate [left|right]    ตั้งค่ากลางนิ้วของมือทีละนิ้ว (ปิดเกมก่อน) — เกมใช้ค่าใหม่ตอนเปิดครั้งถัดไป
 
  ปิด
    arm off                            ปิดทุกอย่างของแขน (รวมเกม)

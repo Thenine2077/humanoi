@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """hand_teach — จัดท่ามือเอง (จ็อกทีละนิ้ว หรือปล่อยนิ้วให้ดัดด้วยมือ) แล้วบันทึกเป็นท่ามือ
 
-  arm hand-teach        (บน Pi — ปิด arm player / arm rps / arm hand-calibrate ก่อน: ใช้พอร์ตมือเดียวกัน)
+  arm hand-teach [left|right]   (บน Pi — ปิด arm player / arm rps / arm hand-calibrate ก่อน: ใช้พอร์ตมือเดียวกัน)
+  มือของแขนนั้นตาม config/hand_boards.yaml (ไม่มีไฟล์ = มือข้างเดียว ชุดมือจาก arm hand-side)
 
 ท่าเก็บใน programs.yaml (hand_poses — องศา servo 8 ตัวตรงๆ) ใช้ได้ทันทีใน arm program / arm hand
 ชื่อเดียวกับท่าในตัว (rock paper scissors point like windup) = ใช้แทนท่าในตัว — เกมเป่ายิ้งฉุบใช้ตามด้วย
@@ -17,12 +18,13 @@
   save <ชื่อ>    บันทึกท่าตอนนี้ (นิ้วที่ปล่อยอยู่อ่านตำแหน่งจริงแล้วล็อกให้)
   list          ดูท่าที่สอนไว้        del <ชื่อ>  ลบท่า        q  ออก (นิ้วอ่อนลง)
 """
+import argparse
 import re
 import sys
 
 from ar_program import programs
 from humanoi_games import hand_poses
-from humanoi_games.amazinghand_node import FINGERS_TH, SPEED as PLAY_SPEED, Hand, calib_file, hand_side, load_calib
+from humanoi_games.amazinghand_node import FINGERS_TH, SPEED as PLAY_SPEED, Hand, calib_file, load_calib, resolve_hand
 
 HELP = ("1-4 เลือกนิ้ว (0 = ทุกนิ้ว) · +/- กำ/แบ · l/r เอียง (ใส่ตัวเลขได้ เช่น +10) · free ปล่อยให้ดัดด้วยมือ · "
         "hold ล็อก · load/save/del <ชื่อ> · list · q ออก")
@@ -63,13 +65,19 @@ def finger_text(target, i):
 
 
 def main():
+    ap = argparse.ArgumentParser(description="จัดท่ามือเองแล้วบันทึก")
+    ap.add_argument("--arm", default="left", choices=("left", "right"), help="มือบนแขนไหน")
+    args = ap.parse_args()
     path = programs.DEFAULT_FILE
-    hand = Hand("auto", 1_000_000, list(range(1, 9)), 4.8, 7.4)
+    try:
+        spec, side = resolve_hand(args.arm)  # บอร์ดของแขนนั้น + ชุดมือ — ท่าที่สอนแยกเก็บตามชุดมือ
+    except Exception as exc:
+        sys.exit(f"✗ {exc}")
+    hand = Hand(spec, 1_000_000, list(range(1, 9)), 4.8, 7.4)
     try:
         port = hand.connect()  # เช็กไฟ + ครบ 8 ตัว + อ่านขีดจำกัด แล้วถือท่าปัจจุบัน
     except Exception as exc:
         sys.exit(f"✗ {exc}")
-    side = hand_side()  # ชุดมือที่ใส่อยู่ (arm hand-side) — ท่าที่สอนแยกเก็บตามชุดมือ
     key = programs.HAND_POSE_KEYS[side]
     calib = load_calib(calib_file(side)) or hand_poses.demo_calib()
     target = hand.read_degrees()

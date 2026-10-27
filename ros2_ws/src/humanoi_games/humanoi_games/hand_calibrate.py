@@ -20,7 +20,7 @@ import os
 import sys
 
 from humanoi_games import hand_poses
-from humanoi_games.amazinghand_node import Hand, calib_file, hand_side, load_calib
+from humanoi_games.amazinghand_node import Hand, calib_file, load_calib, resolve_hand
 
 NAMES_TH = {"index": "นิ้วชี้", "middle": "นิ้วกลาง", "ring": "นิ้วนาง", "thumb": "นิ้วโป้ง"}
 VIEW_TH = {"o": "แบสุด", "c": "กำสุด"}
@@ -99,12 +99,18 @@ def copy(calib):
 
 def main():
     ap = argparse.ArgumentParser(description="คาลิเบรตมือ AmazingHand ทีละนิ้ว: แบสุด กำสุด เอียง")
+    ap.add_argument("--arm", default="left", choices=("left", "right"), help="มือบนแขนไหน (hand_boards.yaml)")
     ap.add_argument("--port", default="auto")
     ap.add_argument("--baud", type=int, default=1_000_000, help="ลองค่านี้ก่อน แล้วหาเอง")
-    ap.add_argument("--file", default=calib_file(hand_side()))  # แยกไฟล์ตามชุดมือ (arm hand-side)
+    ap.add_argument("--file", default=None, help="ค่าเริ่ม = ไฟล์ของชุดมือที่ติดแขนนั้น")  # แยกไฟล์ตามชุดมือ
     ap.add_argument("--speed", type=float, default=3.0)
     ap.add_argument("--reset", action="store_true", help="สำรองไฟล์ค่าเดิมแล้วเริ่มใหม่จากค่าเดโม")
     args = ap.parse_args()
+    try:
+        spec, side = resolve_hand(args.arm, args.port)
+    except Exception as exc:
+        sys.exit(f"✗ {exc}")
+    args.file = args.file or calib_file(side)
 
     if args.reset and os.path.exists(args.file):
         backup = f"{args.file}.bak-{datetime.datetime.now():%Y%m%d-%H%M%S}"
@@ -114,12 +120,13 @@ def main():
     calib = copy(loaded or hand_poses.demo_calib())
     saved = copy(calib)
     print(f"ไฟล์: {args.file} ({'ค่าที่บันทึกไว้' if loaded else 'ยังไม่มี — เริ่มจากค่าเดโม'})")
-    hand = Hand(args.port, args.baud, list(range(1, 9)), 4.8, 7.4)
+    hand = Hand(spec, args.baud, list(range(1, 9)), 4.8, 7.4)
     try:
         port = hand.connect()  # เช็กไฟ + ครบ 8 ตัว ก่อนเปิดแรงบิด
     except Exception as exc:
         sys.exit(f"✗ {exc}")
-    print(f"มือพร้อม: ชุดมือ{'ซ้าย' if hand_side() == 'left' else 'ขวา'} ({port} @ {hand.found_baud}) · ไฟล์ {args.file}")
+    print(f"มือพร้อม: แขน{'ซ้าย' if args.arm == 'left' else 'ขวา'} ชุดมือ{'ซ้าย' if side == 'left' else 'ขวา'} "
+          f"({port} @ {hand.found_baud}) · ไฟล์ {args.file}")
     print(f"ขีดจำกัดที่อ่านจาก servo (องศา): {hand.limits_text()}")
     for w in hand.limit_warnings:
         print(f"  ! {w} — ใช้ลิมิตโรงงาน ±144°")

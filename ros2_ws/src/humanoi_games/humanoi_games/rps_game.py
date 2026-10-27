@@ -54,6 +54,7 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 
 from ar_program import programs
 from humanoi_games import rps_logic
+from humanoi_games.amazinghand_node import topic_prefix
 from humanoi_games.rps_logic import THAI
 
 ARM_TH = {"left": "ซ้าย", "right": "ขวา"}
@@ -154,7 +155,7 @@ class RpsGame(Node):
         self.create_subscription(String, "/rps/player_gesture", self._on_player, 50, callback_group=cb)
         self.tf = Buffer()
         TransformListener(self.tf, self)
-        self.hand_pub = self.create_publisher(String, "/hand/gesture", 10)
+        self.hand_pub = self.create_publisher(String, f"{topic_prefix(self.arm)}/gesture", 10)  # มือบนแขนที่เล่น
         self.state_pub = self.create_publisher(String, "/rps/state", 10)
         self.result_pub = self.create_publisher(String, "/rps/result", 10)
         self._state("idle")

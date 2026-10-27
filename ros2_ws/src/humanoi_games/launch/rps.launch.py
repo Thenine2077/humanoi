@@ -24,8 +24,8 @@ ARGS = {
     "player": ("camera", "camera | random | topic"),
     "camera": ("true", "เปิดกล้อง Astra ด้วย (false ถ้าเปิดอยู่แล้ว) — ใช้เฉพาะ player:=camera"),
     "hand": ("true", "false = ไม่ต่อมือจริง"),
-    "hand_port": ("auto", "พอร์ตมือ (auto = หา Waveshare CH343 เอง)"),
-    "hand_side": ("auto", "ชุดมือ right/left — auto = ตามที่ตั้งด้วย arm hand-side"),
+    "hand_port": ("auto", "พอร์ตมือ (auto = บอร์ดของแขนนี้ตาม hand_boards.yaml / ไม่มีไฟล์ = หาเอง)"),
+    "hand_side": ("auto", "ชุดมือ right/left — auto = ตาม hand_boards.yaml / arm hand-side"),
     "ready_pose": ("rps_ready", "ท่าตั้งก่อนเป่า"),
     "pump_deg": ("5.0", "ข้อ 1 ยกกี่องศา (8° = 11.6 วินาที, 5° = 8.6, 4° = 7.7, 3° = 6.7)"),
     "pump_count": ("3", "ขยับขึ้นลงกี่ครั้ง"),
@@ -52,6 +52,7 @@ def generate_launch_description():
                     ["'random' if '", cfg["player"], "' == 'random' else 'camera'"]),
             }]),
             Node(package="humanoi_games", executable="amazinghand_node", output="screen", parameters=[{
+                "arm": cfg["arm"],
                 "port": cfg["hand_port"],
                 "side": cfg["hand_side"],
                 "dry_run": PythonExpression(["'", cfg["hand"], "' != 'true'"]),
