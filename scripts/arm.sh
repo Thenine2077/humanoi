@@ -45,6 +45,32 @@ resolve_ports() {  # เติม LEFT_TEENSY / RIGHT_TEENSY จากชื่�
   [ -n "$RIGHT_TEENSY" ] || RIGHT_TEENSY=$(sed -n 's/.*right=\([^ ]*\).*/\1/p' <<< "$out")
 }
 
+# พอร์ตของแต่ละแขนที่ arm start หาไว้ (ใน container) — ตอนอีกแขนทำงานอยู่ ห้ามถามชื่อจากทุกบอร์ด
+# (บอร์ดที่ ros2_control ใช้อยู่จะได้ข้อความแทรก เคยทำให้แขนขยับมั่ว) จึงใช้พอร์ตที่จำไว้ + เช็กชื่อเฉพาะพอร์ตนั้น
+PORTS_CACHE=/tmp/humanoi_arm_ports
+
+save_ports() {
+  ros sh -c "printf 'LEFT_TEENSY=%s\nRIGHT_TEENSY=%s\n' '$LEFT_TEENSY' '$RIGHT_TEENSY' > $PORTS_CACHE"
+}
+
+cached_port() {  # cached_port <left|right>
+  ros cat "$PORTS_CACHE" 2>/dev/null | sed -n "s/^$(echo "$1" | tr a-z A-Z)_TEENSY=//p"
+}
+
+cm_running() { is_running "__node:=$1_controller_manager"; }  # ตัวคุมของแขนนั้น (แยกแขนละโปรเซส)
+
+stop_arm() {  # stop_arm <left|right> — ปิดเฉพาะตัวคุมแขนนั้น (ปล่อยพอร์ต) · Teensy ถือท่าค้างไว้ แขนไม่ตก อีกแขนทำงานต่อ
+  cm_running "$1" || return 0
+  for n in "$1_controller_manager" "$1_description_publisher"; do
+    docker exec "$C" pkill -INT -f "__node:=$n" 2>/dev/null
+  done
+  for _ in $(seq 1 10); do cm_running "$1" || break; sleep 1; done
+  for n in "$1_controller_manager" "$1_description_publisher"; do
+    docker exec "$C" pkill -9 -f "__node:=$n" 2>/dev/null
+  done
+  echo "ปิดตัวคุมแขน$1 แล้ว (แขนค้างท่าเดิม)"
+}
+
 need_port() {  # need_port <พอร์ต> <ชื่อแขน>
   if [ -z "$1" ] || [ ! -e "$1" ]; then
     echo "✗ หาบอร์ด Teensy แขน$2 ไม่เจอ — เสียบ USB + เปิดไฟแขน แล้วดู: arm ports"
@@ -98,6 +124,8 @@ case "$cmd" in
       ros ros2 run ar_dual ar_ports.py --list | sed 's/^/  /'
     fi
     show "ar_dual.*dual_hardware" "ระบบสองแขน      (arm start)"
+    show "__node:=left_controller_manager" "  ตัวคุมแขนซ้าย   (arm recal/reconnect left)"
+    show "__node:=right_controller_manager" "  ตัวคุมแขนขวา    (arm recal/reconnect right)"
     show "ar_hardware_interface ar_hardware.launch" "ระบบแขนเดี่ยวแบบเก่า (ควรปิด: arm off)"
     show "lib/ar_program/arm_program" "ตัวเล่นโปรแกรม     (arm player)"
     show move_group "MoveIt + RViz      (arm moveit)"
@@ -107,7 +135,10 @@ case "$cmd" in
     show "lib/humanoi_base/relay_bridge" "relay_bridge (Mega)"
     if is_running ros2_control_node; then
       echo "ตัวควบคุม:"
-      ros timeout 10 ros2 control list_controllers 2>/dev/null | sed 's/^/  /'
+      for a in left right; do  # แยกแขนละตัว (ระบบแบบเก่าใช้ /controller_manager ตัวเดียว)
+        cm_running "$a" && ros timeout 10 ros2 control list_controllers -c "/${a}_controller_manager" 2>/dev/null | sed 's/^/  /'
+      done
+      cm_running left || cm_running right || ros timeout 10 ros2 control list_controllers 2>/dev/null | sed 's/^/  /'
     fi
     ;;
 
@@ -161,10 +192,19 @@ EOF
     arm=$(arm_name "${1:-}")
     [ -n "$arm" ] || { echo "ใช้: arm calibrate <left|right> [ลำดับข้อ เช่น 6 5 4 1 2 3 | all]   (ทีละแขน)"; exit 1; }
     shift
-    need_no_system
-    resolve_ports
-    port=$LEFT_TEENSY; [ "$arm" = right ] && port=$RIGHT_TEENSY
     th=ซ้าย; [ "$arm" = right ] && th=ขวา
+    if is_running ros2_control_node; then
+      # อีกแขนทำงานต่อได้ แต่ตัวคุมของแขนนี้ต้องปิด และห้ามถามชื่อทุกบอร์ด -> ใช้พอร์ตที่ arm start จำไว้
+      # (ar_calibrate เช็กชื่อบอร์ดที่พอร์ตนั้นก่อนขยับ)
+      if cm_running "$arm" || ! { cm_running left || cm_running right; }; then
+        echo "✗ ตัวคุมแขน$th เปิดอยู่ — คาลิเบรตแขนเดียวโดยอีกแขนทำงานต่อ: arm recal $arm · หรือปิดทั้งหมด: arm off"
+        exit 1
+      fi
+      port=$(cached_port "$arm")
+    else
+      resolve_ports
+      port=$LEFT_TEENSY; [ "$arm" = right ] && port=$RIGHT_TEENSY
+    fi
     order=("$@")
     if [ ${#order[@]} -eq 0 ]; then  # ลำดับที่ใช้ได้แล้วของแต่ละแขน (ตั้งหลังไล่ลองทีละข้อว่ามือไม่ชน)
       default=$LEFT_CAL_ORDER; [ "$arm" = right ] && default=$RIGHT_CAL_ORDER
@@ -209,10 +249,34 @@ EOF
     # ค่าชดเชยศูนย์ในบอร์ดต้องตรงกับไฟล์ ไม่งั้นท่าที่สอนไว้จะไปผิดที่ (เช่นแฟลชบอร์ดใหม่แล้วลืม arm zero)
     [ "$left_hw" = real ] && { ros ros2 run ar_dual ar_zero.py "$LEFT_TEENSY" left || exit 1; }
     [ "$right_hw" = real ] && { ros ros2 run ar_dual ar_zero.py "$RIGHT_TEENSY" right || exit 1; }
+    save_ports  # ไว้ให้ arm recal / reconnect ใช้ตอนอีกแขนทำงานอยู่
     echo "เปิดระบบแขน (ซ้าย=$left_hw ${LEFT_TEENSY:+@ $LEFT_TEENSY} · ขวา=$right_hw ${RIGHT_TEENSY:+@ $RIGHT_TEENSY})"
     echo "ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C · แขนต้อง calibrate แล้ว ไม่งั้นตำแหน่งที่ระบบเห็นจะผิด"
+    echo "แขนเดียวรูด/หลุด: arm recal <แขน> (คาลิเบรตใหม่) หรือ arm reconnect <แขน> — อีกแขนทำงานต่อ"
     ros_tty ros2 launch ar_dual dual_hardware.launch.py left_port:="${LEFT_TEENSY:-none}" \
       right_port:="${RIGHT_TEENSY:-none}" left_hw:=$left_hw right_hw:=$right_hw
+    ;;
+
+  recal|reconnect)  # แขนเดียว: ปิดตัวคุมแขนนั้น -> (recal = คาลิเบรต) -> เปิดตัวคุมแขนนั้นใหม่ในหน้าต่างนี้ · อีกแขนทำงานต่อ
+    arm=$(arm_name "${1:-}")
+    [ -n "$arm" ] || { echo "ใช้: arm $cmd <left|right>$([ "$cmd" = recal ] && echo ' [ลำดับข้อ | all]')"; exit 1; }
+    shift
+    th=ซ้าย; [ "$arm" = right ] && th=ขวา
+    if ! is_running "lib/joint_state_publisher/joint_state_publisher"; then
+      echo "✗ ระบบแขนยังไม่เปิด (หรือเปิดแบบเก่าที่แยกแขนไม่ได้) — arm off แล้ว arm start"; exit 1
+    fi
+    port=$(cached_port "$arm")
+    need_port "$port" "$th"
+    if is_running "lib/ar_program/arm_program"; then
+      echo "หมายเหตุ: ตัวเล่นโปรแกรมเปิดอยู่ — โปรแกรมที่สั่งแขน$th จะล้มจนกว่าแขนจะกลับมา (แขนอื่นใช้ได้ปกติ)"
+    fi
+    stop_arm "$arm"
+    if [ "$cmd" = recal ]; then
+      bash "$0" calibrate "$arm" "$@" || { echo "✗ คาลิเบรตไม่สำเร็จ — ตัวคุมแขน$th ยังปิดอยู่ (เปิด: arm reconnect $arm)"; exit 1; }
+    fi
+    ros ros2 run ar_dual ar_zero.py "$port" "$arm" || exit 1  # เช็กชื่อบอร์ด + ค่าชดเชยก่อนเปิด
+    echo "เปิดตัวคุมแขน$th @ $port — ปล่อยหน้าต่างนี้เปิดไว้ · Ctrl+C = ปิดเฉพาะแขน$th"
+    ros_tty ros2 launch ar_dual arm_hardware.launch.py arm:="$arm" hw:=real port:="$port"
     ;;
 
   player)
@@ -473,7 +537,9 @@ EOF
         || is_running "lib/humanoi_games" || break
       sleep 1
     done
-    for p in ros2_control_node move_group lib/ar_program/arm_program spawner rviz2 lib/humanoi_games; do
+    for p in ros2_control_node move_group lib/ar_program/arm_program spawner rviz2 lib/humanoi_games \
+             "__node:=left_description_publisher" "__node:=right_description_publisher" \
+             lib/joint_state_publisher/joint_state_publisher; do
       docker exec "$C" pkill -9 -f "$p" 2>/dev/null
     done
     bash "$0" status
@@ -498,6 +564,8 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm calibrate <left|right> [ข้อ...]  calibrate ทีละแขน ทีละข้อตามลำดับ เช่น 6 5 4 1 2 3 (หรือ all = พร้อมกัน)
                                ต้องทำหลังปิดไฟแขน/ถอด USB/แขนชน/สายพานรูด
    arm start [left|right]      เปิดระบบแขน (หน้าต่าง 1 — เปิดค้าง) ไม่ใส่ = สองแขน
+   arm recal <left|right> [ข้อ...]  แขนเดียวรูด: ปิดตัวคุมแขนนั้น -> calibrate -> เปิดใหม่ (อีกแขนทำงานต่อ)
+   arm reconnect <left|right>  เปิดตัวคุมแขนเดียวใหม่ (ไม่ calibrate) — ตัวคุมหลุด/ปิดไปแขนเดียว
    arm player [speed] [nohand] เปิดตัวเล่นโปรแกรม + ตัวคุมมือ (หน้าต่าง 2 — เปิดค้าง) ค่าเริ่ม 0.19
                                nohand = ไม่ต่อมือจริง · ห้ามเปิดพร้อม arm rps
    arm moveit                  MoveIt + RViz สองแขน บนจอ Pi — Planning Group เลือก left_arm/right_arm/both_arms
