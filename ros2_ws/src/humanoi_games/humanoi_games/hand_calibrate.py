@@ -4,7 +4,7 @@
   arm hand-calibrate                 (บน Pi — ปิดเกมก่อน: พอร์ตมือเปิดได้ทีละโปรแกรม)
   arm hand-calibrate --reset         เริ่มใหม่จากค่าเดโม (ไฟล์ค่าเดิมเปลี่ยนชื่อเป็น .bak-<เวลา> ไม่ลบ)
 
-แต่ละนิ้ว (นิ้วอื่นกำไว้ไม่ให้บัง):
+แต่ละนิ้ว (นิ้วอื่นแบไว้ ไม่ขวางกัน — เริ่มมาแบทั้งมือ):
   1. เริ่มที่ท่าแบสุด:  + / -  แบมากขึ้น / น้อยลง      l / r  เอียงนิ้วจนตั้งตรง ไม่เอียงข้าง
   2. กด c ไปท่ากำสุด:  + / -  กำมากขึ้น / น้อยลง — หยุดตรงที่ปลายนิ้วแตะฝ่ามือพอดี
                         ได้ยินเสียง servo ครางค้าง = กำเกิน กด - จนเงียบ
@@ -72,11 +72,11 @@ def adjust(c, view, kind, n, ids, hand):
 
 
 def pose_degrees(calib, finger, view):
-    """องศาของ servo 8 ตัว: นิ้วที่ตั้งอยู่ในท่า view นิ้วอื่นกำสุด (ท่า c = กำทั้งมือ)"""
+    """องศาของ servo 8 ตัว: นิ้วที่ตั้งอยู่ในท่า view นิ้วอื่นแบสุด (นิ้วที่กำไว้บังทางกันเอง — เริ่มมาแบทั้งมือ)"""
     out = []
     for i, f in enumerate(hand_poses.FINGERS):
         c = calib[f]
-        bend = c["open"] if (i == finger and view == "o") else c["close"]
+        bend = c["close"] if (i == finger and view == "c") else c["open"]
         out += list(hand_poses.finger_servos(c, bend))
     return out
 
