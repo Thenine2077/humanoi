@@ -1,0 +1,12 @@
+# relay_bridge ของฐานจริง (Mega + relay 8 ตัว + encoder 4 ล้อ) — arm base / arm remote โหลดไฟล์นี้
+# encoder_map / encoder_signs: หาค่าด้วย arm wheel-check (บันทึกลงไฟล์นี้ให้เอง) แล้วปิด/เปิด arm base ใหม่
+relay_bridge:
+  ros__parameters:
+    protocol: mecanum4
+    wheel_radius: 0.075        # m — ล้อ Ø0.15 (วัดแล้ว)
+    track: 0.40                # m — ระยะล้อซ้าย-ขวา (ยังเป็นค่าเดา)
+    wheelbase: 0.32            # m — ระยะล้อหน้า-หลัง (ยังเป็นค่าเดา)
+    counts_per_rev: 1440.0     # ค่านับต่อรอบล้อ: 360 P/R x4 (ENC_EDGES = 4) x อัตราทด encoder:ล้อ
+    encoder_map: [0, 1, 2, 3]  # ล้อ FL FR RL RR ใช้ E1-E4 ตัวไหน (0 = E1)
+    encoder_signs: [1, 1, 1, 1]  # 1 / -1 ให้ล้อเดินหน้านับเป็นบวก
+    publish_odom_tf: false     # TF odom->base_footprint จากล้อ — rf2o (real_slam) ส่งอยู่แล้ว อย่าเปิดคู่กัน

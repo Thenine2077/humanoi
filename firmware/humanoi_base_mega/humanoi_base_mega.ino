@@ -8,6 +8,12 @@
  *   ตัวรับ CH1, CH2, CH4, CH5 (ขา S) -> pin 2, 3, 5, 6
  *   ตัวรับ CH6 (SWB), CH8 (SWD)      -> pin 7, 9   (สวิตช์สั่งแขน — ดู "SW:" ข้างล่าง)
  *   relay เดินหน้า 22, 24, 26, 28 / ถอยหลัง 23, 25, 27, 29  (FL, FR, RL, RR)
+ *   encoder YT3806 360 P/R ล้อละตัว (A = เขียว, B = ขาว) -> A8-A15 (port K ทั้งหมด, PCINT2)
+ *       E1 A8/A9   E2 A10/A11   E3 A12/A13   E4 A14/A15   (ตั้งใจให้ E1-E4 = FL FR RL RR
+ *       ต่อผิดล้อ/นับกลับด้านไม่ต้องย้ายสาย — relay_bridge มี encoder_map / encoder_signs, หาค่าด้วย arm wheel-check)
+ *       ไฟ encoder 8-24V (ป้ายบนตัว) จากตัวแปลงไฟ 12V · GND ร่วมกับ Mega
+ *       ขาสัญญาณต่อตรงเข้า Mega ได้เฉพาะเมื่อแน่ใจว่าเป็น NPN open collector (ไม่มี pull-up ไป 12V ข้างใน)
+ *       ไม่แน่ใจ = ผ่านบอร์ด opto ก่อน — ดู docs/wiring_encoders.md
  *   USB ของ Mega -> Raspberry Pi (ใน container เห็นเป็น /dev/ttyACM0)
  *   pin 13 = LED: กะพริบเร็ว = ไม่มีสัญญาณรีโมท, กะพริบช้า = ไม่ ARM,
  *                 ติดค้าง = รีโมทคุม, ติดแล้วดับแวบทุก 1 วิ = ROS คุม
@@ -21,8 +27,10 @@
  *
  * โปรโตคอล serial (115200, บรรทัดละคำสั่ง — เข้ากับ relay_bridge เดิม):
  *   PC -> MEGA : "W f f f f"  ตั้งทิศ 4 ล้อ f = F|B|S ลำดับ FL FR RL RR ("WFBSF" ก็ได้)
- *                "S" หยุดทุกล้อ | "P" ping -> "OK"
- *   MEGA -> PC : "READY humanoi_base_mega"
+ *                "S" หยุดทุกล้อ | "P" ping -> "OK" | "Z" ล้างค่านับ encoder -> "OK"
+ *   MEGA -> PC : "READY humanoi_base_mega enc=x4"  (x4 = นับทุกขอบ A+B = 1440 ต่อรอบ encoder, x2 = 720)
+ *                "ENC t c1 c2 c3 c4 e1 e2 e3 e4"  ทุก ENC_MS — t = millis() ตอนอ่าน, c = ค่านับสะสมของ E1-E4
+ *                                            (ยังไม่กลับเครื่องหมาย), e = ครั้งที่ A/B เปลี่ยนพร้อมกัน (นับพลาด ควรเป็น 0)
  *                "STATE:FBSF"                ล้อเปลี่ยนสถานะ (ลำดับ FL FR RL RR)
  *                "MODE:ROS" / "MODE:RC" / "MODE:DISARMED" / "MODE:NO_SIGNAL"  เปลี่ยนผู้คุม
  *                "WARN:timeout -> STOP"      ROS เงียบเกิน CMD_TIMEOUT
@@ -74,6 +82,12 @@ const unsigned long SIGNAL_TIMEOUT_MS = 400;  // ไม่มีพัลส์�
 const unsigned long PULSE_TIMEOUT_US = 60000; // ต้องนานกว่าหนึ่งเฟรม (ดู rc_mecanum_mega)
 const unsigned long PRINT_MS = 500;
 const uint8_t SWITCH_EVERY = 3;   // อ่าน SWB/SWD ทุก 3 รอบ — สวิตช์ไม่ต้องเร็ว ไม่ให้คันโยกล้อตอบช้าลง
+
+const uint8_t ENC_PIN_A[NUM_WHEELS] = {A8, A10, A12, A14};  // สายเขียว
+const uint8_t ENC_PIN_B[NUM_WHEELS] = {A9, A11, A13, A15};  // สายขาว
+// 4 = จับทุกขอบของ A และ B (ละเอียดสุด) · 2 = จับแค่ขอบ A (interrupt ครึ่งเดียว — ใช้ถ้า e ขึ้นตอนหมุนเร็ว)
+const uint8_t ENC_EDGES = 4;
+const unsigned long ENC_MS = 50;  // ส่งค่านับทุก 50 ms (ช้ากว่านี้ได้ตอนรอพัลส์รีโมท — t บอกเวลาจริง)
 // ---------------------------------------------------
 
 enum Dir : int8_t { D_REV = -1, D_STOP = 0, D_FWD = 1 };
@@ -101,6 +115,68 @@ bool modeReported = false;
 
 char buf[24];
 uint8_t bufLen = 0;
+
+// ---------- encoder (อ่านใน interrupt ไม่ขึ้นกับรอบ loop ที่รอพัลส์รีโมท) ----------
+// ค่าเปลี่ยนตามสถานะ (ก่อน<<2 | หลัง), สถานะ = A<<1 | B  (เหมือน encoder_test_mega)
+const int8_t QDEC[16] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
+uint8_t encMaskA[NUM_WHEELS], encMaskB[NUM_WHEELS];
+volatile long encCount[NUM_WHEELS];
+volatile uint16_t encErr[NUM_WHEELS];
+volatile uint8_t encPrev[NUM_WHEELS];
+unsigned long lastEnc = 0;
+
+uint8_t encState(uint8_t pins, uint8_t i) {
+  return ((pins & encMaskA[i]) ? 2 : 0) | ((pins & encMaskB[i]) ? 1 : 0);
+}
+
+ISR(PCINT2_vect) {
+  uint8_t pins = PINK;  // A8-A15 อยู่บน port K ทั้งหมด อ่านทีเดียว
+  for (uint8_t i = 0; i < NUM_WHEELS; i++) {
+    uint8_t s = encState(pins, i);
+    uint8_t p = encPrev[i];
+    if (s == p) continue;
+    if (ENC_EDGES == 4) {
+      if ((s ^ p) == 3) encErr[i]++;  // A และ B เปลี่ยนพร้อมกัน = พลาดไปหนึ่งขอบ
+      encCount[i] += QDEC[(p << 2) | s];
+    } else if ((s ^ p) & 2) {         // x2: นับเฉพาะตอน A เปลี่ยน — A ไม่เท่า B = ไปข้างหน้า (ทิศเดียวกับ x4)
+      encCount[i] += ((s >> 1) != (s & 1)) ? 1 : -1;
+    }
+    encPrev[i] = s;
+  }
+}
+
+void setupEncoders() {
+  for (uint8_t i = 0; i < NUM_WHEELS; i++) {
+    if (portInputRegister(digitalPinToPort(ENC_PIN_A[i])) != &PINK ||
+        portInputRegister(digitalPinToPort(ENC_PIN_B[i])) != &PINK) {
+      Serial.println(F("WARN:encoder pins must be A8-A15 (port K) -> encoders off"));
+      return;
+    }
+  }
+  for (uint8_t i = 0; i < NUM_WHEELS; i++) {
+    pinMode(ENC_PIN_A[i], INPUT_PULLUP);
+    pinMode(ENC_PIN_B[i], INPUT_PULLUP);
+    encMaskA[i] = digitalPinToBitMask(ENC_PIN_A[i]);
+    encMaskB[i] = digitalPinToBitMask(ENC_PIN_B[i]);
+    encPrev[i] = encState(PINK, i);
+    PCMSK2 |= encMaskA[i] | (ENC_EDGES == 4 ? encMaskB[i] : 0);  // บิตใน PCMSK2 ตรงกับบิตของ port K
+  }
+  PCIFR |= _BV(PCIF2);
+  PCICR |= _BV(PCIE2);
+}
+
+void reportEncoders(unsigned long now) {
+  long c[NUM_WHEELS];
+  uint16_t e[NUM_WHEELS];
+  noInterrupts();  // อ่านทั้ง 4 ล้อในจังหวะเดียวกัน
+  for (uint8_t i = 0; i < NUM_WHEELS; i++) { c[i] = encCount[i]; e[i] = encErr[i]; }
+  interrupts();
+  Serial.print(F("ENC "));
+  Serial.print(now);
+  for (uint8_t i = 0; i < NUM_WHEELS; i++) { Serial.print(' '); Serial.print(c[i]); }
+  for (uint8_t i = 0; i < NUM_WHEELS; i++) { Serial.print(' '); Serial.print(e[i]); }
+  Serial.println();
+}
 
 void relayWrite(uint8_t pin, bool on) {
   digitalWrite(pin, (on != RELAY_ACTIVE_LOW) ? HIGH : LOW);
@@ -160,6 +236,13 @@ void handleLine(char *s, uint8_t n) {
     Serial.println(F("OK"));
     return;
   }
+  if (s[0] == 'Z' || s[0] == 'z') {
+    noInterrupts();
+    for (uint8_t i = 0; i < NUM_WHEELS; i++) encCount[i] = encErr[i] = 0;
+    interrupts();
+    Serial.println(F("OK"));
+    return;
+  }
   if (s[0] == 'S' || s[0] == 's') {
     for (uint8_t i = 0; i < NUM_WHEELS; i++) rosTarget[i] = D_STOP;
     lastCmdTime = millis();
@@ -193,9 +276,11 @@ void pollSerial() {
 
 // ---------- รีโมท ----------
 // pulseIn รอได้ถึง 60 ms ต่อช่อง เลยอ่าน serial ทุกครั้งก่อนรอ ไม่ให้บัฟเฟอร์ล้น
+// ใช้ pulseInLong (จับเวลาด้วย micros) — pulseIn นับรอบลูป เวลาที่ interrupt ของ encoder กินไปจะหายไป
+// ทำให้พัลส์สั้นลงตอนล้อหมุนเร็ว คันโยกที่อยู่กลางจะดูเหมือนถูกโยก แล้วรีโมทแย่งคุมจาก ROS
 int readPulse(uint8_t pin) {
   pollSerial();
-  return pulseIn(pin, HIGH, PULSE_TIMEOUT_US);
+  return pulseInLong(pin, HIGH, PULSE_TIMEOUT_US);
 }
 
 // พัลส์ 1000-2000 us -> -1..1, ค่าผิดช่วงทำให้ *ok = false
@@ -279,8 +364,10 @@ void setup() {
   pinMode(PIN_CH6, INPUT);
   pinMode(PIN_CH8, INPUT);
   Serial.begin(115200);
+  setupEncoders();
   delay(300);
-  Serial.println(F("READY humanoi_base_mega"));
+  Serial.print(F("READY humanoi_base_mega enc=x"));
+  Serial.println(ENC_EDGES);
 }
 
 void loop() {
@@ -380,6 +467,10 @@ void loop() {
   }
   updateLed(now);
 
+  if (now - lastEnc >= ENC_MS) {
+    lastEnc = now;
+    reportEncoders(now);
+  }
   if (now - lastPrint >= PRINT_MS) {
     lastPrint = now;
     printStatus();

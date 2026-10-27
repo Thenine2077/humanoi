@@ -17,6 +17,13 @@
 ไม่มี /cmd_vel เกิน cmd_timeout วินาที -> บังคับหยุด
 อ่านบรรทัดที่ Arduino ตอบ (READY/STATE/WARN/OK) -> log + republish /motor_state
 
+encoder (firmware/humanoi_base_mega ส่ง "ENC t c1 c2 c3 c4 e1 e2 e3 e4" ทุก ~50 ms):
+  /wheel_states  sensor_msgs/JointState  มุมล้อ (rad) + ความเร็ว (rad/s) ชื่อตาม URDF front_left_wheel_joint ...
+  /wheel_odom    nav_msgs/Odometry       odometry จากล้อ (mecanum) — TF odom->base ปิดไว้ (rf2o ใช้อยู่)
+  /encoder_raw   std_msgs/Int64MultiArray [t_ms, c1..c4, e1..e4] ค่าดิบตามขา E1-E4 (arm wheel-check ใช้)
+/wheel_cmd (std_msgs/String "W F S S S") สั่งทิศ 4 ล้อตรงๆ ข้าม mixing — ไว้จูน/เช็กล้อ (ชนะ /cmd_vel
+  ตอนที่ยังส่งมาไม่เกิน cmd_timeout)
+
 พารามิเตอร์
   port            (str)   /dev/ttyACM0   ("none" = dry-run ไม่เปิด serial ทดสอบ mixing)
   baudrate        (int)   115200
@@ -29,15 +36,25 @@
   track           (float) 0.40    m     ระยะล้อซ้าย-ขวา
   wheelbase       (float) 0.32    m     ระยะล้อหน้า-หลัง
   reopen_period   (float) 2.0     s
+  counts_per_rev  (float) 1440.0  ค่านับต่อรอบ "ล้อ" (360 P/R x4 = 1440 ถ้า encoder หมุนรอบเดียวกับล้อ)
+  encoder_map     (int[]) [0, 1, 2, 3]  ล้อ FL FR RL RR ใช้ encoder ตัวไหน (0 = E1 ... 3 = E4)
+  encoder_signs   (int[]) [1, 1, 1, 1]  1 / -1 ให้ล้อเดินหน้า = ค่าบวก
+  odom_frame / base_frame (str) odom / base_footprint
+  publish_odom_tf (bool)  false   true = ส่ง TF odom->base_frame จากล้อ (อย่าเปิดคู่กับ rf2o)
 
 ไม่มี pyserial / เปิดพอร์ตไม่ได้ = log warn แต่โหนดยังรันต่อ (ดูคำสั่งที่ /motor_command)
 """
+import math
+import re
 import time
 
 import rclpy
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import TransformStamped, Twist
+from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from std_msgs.msg import Float64MultiArray, String
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Float64MultiArray, Int64MultiArray, String
+from tf2_ros import TransformBroadcaster
 
 try:
     import serial
@@ -45,6 +62,10 @@ except ImportError:
     serial = None
 
 WHEEL_NAMES = ("FL", "FR", "RL", "RR")
+WHEEL_JOINTS = ("front_left_wheel_joint", "front_right_wheel_joint",
+                "rear_left_wheel_joint", "rear_right_wheel_joint")  # ชื่อเดียวกับ mecanum_base.urdf.xacro
+WHEEL_CMD = re.compile(r"^W\s*([FBS])\s*([FBS])\s*([FBS])\s*([FBS])$")
+ENC_GAP = 0.5  # s — ค่านับสองครั้งห่างกันเกินนี้ (Mega รีเซ็ต/สายหลุด) ไม่คิดความเร็ว
 
 
 def sign_cmd(v, deadband):
@@ -69,6 +90,12 @@ class RelayBridge(Node):
         self.declare_parameter("track", 0.40)
         self.declare_parameter("wheelbase", 0.32)
         self.declare_parameter("reopen_period", 2.0)
+        self.declare_parameter("counts_per_rev", 1440.0)
+        self.declare_parameter("encoder_map", [0, 1, 2, 3])
+        self.declare_parameter("encoder_signs", [1, 1, 1, 1])
+        self.declare_parameter("odom_frame", "odom")
+        self.declare_parameter("base_frame", "base_footprint")
+        self.declare_parameter("publish_odom_tf", False)
 
         self.port = str(self.get_parameter("port").value).strip()
         # ค่าเหล่านี้ = โหมด dry-run (ไม่เปิด serial) สำหรับทดสอบ mixing ฝั่ง ROS
@@ -84,6 +111,16 @@ class RelayBridge(Node):
         self.track = float(self.get_parameter("track").value)
         self.wheelbase = float(self.get_parameter("wheelbase").value)
         self.reopen_period = float(self.get_parameter("reopen_period").value)
+        self.cpr = float(self.get_parameter("counts_per_rev").value)
+        self.enc_map = [int(v) for v in self.get_parameter("encoder_map").value]
+        self.enc_signs = [1 if int(v) >= 0 else -1 for v in self.get_parameter("encoder_signs").value]
+        if sorted(self.enc_map) != [0, 1, 2, 3] or len(self.enc_signs) != 4:
+            self.get_logger().error(f"encoder_map {self.enc_map} / encoder_signs {self.enc_signs} ไม่ถูก "
+                                    "-> ใช้ [0,1,2,3] / [1,1,1,1]")
+            self.enc_map, self.enc_signs = [0, 1, 2, 3], [1, 1, 1, 1]
+        self.odom_frame = str(self.get_parameter("odom_frame").value)
+        self.base_frame = str(self.get_parameter("base_frame").value)
+        self.odom_tf = bool(self.get_parameter("publish_odom_tf").value)
 
         if self.protocol not in ("mecanum4", "single"):
             self.get_logger().warn(f"protocol '{self.protocol}' ไม่รู้จัก -> ใช้ mecanum4")
@@ -97,11 +134,20 @@ class RelayBridge(Node):
         self.last_cmd_vel_t = 0.0
         self.last_reopen_t = 0.0
         self.ser = None
+        self.wheel_cmd_line = self.stop_line
+        self.last_wheel_cmd_t = -1e9
+        self.prev_enc = None          # (t_ms ของ Mega, มุมล้อ rad 4 ค่า)
+        self.x = self.y = self.yaw = 0.0
 
         self.sub = self.create_subscription(Twist, "cmd_vel", self.on_cmd_vel, 10)
         self.state_pub = self.create_publisher(String, "motor_state", 10)
         self.cmd_pub = self.create_publisher(String, "motor_command", 10)
         self.wheel_pub = self.create_publisher(Float64MultiArray, "wheel_target", 10)
+        self.wheel_cmd_sub = self.create_subscription(String, "wheel_cmd", self.on_wheel_cmd, 10)
+        self.joint_pub = self.create_publisher(JointState, "wheel_states", 10)
+        self.odom_pub = self.create_publisher(Odometry, "wheel_odom", 10)
+        self.raw_pub = self.create_publisher(Int64MultiArray, "encoder_raw", 10)
+        self.tf_pub = TransformBroadcaster(self) if self.odom_tf else None
 
         self._open_serial()
         self.timer = self.create_timer(1.0 / rate, self.tick)
@@ -158,6 +204,15 @@ class RelayBridge(Node):
 
         self.last_cmd_vel_t = time.monotonic()
 
+    def on_wheel_cmd(self, msg: String):
+        m = WHEEL_CMD.match(msg.data.strip().upper())
+        if not m or self.protocol != "mecanum4":
+            self.get_logger().warn(f"wheel_cmd '{msg.data}' ไม่ถูก (ใช้ \"W F S S S\" ลำดับ FL FR RL RR)",
+                                   throttle_duration_sec=2.0)
+            return
+        self.wheel_cmd_line = "W " + " ".join(m.groups())
+        self.last_wheel_cmd_t = time.monotonic()
+
     # ---------------------------------------------------------------
     def tick(self):
         now = time.monotonic()
@@ -166,6 +221,8 @@ class RelayBridge(Node):
         line = self.last_line
         if now - self.last_cmd_vel_t > self.cmd_timeout:  # teleop ตาย / ไม่มีคนสั่ง
             line = self.stop_line
+        if now - self.last_wheel_cmd_t <= self.cmd_timeout:  # สั่งล้อตรงๆ (จูน/เช็กล้อ) ชนะ /cmd_vel
+            line = self.wheel_cmd_line
 
         self.cmd_pub.publish(String(data=line))
         self._write(line)
@@ -188,6 +245,11 @@ class RelayBridge(Node):
                 line = self.ser.readline().decode("ascii", "ignore").strip()
                 if not line:
                     continue
+                if line.startswith("ENC "):  # ~20 ครั้ง/วิ — ไม่ส่งต่อ /motor_state
+                    self.on_encoders(line)
+                    continue
+                if line.startswith("READY"):
+                    self.prev_enc = None  # Mega รีเซ็ต ค่านับเริ่ม 0 ใหม่
                 self.state_pub.publish(String(data=line))
                 if line.startswith("WARN"):
                     self.get_logger().warn(f"[MEGA] {line}")
@@ -198,6 +260,79 @@ class RelayBridge(Node):
         except Exception as e:  # noqa: BLE001
             self.get_logger().warn(f"อ่าน serial ไม่สำเร็จ: {e}")
             self._close()
+
+    # ---------------------------------------------------------------
+    def on_encoders(self, line: str):
+        """ENC t c1 c2 c3 c4 e1 e2 e3 e4 -> /encoder_raw, /wheel_states, /wheel_odom"""
+        parts = line.split()
+        if len(parts) != 10:
+            return
+        try:
+            t_ms = int(parts[1])
+            raw = [int(v) for v in parts[2:6]]
+            errs = [int(v) for v in parts[6:10]]
+        except ValueError:
+            return
+        self.raw_pub.publish(Int64MultiArray(data=[t_ms] + raw + errs))
+        pos = [self.enc_signs[i] * raw[self.enc_map[i]] * 2.0 * math.pi / self.cpr for i in range(4)]
+        vel = [0.0] * 4
+        if self.prev_enc is not None:
+            dt = (t_ms - self.prev_enc[0]) / 1000.0
+            if 0.0 < dt <= ENC_GAP:
+                vel = [(p - q) / dt for p, q in zip(pos, self.prev_enc[1])]
+                self._integrate(vel, dt)
+        self.prev_enc = (t_ms, pos)
+
+        stamp = self.get_clock().now().to_msg()
+        js = JointState()
+        js.header.stamp = stamp
+        js.name = list(WHEEL_JOINTS)
+        js.position = pos
+        js.velocity = vel
+        self.joint_pub.publish(js)
+        self._publish_odom(stamp, self._body_twist(vel))
+
+    def _body_twist(self, w):
+        """ความเร็วล้อ (rad/s) FL FR RL RR -> (vx, vy, wz) ตัวถัง — ย้อนสูตร _mecanum_wheels"""
+        r, k = self.r, self.geom
+        vx = r / 4.0 * (w[0] + w[1] + w[2] + w[3])
+        vy = r / 4.0 * (-w[0] + w[1] + w[2] - w[3])
+        wz = r / (4.0 * k) * (-w[0] + w[1] - w[2] + w[3])
+        return vx, vy, wz
+
+    def _integrate(self, w, dt):
+        vx, vy, wz = self._body_twist(w)
+        mid = self.yaw + wz * dt / 2.0
+        self.x += (vx * math.cos(mid) - vy * math.sin(mid)) * dt
+        self.y += (vx * math.sin(mid) + vy * math.cos(mid)) * dt
+        self.yaw = math.atan2(math.sin(self.yaw + wz * dt), math.cos(self.yaw + wz * dt))
+
+    def _publish_odom(self, stamp, twist):
+        qz, qw = math.sin(self.yaw / 2.0), math.cos(self.yaw / 2.0)
+        od = Odometry()
+        od.header.stamp = stamp
+        od.header.frame_id = self.odom_frame
+        od.child_frame_id = self.base_frame
+        od.pose.pose.position.x = self.x
+        od.pose.pose.position.y = self.y
+        od.pose.pose.orientation.z = qz
+        od.pose.pose.orientation.w = qw
+        od.twist.twist.linear.x, od.twist.twist.linear.y, od.twist.twist.angular.z = twist
+        # ล้อ mecanum ลื่นตอนสไลด์/หมุน — ค่าประมาณคร่าวๆ ให้ EKF (robot_localization) รู้ว่าเชื่อได้แค่ไหน
+        for i, v in zip((0, 7, 35), (0.05, 0.05, 0.1)):
+            od.pose.covariance[i] = v
+        for i, v in zip((0, 7, 35), (0.02, 0.05, 0.1)):
+            od.twist.covariance[i] = v
+        self.odom_pub.publish(od)
+        if self.tf_pub is not None:
+            tf = TransformStamped()
+            tf.header = od.header
+            tf.child_frame_id = self.base_frame
+            tf.transform.translation.x = self.x
+            tf.transform.translation.y = self.y
+            tf.transform.rotation.z = qz
+            tf.transform.rotation.w = qw
+            self.tf_pub.sendTransform(tf)
 
     def _close(self):
         if self.ser is not None:

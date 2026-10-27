@@ -14,6 +14,8 @@ C=humanoi_ros
 LEFT_TEENSY="${LEFT_TEENSY:-}"
 RIGHT_TEENSY="${RIGHT_TEENSY:-}"
 MEGA=/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_858303033393517150C0-if00
+# ค่าฐานล้อของ relay_bridge (encoder_map/signs, ขนาดล้อ) — arm wheel-check บันทึกลงไฟล์นี้
+BASE_PARAMS=/humanoi_ws/install/humanoi_base/share/humanoi_base/config/base.yaml
 # ลำดับข้อต่อตอน calibrate (เฟิร์มแวร์ AR4_ROS2_seq เลือกข้อได้) — ว่าง = ต้องใส่เองทุกครั้ง
 # ตั้งหลังไล่ลองทีละข้อแล้วว่ามือที่ติดปลายแขนไม่ชน เช่น "6 5 4 1 2 3" (เลขติดกัน เช่น "456" = พร้อมกัน)
 LEFT_CAL_ORDER=""
@@ -339,8 +341,37 @@ EOF
     else
       [ -e "$MEGA" ] || { echo "✗ ไม่เจอ Mega ($MEGA) — เสียบ USB ของ Mega เข้า Pi"; exit 1; }
       # เปิด relay_bridge (คุยกับ Mega) คู่กันไปด้วย Ctrl+C ปิดทั้งคู่
-      ros_tty bash -c "ros2 run humanoi_base relay_bridge --ros-args -p port:=$MEGA & \
+      ros_tty bash -c "ros2 run humanoi_base relay_bridge --ros-args --params-file $BASE_PARAMS -p port:=$MEGA & \
         ros2 run humanoi_base rc_arm_trigger --ros-args -p program_swb:=$prog; kill %1 2>/dev/null"
+    fi
+    ;;
+
+  base)  # ฐานล้อ: relay_bridge คุย Mega (relay 8 ตัว + encoder 4 ล้อ) — /cmd_vel -> ล้อ, /wheel_states, /wheel_odom
+    if is_running "lib/humanoi_base/relay_bridge"; then
+      echo "✗ relay_bridge เปิดอยู่แล้ว (arm base หรือ arm remote) — ใช้ตัวนั้นได้เลย"; exit 1
+    fi
+    [ -e "$MEGA" ] || { echo "✗ ไม่เจอ Mega ($MEGA) — เสียบ USB ของ Mega เข้า Pi"; exit 1; }
+    echo "เปิดฐานล้อ (relay_bridge) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
+    echo "ROS ขับล้อได้เมื่อรีโมทเปิด + SWA ลง + ปล่อยคันโยก · ขยับคันโยก = รีโมทแย่งคุมทันที"
+    ros_tty ros2 run humanoi_base relay_bridge --ros-args --params-file "$BASE_PARAMS" -p port:="$MEGA"
+    ;;
+
+  wheel-check|wheel-tune)  # เช็ก encoder ทีละล้อ / จูนลูกบิดความเร็ว 4 ล้อ — humanoi_base/wheel_tune.py
+    if ! is_running "lib/humanoi_base/relay_bridge"; then
+      echo "✗ เปิดฐานล้อก่อน: arm base (อีกหน้าต่าง)"; exit 1
+    fi
+    if [ "$cmd" = wheel-check ]; then
+      ros_tty ros2 run humanoi_base wheel_tune check
+    else
+      extra=()
+      for a in "$@"; do
+        case "$a" in
+          back|ถอย) extra+=(--back) ;;
+          *[0-9]*) extra+=(--target "$a") ;;
+          *) echo "ใช้: arm wheel-tune [back] [rpm เป้าหมาย]"; exit 1 ;;
+        esac
+      done
+      ros_tty ros2 run humanoi_base wheel_tune tune "${extra[@]}"
     fi
     ;;
 
@@ -576,6 +607,11 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
                                nohand = ไม่ต่อมือจริง · ห้ามเปิดพร้อม arm rps
    arm moveit                  MoveIt + RViz สองแขน บนจอ Pi — Planning Group เลือก left_arm/right_arm/both_arms
    arm remote [โปรแกรม]         สั่งจากรีโมท: SWB โยกลง = เล่นโปรแกรม (ค่าเริ่ม 1), SWD โยกลง = หยุด (เปิดค้าง)
+
+ ฐานล้อ (Mega: relay 8 ตัว + encoder 4 ล้อ — ต่อสาย/ขั้นตอน: docs/wiring_encoders.md)
+   arm base                    เปิดฐานล้อ relay_bridge (เปิดค้าง) — /cmd_vel, /wheel_states, /wheel_odom
+   arm wheel-check             หมุนทีละล้อ เช็กว่า encoder ต่อถูกล้อ/นับถูกทิศ แล้วบันทึกค่า (ยกล้อลอยก่อน)
+   arm wheel-tune [back] [rpm] หมุน 4 ล้อค้าง แสดง rpm ทุกล้อ บอกลูกบิดไหนต้องเพิ่ม/ลด (Ctrl+C หยุด)
 
  สอนท่า / สร้างโปรแกรม (หน้าต่างไหนก็ได้)
    arm teach <left|right> <ท่า>       บันทึกท่าปัจจุบันของแขนนั้น (ชื่อท่าซ้ำกันข้ามแขนได้)

@@ -14,6 +14,7 @@ setup(
          ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
         (os.path.join("share", package_name, "launch"), glob("launch/*.launch.py")),
+        (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
     ],
     install_requires=["setuptools", "pyserial"],
     zip_safe=True,
@@ -27,6 +28,7 @@ setup(
             "relay_bridge = humanoi_base.relay_bridge:main",
             "scan_restamp = humanoi_base.scan_restamp:main",
             "rc_arm_trigger = humanoi_base.rc_arm_trigger:main",
+            "wheel_tune = humanoi_base.wheel_tune:main",
         ],
     },
 )
