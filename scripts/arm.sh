@@ -356,6 +356,29 @@ EOF
     ros_tty ros2 run humanoi_base relay_bridge --ros-args --params-file "$BASE_PARAMS" -p port:="$MEGA"
     ;;
 
+  lidar)  # lidar STL-19P (/scan) + TF base_footprint -> laser_link (โมเดลแขนไม่มีฐาน จึงส่ง TF เอง)
+    if is_running "ldlidar_ros2_node\|ldlidar"; then echo "✗ lidar เปิดอยู่แล้ว"; exit 1; fi
+    port=$(ros sh -c 'ls /dev/serial/by-id/ 2>/dev/null | grep -i cp210 | head -1')
+    [ -n "$port" ] || { echo "✗ ไม่เจอ lidar (ชิป CP2102) — เสียบ USB ของ lidar"; exit 1; }
+    echo "เปิด lidar @ /dev/serial/by-id/$port — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
+    ros_tty ros2 launch humanoi_description lidar.launch.py standalone:=true port:="/dev/serial/by-id/$port"
+    ;;
+
+  drive)  # ฐานวิ่งตามระยะ / หมุนตามมุม แล้วหยุด (encoder วัดระยะ + lidar กันชน) — humanoi_base/base_move.py
+    [ $# -eq 2 ] || { echo "ใช้: arm drive <forward|back|left|right> <m>  หรือ  arm drive turn <องศา, บวก = ซ้าย>"; exit 1; }
+    if ! is_running "lib/humanoi_base/relay_bridge"; then
+      echo "✗ เปิดฐานล้อก่อน: arm base (อีกหน้าต่าง)"; exit 1
+    fi
+    ros_tty ros2 run humanoi_base base_move "$1" "$2"
+    ;;
+
+  mission)  # ลำดับงาน หยิบ -> พับแขน -> รอยืนยัน (SWB) -> ฐานวิ่ง -> วาง — humanoi_mission (config/missions.yaml)
+    if is_running "lib/humanoi_base/rc_arm_trigger"; then
+      echo "✗ arm remote เปิดอยู่ (SWB จะสั่งโปรแกรมซ้อน) — ปิดหน้าต่างนั้นก่อน"; exit 1
+    fi
+    ros_tty ros2 run humanoi_mission mission "$@"
+    ;;
+
   wheel-check|wheel-tune)  # เช็ก encoder ทีละล้อ / จูนลูกบิดความเร็ว 4 ล้อ — humanoi_base/wheel_tune.py
     if ! is_running "lib/humanoi_base/relay_bridge"; then
       echo "✗ เปิดฐานล้อก่อน: arm base (อีกหน้าต่าง)"; exit 1
@@ -612,6 +635,14 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm base                    เปิดฐานล้อ relay_bridge (เปิดค้าง) — /cmd_vel, /wheel_states, /wheel_odom
    arm wheel-check             หมุนทีละล้อ เช็กว่า encoder ต่อถูกล้อ/นับถูกทิศ แล้วบันทึกค่า (ยกล้อลอยก่อน)
    arm wheel-tune [back] [rpm] หมุน 4 ล้อค้าง แสดง rpm ทุกล้อ บอกลูกบิดไหนต้องเพิ่ม/ลด (Ctrl+C หยุด)
+   arm lidar                   เปิด lidar (/scan) — ฐานไม่วิ่งอัตโนมัติถ้าไม่มี lidar กันชน (เปิดค้าง)
+   arm drive forward 1.0       ฐานวิ่งตามระยะแล้วหยุด: forward back left right (m) · turn 90 (องศา บวก = ซ้าย)
+                               ของขวางทาง = หยุดรอ · ขยับคันโยก / ปลด SWA / Ctrl+C = หยุดทันที
+
+ ภารกิจ (หยิบ -> พับแขน -> รอยืนยัน -> ฐานวิ่ง -> วาง) — ไฟล์ humanoi_mission/config/missions.yaml
+   arm mission                 ดูรายชื่อภารกิจ
+   arm mission <ชื่อ>           เล่น (เปิดค้าง) · เช็กชื่อท่า/โปรแกรมที่ต้องเปิดก่อนเริ่ม · ฐานวิ่งเฉพาะตอนแขนพับ
+                               รอยืนยัน = โยก SWB · SWD / Ctrl+C = หยุดฐาน + แขน + จบภารกิจ
 
  สอนท่า / สร้างโปรแกรม (หน้าต่างไหนก็ได้)
    arm teach <left|right> <ท่า>       บันทึกท่าปัจจุบันของแขนนั้น (ชื่อท่าซ้ำกันข้ามแขนได้)

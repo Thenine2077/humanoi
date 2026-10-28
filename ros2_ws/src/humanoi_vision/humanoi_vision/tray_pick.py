@@ -63,8 +63,9 @@ def _duration(secs):
 
 
 class TrayPick(Node):
-    def __init__(self):
-        super().__init__("tray_pick")
+    def __init__(self, name="tray_pick", **kwargs):
+        """kwargs ส่งต่อให้ Node (เช่น parameter_overrides) — humanoi_mission สร้างตัวนี้ในโปรเซสเดียวกัน"""
+        super().__init__(name, **kwargs)
         self.declare_parameter("arm", "left")
         self.declare_parameter("grasp_file", "")
         self.declare_parameter("approach", 0.08)      # m เหนือที่จับ (ตั้งฉากพื้นกล่อง) ก่อนลง
@@ -86,6 +87,7 @@ class TrayPick(Node):
         self.box, self.status, self.joints, self.urdf = [], "-", None, None
         self.hand_status, self.arm_state = [], "idle"
         self.chain, self.holding = None, None
+        self.stop_event = threading.Event()  # set = ยกเลิกการขยับที่ค้างอยู่ (humanoi_mission: รีโมท SWD)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.create_subscription(PoseStamped, "/tray/pose", self._on_box, 10)
@@ -93,7 +95,8 @@ class TrayPick(Node):
         self.create_subscription(JointState, "/joint_states", self._on_js, 50)
         self.create_subscription(String, "/robot_description", lambda m: setattr(self, "urdf", m.data),
                                  QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
-        self.create_subscription(String, "/hand/status", self._on_hand, 10)
+        # สถานะของตัวคุมมือข้างเดียวกับหัวข้อสั่ง: /hand/gesture -> /hand/status, /right_hand/gesture -> /right_hand/status
+        self.create_subscription(String, self.p["hand_topic"].rsplit("/", 1)[0] + "/status", self._on_hand, 10)
         self.create_subscription(String, "/arm/state", lambda m: setattr(self, "arm_state", m.data), 10)
         self.hand_pub = self.create_publisher(String, self.p["hand_topic"], 10)
         self.action = ActionClient(self, FollowJointTrajectory, f"/{arm}_arm_controller/follow_joint_trajectory")
@@ -299,8 +302,10 @@ class TrayPick(Node):
         self.goal = fut.result()
         try:
             res = self.goal.get_result_async()
-            if not _wait(res, pts[-1][0] + 15.0):
+            if not _wait(res, pts[-1][0] + 15.0, self.stop_event):
                 self.goal.cancel_goal_async()
+                if self.stop_event.is_set():
+                    raise PickError(f"{label}: หยุดแล้ว (สั่งหยุด) — แขนค้างอยู่ตรงนั้น")
                 raise PickError(f"{label}: แขนไม่ถึงในเวลา — ยกเลิกแล้ว")
             code = res.result().result.error_code
             if code != FollowJointTrajectory.Result.SUCCESSFUL:
@@ -337,10 +342,10 @@ class TrayPick(Node):
         self.move([down[-1]] + up, float(self.p["line_speed"]), "ขึ้นไปจุดรอ")
 
 
-def _wait(fut, timeout):
+def _wait(fut, timeout, stop=None):
     t_end = time.monotonic() + timeout
     while not fut.done():
-        if time.monotonic() > t_end:
+        if time.monotonic() > t_end or (stop is not None and stop.is_set()):
             return False
         time.sleep(0.02)
     return True

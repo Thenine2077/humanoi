@@ -1,0 +1,47 @@
+# ภารกิจของหุ่น — arm mission <ชื่อ>   (ขั้นที่ใช้ได้ดูหัวไฟล์ humanoi_mission/mission.py หรือ arm help)
+# แก้ไฟล์นี้แล้วเล่นใหม่ได้เลย ไม่ต้อง build (ไฟล์นี้อ่านทุกครั้งที่สั่ง)
+#
+# ท่า/โปรแกรมที่ยังไม่มี ภารกิจจะไม่เริ่มและบอกว่าต้องสอนอะไร — ชื่อในไฟล์นี้เป็นชื่อตั้งต้น เปลี่ยนได้:
+#   arm teach left carry_L     แขนซ้ายพับเข้าหาตัว ถือกล่องไว้ (หลังหยิบ)
+#   arm teach left stow_L      แขนซ้ายพับ มือว่าง
+#   arm teach right stow_R     แขนขวาพับ
+#   arm teach left place_B     แขนซ้ายวางกล่องบนโต๊ะ B (ฐานจอดที่ B แล้ว)
+
+# ฐานวิ่งได้เฉพาะตอนแขนอยู่ท่าใดท่าหนึ่งในนี้ (ห่างไม่เกิน stow_tolerance_deg ทุกข้อ)
+stow:
+  left: [carry_L, stow_L]
+  right: [stow_R]
+stow_tolerance_deg: 5
+
+missions:
+  # หยิบที่ A -> พับแขน -> (ยืนยัน) -> วิ่งไป B -> วาง -> พับแขน -> (ยืนยัน) -> กลับ A
+  # ระยะ/มุมของ move เป็นตัวอย่าง — วัดเส้นทางจริงในงานแล้วแก้
+  demo_ab:
+    - confirm: "วางกล่องที่ A ให้กล้องเห็นป้าย แล้วเริ่ม"
+    - pick: left
+    - program: "@left:carry_L"
+    - confirm: "ทางไป B โล่งแล้ว ให้ฐานวิ่ง"
+    - move: {forward: 1.0}
+    - move: {turn: 90}
+    - move: {forward: 0.5}
+    - program: "@left:place_B"
+    - hand: {left: tray_grip0}
+    - program: "@left:stow_L"
+    - confirm: "ทางกลับ A โล่งแล้ว ให้ฐานวิ่ง"
+    - move: {back: 0.5}
+    - move: {turn: -90}
+    - move: {back: 1.0}
+
+  # ซ้อมหยิบ-วางคืน ไม่ใช้ฐาน (ต้องเปิด arm start, arm player, arm tray)
+  test_pick:
+    - confirm: "วางกล่องให้กล้องเห็นป้าย แล้วเริ่ม"
+    - pick: left
+    - wait: 2
+    - place_back: left
+
+  # ซ้อมฐานวิ่งไป-กลับ 0.5 m (ต้องเปิด arm base + lidar และแขนอยู่ท่าพับ)
+  test_drive:
+    - confirm: "ทางหน้า/หลังโล่ง 1 m ให้ฐานวิ่ง"
+    - move: {forward: 0.5}
+    - wait: 1
+    - move: {back: 0.5}
