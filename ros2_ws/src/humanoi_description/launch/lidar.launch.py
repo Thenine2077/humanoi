@@ -18,16 +18,17 @@
 USB: ลิดาร์ใช้ชิป CP2102 -> /dev/ttyUSB0 ใน WSL ต้อง usbipd attach ก่อน (busid ของ 10c4:ea60)
 """
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
-def generate_launch_description():
-    port = LaunchConfiguration("port")
-    frame_id = LaunchConfiguration("frame_id")
-
+def driver_and_mask(context):
+    """mask:=true -> ไดรเวอร์ส่ง <scan_topic>_raw แล้ว scan_mask (humanoi_base) ตัดจุดบนตัวหุ่นออก ส่งต่อเป็น <scan_topic>"""
+    scan = LaunchConfiguration("scan_topic").perform(context)
+    mask = LaunchConfiguration("mask").perform(context) == "true"
+    raw = scan + "_raw" if mask else scan
     lidar = Node(
         package="ldlidar_ros2",
         executable="ldlidar_ros2_node",
@@ -35,10 +36,10 @@ def generate_launch_description():
         output="screen",
         parameters=[{
             "product_name": "LDLiDAR_LD19",
-            "laser_scan_topic_name": LaunchConfiguration("scan_topic"),
+            "laser_scan_topic_name": raw,
             "point_cloud_2d_topic_name": "pointcloud2d",
-            "frame_id": frame_id,
-            "port_name": port,
+            "frame_id": LaunchConfiguration("frame_id"),
+            "port_name": LaunchConfiguration("port"),
             "serial_baudrate": 230400,
             "laser_scan_dir": True,
             # ตัดช่วงมุมที่ลำแสงกวาดโดนตัวหุ่นเอง (แขน AR4 / ฝาบนฐาน) — ยังปิดไว้ก่อน
@@ -51,7 +52,15 @@ def generate_launch_description():
             "range_max": 12.0,
         }],
     )
+    if not mask:
+        return [lidar]
+    # เสา/ของบนแผ่นฐานอยู่ในระนาบ lidar ห่าง 10-18 cm — จุดพวกนี้ไม่ขยับตามหุ่น ทำให้ rf2o คิดว่าหุ่นอยู่นิ่ง
+    return [lidar, Node(package="humanoi_base", executable="scan_mask", name="scan_mask", output="screen",
+                        remappings=[("scan_raw", raw), ("scan", scan)],
+                        parameters=[{"lidar_x": float(LaunchConfiguration("lidar_x").perform(context))}])]
 
+
+def generate_launch_description():
     # ใช้เฉพาะตอนทดสอบลิดาร์เดี่ยวๆ ที่ไม่มี robot_state_publisher
     # ค่า xyz คำนวณจาก mecanum_base.urdf.xacro ให้ตรงกัน:
     #   base_footprint -> chassis_link = wheel_radius + clearance = 0.075 + 0.04 = 0.115
@@ -60,7 +69,7 @@ def generate_launch_description():
         package="tf2_ros",
         executable="static_transform_publisher",
         name="base_footprint_to_laser_link",
-        arguments=["--x", "0.16", "--y", "0", "--z", "0.215",
+        arguments=["--x", LaunchConfiguration("lidar_x"), "--y", "0", "--z", "0.215",
                    "--frame-id", "base_footprint", "--child-frame-id", "laser_link"],
         condition=IfCondition(LaunchConfiguration("standalone")),
     )
@@ -79,6 +88,10 @@ def generate_launch_description():
                               description="ตัดช่วงมุมที่กวาดโดนตัวหุ่นเองหรือไม่"),
         DeclareLaunchArgument("angle_crop_min", default_value="135.0"),
         DeclareLaunchArgument("angle_crop_max", default_value="225.0"),
-        lidar,
+        DeclareLaunchArgument("mask", default_value="true", choices=["true", "false"],
+                              description="ตัดจุดที่ตกบนตัวหุ่นเอง (humanoi_base scan_mask)"),
+        DeclareLaunchArgument("lidar_x", default_value="0.16",
+                              description="m กลางฐาน -> กลาง lidar (ยังเป็นค่าเดา — วัดแล้วแก้)"),
+        OpaqueFunction(function=driver_and_mask),
         standalone_tf,
     ])

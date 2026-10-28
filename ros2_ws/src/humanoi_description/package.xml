@@ -15,6 +15,7 @@
   <exec_depend>ros_gz_sim</exec_depend>
   <exec_depend>ros_gz_bridge</exec_depend>
   <exec_depend>ar_dual</exec_depend>
+  <exec_depend>humanoi_base</exec_depend>  <!-- scan_mask ใน lidar.launch.py -->
   <exec_depend>rviz2</exec_depend>
 
   <export>

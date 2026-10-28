@@ -357,11 +357,33 @@ EOF
     ;;
 
   lidar)  # lidar STL-19P (/scan) + TF base_footprint -> laser_link (โมเดลแขนไม่มีฐาน จึงส่ง TF เอง)
-    if is_running "ldlidar_ros2_node\|ldlidar"; then echo "✗ lidar เปิดอยู่แล้ว"; exit 1; fi
+    if is_running "ldlidar"; then echo "✗ lidar เปิดอยู่แล้ว (arm lidar / arm map)"; exit 1; fi
     port=$(ros sh -c 'ls /dev/serial/by-id/ 2>/dev/null | grep -i cp210 | head -1')
     [ -n "$port" ] || { echo "✗ ไม่เจอ lidar (ชิป CP2102) — เสียบ USB ของ lidar"; exit 1; }
     echo "เปิด lidar @ /dev/serial/by-id/$port — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
     ros_tty ros2 launch humanoi_description lidar.launch.py standalone:=true port:="/dev/serial/by-id/$port"
+    ;;
+
+  map)  # ทำแผนที่: lidar -> scan_mask -> rf2o (เดาการเคลื่อนที่จาก lidar ไม่ต้องมี encoder) + slam_toolbox
+    if is_running "ldlidar"; then echo "✗ lidar เปิดอยู่แล้ว (arm lidar / arm map) — ปิดหน้าต่างนั้นก่อน"; exit 1; fi
+    port=$(ros sh -c 'ls /dev/serial/by-id/ 2>/dev/null | grep -i cp210 | head -1')
+    [ -n "$port" ] || { echo "✗ ไม่เจอ lidar (ชิป CP2102) — เสียบ USB ของ lidar เข้า Pi"; exit 1; }
+    fox=true; is_running "foxglove_bridge" && fox=false
+    cat <<EOF
+ทำแผนที่ — ขับหุ่นช้าๆ ด้วยรีโมทให้ทั่วพื้นที่ (ปล่อยหน้าต่างนี้เปิดไว้)
+ • ดูแผนที่ระหว่างทำ: Foxglove บน PC -> ws://$(hostname -I | cut -d' ' -f1):8765 · 3D panel, Display frame = map, เปิด /map /scan
+ • วิ่งตรงเป็นช่วงๆ หมุนทีละน้อย (หมุนเร็ว = หลุด) · เลียบผนัง · วนกลับจุดเริ่มให้แผนที่ปิดวง
+ • ทำตอนคนน้อย (คนเดินผ่าน = จุดเปื้อน) · เสร็จแล้วอีกหน้าต่าง: arm map-save <ชื่อ> แล้วค่อย Ctrl+C ที่นี่
+EOF
+    ros_tty ros2 launch humanoi_nav real_slam.launch.py lidar_port:="/dev/serial/by-id/$port" foxglove:=$fox
+    ;;
+
+  map-save)
+    [ $# -eq 1 ] && [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]] || { echo "ใช้: arm map-save <ชื่อ เช่น office>   (a-z 0-9 _ -)"; exit 1; }
+    is_running "slam_toolbox" || { echo "✗ ยังไม่ได้ทำแผนที่ — arm map ก่อน"; exit 1; }
+    out=/humanoi_ws/src/humanoi_nav/maps/$1
+    ros ros2 run nav2_map_server map_saver_cli -f "$out" --ros-args -p save_map_timeout:=10.0 \
+      && echo "✓ บันทึกแล้ว: ~/Humanoi/ros2_ws/src/humanoi_nav/maps/$1.pgm + $1.yaml"
     ;;
 
   drive)  # ฐานวิ่งตามระยะ / หมุนตามมุม แล้วหยุด (encoder วัดระยะ + lidar กันชน) — humanoi_base/base_move.py
@@ -636,6 +658,8 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm wheel-check             หมุนทีละล้อ เช็กว่า encoder ต่อถูกล้อ/นับถูกทิศ แล้วบันทึกค่า (ยกล้อลอยก่อน)
    arm wheel-tune [back] [rpm] หมุน 4 ล้อค้าง แสดง rpm ทุกล้อ บอกลูกบิดไหนต้องเพิ่ม/ลด (Ctrl+C หยุด)
    arm lidar                   เปิด lidar (/scan) — ฐานไม่วิ่งอัตโนมัติถ้าไม่มี lidar กันชน (เปิดค้าง)
+   arm map                     ทำแผนที่ (lidar อย่างเดียว ไม่ต้องมี encoder) ขับด้วยรีโมท ดูใน Foxglove (เปิดค้าง)
+   arm map-save <ชื่อ>          บันทึกแผนที่ที่ทำอยู่ -> humanoi_nav/maps/<ชื่อ>.pgm/.yaml
    arm drive forward 1.0       ฐานวิ่งตามระยะแล้วหยุด: forward back left right (m) · turn 90 (องศา บวก = ซ้าย)
                                ของขวางทาง = หยุดรอ · ขยับคันโยก / ปลด SWA / Ctrl+C = หยุดทันที
 

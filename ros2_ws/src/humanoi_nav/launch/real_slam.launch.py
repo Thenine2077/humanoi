@@ -2,8 +2,8 @@
 
   ros2 launch humanoi_nav real_slam.launch.py
 
-ลิดาร์ STL-19P -> /scan -> rf2o_laser_odometry -> /odom + TF odom->base_footprint
-                       +-> slam_toolbox -> /map + TF map->odom
+ลิดาร์ STL-19P -> /scan_raw -> scan_mask (ตัดจุดบนตัวหุ่น) -> /scan -> rf2o_laser_odometry -> /odom
+                                                                    +-> slam_toolbox -> /map + TF map->odom
 ดูใน Foxglove (ws://EIT-Raspberry-Pi-5.local:8765): 3D panel, Display frame = map, เปิด /map กับ /scan
 
 ถือลิดาร์เดินช้าๆ (หรือขับฐาน) ให้ทั่วห้อง — rf2o เดาการเคลื่อนที่จากสแกนที่ต่อเนื่องกัน
@@ -18,6 +18,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -63,7 +64,19 @@ def generate_launch_description():
         }.items(),
     )
 
+    # ดูแผนที่ระหว่างทำจาก PC: Foxglove -> ws://<Pi>:8765 (ปิดได้ถ้ามีตัวอื่นเปิดพอร์ตนี้อยู่แล้ว)
+    # เปิดโหนดตรงๆ — include foxglove_bridge_launch.xml จาก Python แล้ว port กลายเป็น string โหนดล้มทันที
+    foxglove = Node(
+        package="foxglove_bridge",
+        executable="foxglove_bridge",
+        name="foxglove_bridge",
+        parameters=[{"port": 8765, "address": "0.0.0.0"}],
+        condition=IfCondition(LaunchConfiguration("foxglove")),
+    )
+
     return LaunchDescription([
+        DeclareLaunchArgument("foxglove", default_value="true", choices=["true", "false"],
+                              description="เปิด foxglove_bridge (พอร์ต 8765) ด้วย"),
         DeclareLaunchArgument("lidar_port", default_value=LIDAR_BY_ID,
                               description="พอร์ตลิดาร์ (by-id ไม่สลับกับ Mega / บอร์ดมือ)"),
         DeclareLaunchArgument("standalone", default_value="true", choices=["true", "false"],
@@ -71,4 +84,5 @@ def generate_launch_description():
         lidar,
         rf2o,
         slam,
+        foxglove,
     ])

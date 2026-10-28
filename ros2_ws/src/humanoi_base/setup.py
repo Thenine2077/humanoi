@@ -30,6 +30,7 @@ setup(
             "rc_arm_trigger = humanoi_base.rc_arm_trigger:main",
             "wheel_tune = humanoi_base.wheel_tune:main",
             "base_move = humanoi_base.base_move:main",
+            "scan_mask = humanoi_base.scan_mask:main",
         ],
     },
 )
