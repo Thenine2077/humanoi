@@ -5,8 +5,9 @@
                                -> ได้ encoder_map / encoder_signs (บันทึกลง config/base.yaml ได้)
   arm wheel-tune [back] [rpm]  หมุนทั้ง 4 ล้อค้างไว้ แสดง rpm แต่ละล้อทุกวินาที + บอกว่าลูกบิดล้อไหนต้องหมุนขึ้น/ลง
                                rpm = ความเร็วเป้าหมาย (ไม่ใส่ = เทียบกับค่าเฉลี่ย 4 ล้อ) · Ctrl+C = หยุด + สรุป
-  arm wheel-tune both [rpm]    สลับเดินหน้า/ถอยหลังทิศละ 4 วิ วัดทั้งสองทิศ — มอเตอร์มักหมุนสองทิศเร็วไม่เท่ากัน
-                               แต่ลูกบิดตัวเดียวคุมทั้งสองทิศ -> จูนให้ "ค่าเฉลี่ยสองทิศ" ของทุกล้อเท่ากัน
+  arm wheel-tune both [rpm]    มอเตอร์มักหมุนสองทิศเร็วไม่เท่ากัน แต่ลูกบิดตัวเดียวคุมทั้งสองทิศ: วัดเดินหน้า+ถอย
+                               ครั้งเดียว (ทิศละ 3 วิ) -> คิดเป้าเดินหน้าแยกล้อ (ล้อที่ถอยช้ากว่าเพื่อน เดินหน้าต้อง
+                               เร็วกว่าเพื่อนชดเชย) -> หมุนเดินหน้าค้าง จูนตามเป้า อัปเดตทุกวิเหมือน tune ปกติ
 
 ต้องมี: relay_bridge เปิดอยู่ (arm base) + เฟิร์มแวร์ humanoi_base_mega ที่ส่ง ENC
         รีโมทเปิด, SWA ลง, ปล่อยคันโยก (Mega อยู่โหมด ROS — ไม่งั้นล้อไม่หมุน)
@@ -38,7 +39,7 @@ COAST_S = 1.0       # รอล้อหยุดหมุนก่อนอ่�
 MIN_COUNTS = 50     # ล้อที่สั่งต้องนับได้อย่างน้อยเท่านี้ ถึงถือว่าหมุน/ต่อ encoder แล้ว
 CROSS = 0.2         # encoder อื่นนับเกินสัดส่วนนี้ของตัวหลัก = สายสลับ/สัญญาณรบกวน
 SPINUP_S = 1.0      # ช่วงออกตัว ไม่เอามาคิด
-BOTH_PHASE_S = 4.0  # wheel-tune both: หมุนทิศละกี่วินาที (ไม่ใส่เวลา = วนจนกด Ctrl+C)
+BOTH_PHASE_S = 3.0  # wheel-tune both: วัดทิศละกี่วินาที
 REVERSE_PAUSE_S = 0.8  # หยุดรอก่อนกลับทิศ — relay กลับขั้วตอนมอเตอร์ยังหมุน = กระแสกระชาก
 SAME_PCT = 3.0      # ทุกล้อต่างระหว่างสองทิศพอๆ กัน (ห่างกันไม่เกินนี้ %) = วิ่งตรงทั้งสองทิศ
 
@@ -231,16 +232,18 @@ def save_encoder_config(enc_map, signs):
 
 
 # ---------------------------------------------------------------- tune
-def run_tune(node, back, target, seconds, win):
+def run_tune(node, back, target, seconds, win, ask=True):
+    """target: rpm เดียวทุกล้อ / 0 = เทียบค่าเฉลี่ย 4 ล้อ / list = เป้าแยกล้อ (จาก both)"""
     params = node.bridge_params()
     if params is None:
         sys.exit("✗ ถามค่า encoder_map จาก relay_bridge ไม่ได้ — เปิด arm base ก่อน")
     cpr = params["cpr"]
     d = "B" if back else "F"
     where = f"ล้อลอยพ้นพื้น หรือบนพื้นที่โล่งพอวิ่ง {seconds:g} วิ" if seconds else "ยกฐานให้ล้อลอยพ้นพื้น"
-    confirm(f"wheel-tune: หมุนทั้ง 4 ล้อ{'ถอยหลัง' if back else 'เดินหน้า'} "
-            f"{f'{seconds:g} วิ' if seconds else 'จนกด Ctrl+C'} ({where})\n"
-            "ระหว่างหมุนค่อยๆ ปรับลูกบิดล้อที่บอก ทีละนิด แล้วรอดูค่าใหม่ 2-3 วิ — พร้อมกด Enter ")
+    if ask:
+        confirm(f"wheel-tune: หมุนทั้ง 4 ล้อ{'ถอยหลัง' if back else 'เดินหน้า'} "
+                f"{f'{seconds:g} วิ' if seconds else 'จนกด Ctrl+C'} ({where})\n"
+                "ระหว่างหมุนค่อยๆ ปรับลูกบิดล้อที่บอก ทีละนิด แล้วรอดูค่าใหม่ 2-3 วิ — พร้อมกด Enter ")
     node.line = "W " + " ".join([d] * 4)
     t0 = time.monotonic()
     start = end = None
@@ -290,65 +293,92 @@ def spin_phase(node, params, back, secs):
     return wheel_rpm(params, start, end, back), [b - a for a, b in zip(start[2], end[2])]
 
 
-def run_both(node, target, seconds):
+def run_both(node, target, seconds, win):
+    """วัดเดินหน้า/ถอยหลังครั้งเดียว -> เป้าเดินหน้าแยกล้อ -> หมุนเดินหน้าค้างให้จูนตามเป้า (อัปเดตทุกวิ)"""
     params = node.bridge_params()
     if params is None:
         sys.exit("✗ ถามค่า encoder_map จาก relay_bridge ไม่ได้ — เปิด arm base ก่อน")
     phase = seconds or BOTH_PHASE_S
-    how = ("1 รอบแล้วหยุด (บนพื้นที่โล่ง = ไปแล้วกลับที่เดิม)" if seconds
-           else "วนไปจนกด Ctrl+C (ยกฐานให้ล้อลอยพ้นพื้น)")
-    confirm(f"wheel-tune both: หมุนทั้ง 4 ล้อเดินหน้า {phase:g} วิ แล้วถอยหลัง {phase:g} วิ {how}\n"
-            "ลูกบิดตัวเดียวคุมทั้งสองทิศ — ปรับให้บรรทัด 'เฉลี่ย' ขึ้น ✓ ทุกล้อ — พร้อมกด Enter ")
-    try:
-        while True:
-            fwd, ef = spin_phase(node, params, False, phase)
-            back, eb = spin_phase(node, params, True, phase)
-            if fwd is None or back is None:
-                print("! ไม่ได้ค่า encoder รอบนี้ — relay_bridge (arm base) ยังเปิดอยู่ไหม")
-            else:
-                print_both(fwd, back, target, [a + b for a, b in zip(ef, eb)], node.mode)
-            if seconds:
-                break
-    except KeyboardInterrupt:
-        pass
-    finally:
-        stop(node)
+    then = ("แล้วหยุด (บนพื้นที่โล่ง = ไปแล้วกลับที่เดิม)" if seconds
+            else "แล้วหมุนเดินหน้าค้างให้จูนตามเป้าแยกล้อ (ยกฐานให้ล้อลอยพ้นพื้น)")
+    confirm(f"wheel-tune both: วัดเดินหน้า {phase:g} วิ + ถอยหลัง {phase:g} วิ {then}\n"
+            "ช่วงวัดยังไม่ต้องแตะลูกบิด — พร้อมกด Enter ")
+    fwd, ef = spin_phase(node, params, False, phase)
+    back, eb = spin_phase(node, params, True, phase)
+    if fwd is None or back is None:
+        print("✗ ไม่ได้ค่า encoder — relay_bridge (arm base) ยังเปิดอยู่ไหม")
+        return
+    errs = [a + b for a, b in zip(ef, eb)]
+    if min(fwd + back) < 5.0:
+        print_both(fwd, back, None, errs, node.mode)
+        print("✗ มีล้อไม่หมุน (ต่ำกว่า 5 rpm) — เช็กล้อนั้นก่อน")
+        return
+    goal = both_targets(fwd, back, target)
+    print_both(fwd, back, goal, errs, node.mode)
+    if all(abs(f - g) / g * 100.0 <= OK_PCT for f, g in zip(fwd, goal)):
+        print("✓ เดินหน้าทุกล้อตรงเป้าแล้ว — ไม่ต้องปรับลูกบิด")
+        return
+    if seconds:
+        print("ปรับลูกบิดตามเป้าเดินหน้าข้างบนทีละนิด แล้วรัน both ซ้ำเช็กผล")
+        return
+    print("\nหมุนเดินหน้าค้าง — ปรับลูกบิดให้ขึ้น ✓ ตามเป้าแยกล้อ แล้ว Ctrl+C · จากนั้นรัน both อีกครั้งเช็กผล")
+    run_tune(node, False, goal, 0.0, win, ask=False)
 
 
-def print_both(fwd, back, target, errs, mode):
-    """rpm สองทิศของแต่ละล้อ + ต่างกันกี่ % + บรรทัดค่าเฉลี่ยสองทิศ (บรรทัดที่ใช้จูนลูกบิด)"""
+def both_targets(fwd, back, target):
+    """เป้า rpm เดินหน้าแยกล้อ: ล้อที่ถอยช้ากว่าเพื่อนต้องเดินหน้าเร็วกว่าเพื่อน ให้ค่าเฉลี่ยสองทิศ 4 ล้อเท่ากัน
+    (สัดส่วนถอย/เดินหน้าของแต่ละล้อถือว่าคงที่) · เป้าเดินหน้าเฉลี่ย = target หรือที่หมุนอยู่ตอนนี้"""
+    k = [1.0 + b / f for f, b in zip(fwd, back)]  # เฉลี่ยสองทิศ = เดินหน้า x k / 2
+    mean_fwd = target or sum(fwd) / 4.0
+    c = mean_fwd / (sum(1.0 / x for x in k) / 4.0)
+    return [c / x for x in k]
+
+
+def print_both(fwd, back, goal, errs, mode):
+    """rpm สองทิศของแต่ละล้อ + ถอยต่างจากเดินหน้ากี่ % + เป้าเดินหน้าแยกล้อ"""
     print()
     for name, vals in (("เดินหน้า", fwd), ("ถอยหลัง", back)):
         mean = sum(vals) / 4.0
         spread = (max(vals) - min(vals)) / mean * 100.0 if mean > 1e-6 else 0.0
         print(f"{name:<9}" + "  ".join(f"{w} {v:6.1f}" for w, v in zip(WHEELS, vals))
               + f"  | 4 ล้อต่างกันสุด {spread:.1f}%")
-    avg = [(f + b) / 2.0 for f, b in zip(fwd, back)]
-    gap = [(b - f) / a * 100.0 if a > 1e-6 else 0.0 for f, b, a in zip(fwd, back, avg)]
+    gap = [(b - f) / f * 100.0 if f > 1e-6 else 0.0 for f, b in zip(fwd, back)]
     print("ถอยต่าง   " + "  ".join(f"{w} {g:+5.1f}%" for w, g in zip(WHEELS, gap)) + "  (เทียบเดินหน้า)")
-    print("เฉลี่ย    ", end="")
-    print_rpm(None, avg, target, errs, mode)
+    print_warnings(fwd + back, errs, mode)
+    if goal is None:
+        return
     width = max(gap) - min(gap)
     if width <= SAME_PCT:
-        print(f"  → ทุกล้อถอย{'ช้า' if sum(gap) < 0 else 'เร็ว'}กว่าเดินหน้าพอๆ กัน — จูนเฉลี่ยให้ ✓ "
-              "แล้ววิ่งตรงทั้งสองทิศ (แค่ถอยกับเดินหน้าเร็วไม่เท่ากัน ไม่เป็นไร)")
+        print(f"  → ทุกล้อถอย{'ช้า' if sum(gap) < 0 else 'เร็ว'}กว่าเดินหน้าพอๆ กัน — วิ่งตรงทั้งสองทิศ "
+              "(แค่ถอยกับเดินหน้าเร็วไม่เท่ากัน ไม่เป็นไร) · จูนเดินหน้า 4 ล้อให้เท่ากันพอ")
     else:
         odd = WHEELS[max(range(4), key=lambda i: abs(gap[i] - sum(gap) / 4.0))]
-        print(f"  → {odd} ({TH[odd]}) ต่างระหว่างสองทิศไม่เหมือนล้ออื่น — ลูกบิดเดียวแก้ไม่หมด: จูนเฉลี่ยให้ ✓ "
-              f"แล้วแต่ละทิศ 4 ล้อจะยังต่างกันราว {width / 2:.1f}%")
+        print(f"  → {odd} ({TH[odd]}) ถอยต่างจากล้ออื่น — ตั้งเดินหน้าล้อนี้ให้ต่างจากเพื่อนชดเชย "
+              f"แล้วแต่ละทิศ 4 ล้อจะต่างกันราว {width / 2:.1f}% (ลูกบิดเดียวทำได้แค่นี้)")
+    print("เป้าเดินหน้า " + "  ".join(f"{w} {g:5.1f}" for w, g in zip(WHEELS, goal)))
 
 
 def print_rpm(t, rpm, target, errs, mode):
-    ref = target if target else sum(rpm) / 4.0
+    """target: rpm เดียวทุกล้อ / 0 = เทียบค่าเฉลี่ย 4 ล้อ / list = เป้าแยกล้อ"""
+    per_wheel = isinstance(target, (list, tuple))
+    refs = list(target) if per_wheel else [target or sum(rpm) / 4.0] * 4
     cells = []
-    for w, v in zip(WHEELS, rpm):
+    for w, v, ref in zip(WHEELS, rpm, refs):
         pct = (v - ref) / ref * 100.0 if abs(ref) > 1e-6 else 0.0
         hint = "✓" if abs(pct) <= OK_PCT else ("ลด" if pct > 0 else "เพิ่ม")
-        cells.append(f"{w} {v:6.1f} ({pct:+5.1f}% {hint})")
-    spread = (max(rpm) - min(rpm)) / ref * 100.0 if abs(ref) > 1e-6 else 0.0
+        cells.append(f"{w} {v:6.1f}" + (f"→{ref:.1f}" if per_wheel else "") + f" ({pct:+5.1f}% {hint})")
+    if per_wheel:
+        tail = "เป้าแยกล้อ (ชดเชยทิศถอย)"
+    else:
+        ref = refs[0]
+        spread = (max(rpm) - min(rpm)) / ref * 100.0 if abs(ref) > 1e-6 else 0.0
+        tail = f"{'เป้า' if target else 'เฉลี่ย'} {ref:.1f} rpm ต่างสุด {spread:.1f}%"
     head = f"[{t:4.0f}s] " if t is not None else ""
-    tail = f"เป้า {target:.1f}" if target else f"เฉลี่ย {ref:.1f}"
-    print(f"{head}{'  '.join(cells)}  | {tail} rpm ต่างสุด {spread:.1f}%")
+    print(f"{head}{'  '.join(cells)}  | {tail}")
+    print_warnings(rpm, errs, mode)
+
+
+def print_warnings(rpm, errs, mode):
     if any(errs):
         print(f"        ! นับพลาด E1-E4 {errs} — ค่ารอบนี้อาจต่ำกว่าจริง")
     if mode not in (None, "ROS", "?"):
@@ -363,7 +393,7 @@ def main():
     sub.add_parser("check", help="หมุนทีละล้อ หา encoder_map / encoder_signs")
     t = sub.add_parser("tune", help="หมุนทั้ง 4 ล้อ แสดง rpm แต่ละล้อ")
     t.add_argument("--back", action="store_true", help="ถอยหลัง")
-    t.add_argument("--both", action="store_true", help="สลับเดินหน้า/ถอยหลัง วัดทั้งสองทิศ (--seconds = ทิศละกี่วิ 1 รอบ)")
+    t.add_argument("--both", action="store_true", help="วัดเดินหน้า+ถอยครั้งเดียว แล้วจูนเดินหน้าตามเป้าแยกล้อ (--seconds = วัดอย่างเดียว ทิศละกี่วิ)")
     t.add_argument("--target", type=float, default=0.0, help="rpm เป้าหมาย (0 = เทียบค่าเฉลี่ย)")
     t.add_argument("--seconds", type=float, default=0.0, help="หมุนกี่วินาที (0 = จนกด Ctrl+C)")
     t.add_argument("--window", type=float, default=1.0, help="วัด rpm จากช่วงกี่วินาทีล่าสุด")
@@ -381,7 +411,7 @@ def main():
         if args.cmd == "check":
             run_check(node)
         elif args.both:
-            run_both(node, args.target, args.seconds)
+            run_both(node, args.target, args.seconds, args.window)
         else:
             run_tune(node, args.back, args.target, args.seconds, args.window)
     except KeyboardInterrupt:
