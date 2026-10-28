@@ -57,7 +57,7 @@ RUN mkdir -p /opt/astra_ws/src/ros2_astra_camera \
 # libboost-system-dev: ar_hardware_interface ใช้ boost::asio คุย serial กับ Teensy
 # วางเป็นชั้นสุดท้ายโดยตั้งใจ — ชั้นก่อนหน้า (รวม build ไดรเวอร์กล้อง) ใช้ cache เดิมได้ทั้งหมด
 # MoveIt + RViz: จัดท่าแขนจริงบนจอ Pi ผ่าน Raspberry Pi Connect (scripts/arm_moveit.sh) — เพิ่มแค่ ~73 MB
-# teensy-loader-cli: แฟลชเฟิร์มแวร์ Teensy ของแขนจาก Pi ได้โดยไม่ต้องย้ายสาย
+# teensy-loader-cli: แฟลชเฟิร์มแวร์ Teensy ของแขนจาก Pi ได้โดยไม่ต้องย้ายสาย · avrdude: แฟลช Mega ของฐานจาก Pi
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ros-jazzy-ros2-control \
       ros-jazzy-ros2-controllers \
@@ -69,6 +69,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ros-jazzy-moveit-simple-controller-manager \
       ros-jazzy-rviz2 \
       teensy-loader-cli \
+      avrdude \
     && rm -rf /var/lib/apt/lists/*
 
 # เกมเป่ายิ้งฉุบ (ros2_ws/src/humanoi_games): rustypot = คุมมือ AmazingHand, mediapipe = ดูมือผู้เล่น

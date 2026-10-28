@@ -1,14 +1,16 @@
 """ดูค่า encoder 4 ล้อสดๆ จาก Mega (เฟิร์มแวร์ humanoi_base_mega) บน PC — ไม่ต้องมี ROS
 
   python tools\\enc_live.py COM8          หมุนล้อด้วยมือ ดูว่า E ไหนนับ (Ctrl+C ออก)
-  พิมพ์ทุก 0.25 วิ: ค่านับสะสม / rpm (คิด 1440 ต่อรอบ) / นับพลาด ของ E1-E4 + โหมดของ Mega
+  python3 enc_live.py /dev/serial/by-id/usb-Arduino...    (บน Pi ใน container)
+  พิมพ์ทุก 0.25 วิ: ค่านับสะสม / rpm / นับพลาด ของ E1-E4 + โหมดของ Mega
+  ค่าต่อรอบตามวิธีนับที่ Mega บอกตอนบูต: enc=a2 / x2 = 720, enc=x4 = 1440
 """
 import sys
 import time
 
 import serial
 
-CPR = 1440
+CPR = {"a2": 720, "x2": 720, "x4": 1440}
 
 
 def main():
@@ -16,6 +18,7 @@ def main():
     ser = serial.Serial(port, 115200, timeout=0.1)  # เปิดพอร์ต = Mega รีเซ็ต (relay ปิดตอนบูต)
     print(f"{port}: หมุนล้อด้วยมือ ดูว่า encoder ตัวไหนนับ · Ctrl+C ออก")
     mode = "?"
+    cpr = 1440
     hist = []  # (t_ms, counts)
     last_print = 0.0
     try:
@@ -24,6 +27,9 @@ def main():
             if line.startswith("READY"):
                 print(f"\n{line}")
                 hist.clear()
+                cpr = next((v for k, v in CPR.items() if f"enc={k}" in line), 1440)
+                if "enc=a2" in line:
+                    print("  นับสาย A อย่างเดียว — หมุนด้วยมือตอนล้อหยุด ค่าจะเพิ่มทางเดียว (ทิศล่าสุดที่สั่งล้อ)")
             elif line.startswith("MODE:"):
                 mode = line[5:]
             elif line.startswith("ENC "):
@@ -40,7 +46,7 @@ def main():
                 dt = (t1 - t0) / 1000.0
                 cells = []
                 for i in range(4):
-                    rpm = (c1[i] - c0[i]) / CPR * 60.0 / dt if dt > 0 else 0.0
+                    rpm = (c1[i] - c0[i]) / cpr * 60.0 / dt if dt > 0 else 0.0
                     cells.append(f"E{i + 1} {c1[i]:+7d} {rpm:+6.1f}rpm" + (f" พลาด{e1[i]}" if e1[i] else ""))
                 print("\r" + "  ".join(cells) + f"  [{mode}]   ", end="", flush=True)
     except KeyboardInterrupt:
