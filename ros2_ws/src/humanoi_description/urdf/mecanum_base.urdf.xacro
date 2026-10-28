@@ -16,13 +16,14 @@
   <xacro:property name="plate_bottom" value="0.195"/> <!-- C: พื้น -> ใต้แผ่นฐาน -->
   <xacro:property name="base_mass" value="14.0"/>   <!-- กก. (ประมาณ ฐาน+แบต) — ยังไม่ได้ชั่ง -->
 
-  <xacro:property name="wheel_radius" value="0.075"/>  <!-- D: ล้อ Ø150 mm -->
-  <xacro:property name="wheel_width"  value="0.05"/>   <!-- ยังไม่ได้วัด -->
+  <xacro:property name="wheel_radius" value="0.0725"/> <!-- D: ล้อ Ø145 mm (วัด 28 ต.ค.) -->
+  <xacro:property name="wheel_width"  value="0.04"/>   <!-- หนา 4 cm (วัดแล้ว) -->
   <xacro:property name="wheel_mass"   value="0.6"/>
 
-  <!-- ระยะติดตั้งล้อ วัดจากจุดศูนย์กลางฐาน (ครึ่งระยะ) — ยังไม่ได้วัดทั้งคู่ -->
-  <xacro:property name="track_half"     value="0.20"/>  <!-- ครึ่งระยะ ซ้าย-ขวา ระหว่างกลางล้อ -->
-  <xacro:property name="wheelbase_half" value="0.17"/>  <!-- ครึ่งระยะ หน้า-หลัง ระหว่างแกนล้อ -->
+  <!-- ระยะติดตั้งล้อ วัดจากจุดศูนย์กลางฐาน (ครึ่งระยะ) — คำนวณจากที่วัด 28 ต.ค.:
+       กว้างรวมนอกล้อ 42.5 cm − ล้อหนา 4 = 38.5 · ยาวรวม 53 cm (ล้อยื่นสุด) − ล้อ Ø14.5 = 38.5 -->
+  <xacro:property name="track_half"     value="0.1925"/>  <!-- ครึ่งระยะ ซ้าย-ขวา ระหว่างกลางล้อ -->
+  <xacro:property name="wheelbase_half" value="0.1925"/>  <!-- ครึ่งระยะ หน้า-หลัง ระหว่างแกนล้อ -->
   <!-- แกนล้อ -> กึ่งกลางแผ่นฐาน (คำนวณจาก C, B, D) -->
   <xacro:property name="clearance" value="${plate_bottom + base_z / 2 - wheel_radius}"/>
 

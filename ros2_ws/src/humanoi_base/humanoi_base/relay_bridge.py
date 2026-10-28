@@ -32,9 +32,9 @@ encoder (firmware/humanoi_base_mega ส่ง "ENC t c1 c2 c3 c4 e1 e2 e3 e4" �
   cmd_timeout     (float) 0.5     s
   linear_deadband (float) 0.03    m/s   (โหมด single)
   wheel_deadband  (float) 0.05    rad/s (โหมด mecanum4 — ต่ำกว่านี้ถือว่าล้อหยุด)
-  wheel_radius    (float) 0.075   m
-  track           (float) 0.40    m     ระยะล้อซ้าย-ขวา
-  wheelbase       (float) 0.32    m     ระยะล้อหน้า-หลัง
+  wheel_radius    (float) 0.0725  m     ล้อ Ø14.5 cm
+  track           (float) 0.385   m     กลางล้อซ้าย-ขวา
+  wheelbase       (float) 0.385   m     เพลาหน้า-หลัง
   reopen_period   (float) 2.0     s
   counts_per_rev  (float) 1440.0  ค่านับต่อรอบ "ล้อ" (360 P/R x4 = 1440 ถ้า encoder หมุนรอบเดียวกับล้อ)
   encoder_map     (int[]) [0, 1, 2, 3]  ล้อ FL FR RL RR ใช้ encoder ตัวไหน (0 = E1 ... 3 = E4)
@@ -86,9 +86,9 @@ class RelayBridge(Node):
         self.declare_parameter("cmd_timeout", 0.5)
         self.declare_parameter("linear_deadband", 0.03)
         self.declare_parameter("wheel_deadband", 0.05)
-        self.declare_parameter("wheel_radius", 0.075)
-        self.declare_parameter("track", 0.40)
-        self.declare_parameter("wheelbase", 0.32)
+        self.declare_parameter("wheel_radius", 0.0725)
+        self.declare_parameter("track", 0.385)
+        self.declare_parameter("wheelbase", 0.385)
         self.declare_parameter("reopen_period", 2.0)
         self.declare_parameter("counts_per_rev", 1440.0)
         self.declare_parameter("encoder_map", [0, 1, 2, 3])

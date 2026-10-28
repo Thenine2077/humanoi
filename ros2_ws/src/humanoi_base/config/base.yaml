@@ -3,9 +3,9 @@
 relay_bridge:
   ros__parameters:
     protocol: mecanum4
-    wheel_radius: 0.075        # m — ล้อ Ø0.15 (วัดแล้ว)
-    track: 0.40                # m — ระยะล้อซ้าย-ขวา (ยังเป็นค่าเดา)
-    wheelbase: 0.32            # m — ระยะล้อหน้า-หลัง (ยังเป็นค่าเดา)
+    wheel_radius: 0.0725       # m — ล้อ Ø14.5 cm (วัด 28 ต.ค.)
+    track: 0.385               # m — กลางล้อซ้าย-ขวา: กว้างนอกล้อ 42.5 − ล้อหนา 4
+    wheelbase: 0.385           # m — เพลาหน้า-หลัง: ยาวรวม 53 − ล้อ Ø14.5
     counts_per_rev: 1440.0     # ค่านับต่อรอบล้อ: 360 P/R x4 (ENC_EDGES = 4) x อัตราทด encoder:ล้อ
     encoder_map: [0, 1, 2, 3]  # ล้อ FL FR RL RR ใช้ E1-E4 ตัวไหน (0 = E1)
     encoder_signs: [1, 1, 1, 1]  # 1 / -1 ให้ล้อเดินหน้านับเป็นบวก
