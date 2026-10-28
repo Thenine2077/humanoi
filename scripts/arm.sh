@@ -412,8 +412,9 @@ EOF
       for a in "$@"; do
         case "$a" in
           back|ถอย) extra+=(--back) ;;
+          [0-9]*s) extra+=(--seconds "${a%s}") ;;  # เช่น 3s = หมุน 3 วิแล้วหยุดเอง (จูนบนพื้น)
           *[0-9]*) extra+=(--target "$a") ;;
-          *) echo "ใช้: arm wheel-tune [back] [rpm เป้าหมาย]"; exit 1 ;;
+          *) echo "ใช้: arm wheel-tune [back] [rpm เป้าหมาย] [วินาที เช่น 3s]"; exit 1 ;;
         esac
       done
       ros_tty ros2 run humanoi_base wheel_tune tune "${extra[@]}"
@@ -656,7 +657,7 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
  ฐานล้อ (Mega: relay 8 ตัว + encoder 4 ล้อ — ต่อสาย/ขั้นตอน: docs/wiring_encoders.md)
    arm base                    เปิดฐานล้อ relay_bridge (เปิดค้าง) — /cmd_vel, /wheel_states, /wheel_odom
    arm wheel-check             หมุนทีละล้อ เช็กว่า encoder ต่อถูกล้อ/นับถูกทิศ แล้วบันทึกค่า (ยกล้อลอยก่อน)
-   arm wheel-tune [back] [rpm] หมุน 4 ล้อค้าง แสดง rpm ทุกล้อ บอกลูกบิดไหนต้องเพิ่ม/ลด (Ctrl+C หยุด)
+   arm wheel-tune [back] [rpm] [3s]  หมุน 4 ล้อ แสดง rpm ทุกล้อ บอกลูกบิดไหนต้องเพิ่ม/ลด (Ctrl+C หยุด · 3s = หยุดเองใน 3 วิ ใช้บนพื้น)
    arm lidar                   เปิด lidar (/scan) — ฐานไม่วิ่งอัตโนมัติถ้าไม่มี lidar กันชน (เปิดค้าง)
    arm map                     ทำแผนที่ (lidar อย่างเดียว ไม่ต้องมี encoder) ขับด้วยรีโมท ดูใน Foxglove (เปิดค้าง)
    arm map-save <ชื่อ>          บันทึกแผนที่ที่ทำอยู่ -> humanoi_nav/maps/<ชื่อ>.pgm/.yaml
