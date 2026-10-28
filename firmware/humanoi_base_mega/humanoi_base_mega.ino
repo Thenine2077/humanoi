@@ -10,6 +10,7 @@
  *   relay เดินหน้า 22, 24, 26, 28 / ถอยหลัง 23, 25, 27, 29  (FL, FR, RL, RR)
  *   encoder YT3806 360 P/R ล้อละตัว (A = เขียว, B = ขาว) -> A8-A15 (port K ทั้งหมด, PCINT2)
  *       E1 A8/A9   E2 A10/A11   E3 A12/A13   E4 A14/A15   (ตั้งใจให้ E1-E4 = FL FR RL RR
+ *       ENC_B_WIRED = false (ตอนนี้): ต่อแค่สาย A -> A8 A10 A12 A14 ผ่าน opto 4 ช่อง ไม่ต้องต่อสายขาว
  *       ต่อผิดล้อ/นับกลับด้านไม่ต้องย้ายสาย — relay_bridge มี encoder_map / encoder_signs, หาค่าด้วย arm wheel-check)
  *       ไฟ encoder 24V จากบัส (ป้าย 8-24V) · GND ร่วมกับ Mega
  *       สัญญาณ 24V ผ่านตัวแบ่งแรงดัน 10k/2.2k ต่อเส้น (open collector ต่อตรงได้)
@@ -28,7 +29,8 @@
  * โปรโตคอล serial (115200, บรรทัดละคำสั่ง — เข้ากับ relay_bridge เดิม):
  *   PC -> MEGA : "W f f f f"  ตั้งทิศ 4 ล้อ f = F|B|S ลำดับ FL FR RL RR ("WFBSF" ก็ได้)
  *                "S" หยุดทุกล้อ | "P" ping -> "OK" | "Z" ล้างค่านับ encoder -> "OK"
- *   MEGA -> PC : "READY humanoi_base_mega enc=x4"  (x4 = นับทุกขอบ A+B = 1440 ต่อรอบ encoder, x2 = 720)
+ *   MEGA -> PC : "READY humanoi_base_mega enc=a2"  วิธีนับ encoder: a2 = สาย A อย่างเดียว ทิศจากคำสั่ง relay (720 ต่อรอบ)
+ *                                                 x4 = A+B ทุกขอบ (1440) · x2 = A+B นับขอบ A (720)
  *                "ENC t c1 c2 c3 c4 e1 e2 e3 e4"  ทุก ENC_MS — t = millis() ตอนอ่าน, c = ค่านับสะสมของ E1-E4
  *                                            (ยังไม่กลับเครื่องหมาย), e = ครั้งที่ A/B เปลี่ยนพร้อมกัน (นับพลาด ควรเป็น 0)
  *                "STATE:FBSF"                ล้อเปลี่ยนสถานะ (ลำดับ FL FR RL RR)
@@ -85,7 +87,11 @@ const uint8_t SWITCH_EVERY = 3;   // อ่าน SWB/SWD ทุก 3 รอบ 
 
 const uint8_t ENC_PIN_A[NUM_WHEELS] = {A8, A10, A12, A14};  // สายเขียว
 const uint8_t ENC_PIN_B[NUM_WHEELS] = {A9, A11, A13, A15};  // สายขาว
-// 4 = จับทุกขอบของ A และ B (ละเอียดสุด) · 2 = จับแค่ขอบ A (interrupt ครึ่งเดียว — ใช้ถ้า e ขึ้นตอนหมุนเร็ว)
+// ต่อสาย B (ขาว) ด้วยไหม — false = ต่อแค่สาย A ทุกล้อ (บอร์ด opto 4 ช่องแผ่นเดียวพอ 4 ล้อ):
+//   นับทุกขอบของ A = 720 ต่อรอบ encoder · ทิศเอาจากคำสั่ง relay ของล้อนั้น (หยุดแล้วล้อไหลต่อ = ทิศเดิม)
+//   ข้อจำกัด: ล้อถูกดัน/หมุนด้วยมือตอนหยุด ทิศอาจผิด · ไม่มีตัวนับพลาด (e = 0 เสมอ)
+const bool ENC_B_WIRED = false;
+// เฉพาะตอนต่อสาย B: 4 = จับทุกขอบของ A และ B (1440) · 2 = จับแค่ขอบ A (720 — ใช้ถ้า e ขึ้นตอนหมุนเร็ว)
 const uint8_t ENC_EDGES = 4;
 const unsigned long ENC_MS = 50;  // ส่งค่านับทุก 50 ms (ช้ากว่านี้ได้ตอนรอพัลส์รีโมท — t บอกเวลาจริง)
 // ---------------------------------------------------
@@ -123,6 +129,7 @@ uint8_t encMaskA[NUM_WHEELS], encMaskB[NUM_WHEELS];
 volatile long encCount[NUM_WHEELS];
 volatile uint16_t encErr[NUM_WHEELS];
 volatile uint8_t encPrev[NUM_WHEELS];
+volatile int8_t encDir[NUM_WHEELS] = {1, 1, 1, 1};  // ENC_B_WIRED = false: ทิศล่าสุดที่สั่งล้อ (+1 หน้า / -1 ถอย)
 unsigned long lastEnc = 0;
 
 uint8_t encState(uint8_t pins, uint8_t i) {
@@ -135,7 +142,9 @@ ISR(PCINT2_vect) {
     uint8_t s = encState(pins, i);
     uint8_t p = encPrev[i];
     if (s == p) continue;
-    if (ENC_EDGES == 4) {
+    if (!ENC_B_WIRED) {
+      if ((s ^ p) & 2) encCount[i] += encDir[i];  // ทุกขอบของ A ทิศตามคำสั่ง relay
+    } else if (ENC_EDGES == 4) {
       if ((s ^ p) == 3) encErr[i]++;  // A และ B เปลี่ยนพร้อมกัน = พลาดไปหนึ่งขอบ
       encCount[i] += QDEC[(p << 2) | s];
     } else if ((s ^ p) & 2) {         // x2: นับเฉพาะตอน A เปลี่ยน — A ไม่เท่า B = ไปข้างหน้า (ทิศเดียวกับ x4)
@@ -159,7 +168,7 @@ void setupEncoders() {
     encMaskA[i] = digitalPinToBitMask(ENC_PIN_A[i]);
     encMaskB[i] = digitalPinToBitMask(ENC_PIN_B[i]);
     encPrev[i] = encState(PINK, i);
-    PCMSK2 |= encMaskA[i] | (ENC_EDGES == 4 ? encMaskB[i] : 0);  // บิตใน PCMSK2 ตรงกับบิตของ port K
+    PCMSK2 |= encMaskA[i] | ((ENC_B_WIRED && ENC_EDGES == 4) ? encMaskB[i] : 0);  // บิตใน PCMSK2 = บิตของ port K
   }
   PCIFR |= _BV(PCIF2);
   PCICR |= _BV(PCIE2);
@@ -191,6 +200,7 @@ void applyWheel(uint8_t i, Dir d) {
   if (current[i] != D_STOP && d == D_STOP) stoppedAt[i] = millis();
   if (current[i] != d) stateChanged = true;
   current[i] = d;
+  if (d != D_STOP) encDir[i] = d;  // ทิศของการนับ encoder แบบสาย A อย่างเดียว (หยุดแล้วยังไหลทิศเดิม)
 }
 
 // ทุกล้อผ่าน STOP ก่อนกลับทาง และรอ REVERSE_DELAY นับจากตอนหยุด
@@ -366,8 +376,8 @@ void setup() {
   Serial.begin(115200);
   setupEncoders();
   delay(300);
-  Serial.print(F("READY humanoi_base_mega enc=x"));
-  Serial.println(ENC_EDGES);
+  Serial.print(F("READY humanoi_base_mega enc="));
+  Serial.println(!ENC_B_WIRED ? F("a2") : (ENC_EDGES == 4 ? F("x4") : F("x2")));
 }
 
 void loop() {

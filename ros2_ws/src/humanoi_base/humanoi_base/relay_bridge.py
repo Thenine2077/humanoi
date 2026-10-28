@@ -250,6 +250,7 @@ class RelayBridge(Node):
                     continue
                 if line.startswith("READY"):
                     self.prev_enc = None  # Mega รีเซ็ต ค่านับเริ่ม 0 ใหม่
+                    self._check_enc_mode(line)
                 self.state_pub.publish(String(data=line))
                 if line.startswith("WARN"):
                     self.get_logger().warn(f"[MEGA] {line}")
@@ -260,6 +261,17 @@ class RelayBridge(Node):
         except Exception as e:  # noqa: BLE001
             self.get_logger().warn(f"อ่าน serial ไม่สำเร็จ: {e}")
             self._close()
+
+    def _check_enc_mode(self, line):
+        """เตือนถ้าวิธีนับของเฟิร์มแวร์ไม่เข้ากับ counts_per_rev (สมมติ encoder ต่อแกนล้อตรง)"""
+        m = re.search(r"enc=(\w+)", line)
+        if not m:
+            return
+        per_rev = {"x4": 1440.0, "x2": 720.0, "a2": 720.0}.get(m.group(1))
+        if per_rev and self.cpr in (720.0, 1440.0) and self.cpr != per_rev:
+            self.get_logger().warn(f"Mega นับ encoder แบบ enc={m.group(1)} ({per_rev:.0f} ต่อรอบ encoder) แต่ "
+                                   f"counts_per_rev = {self.cpr:.0f} — ระยะ/ความเร็วจะผิด {per_rev / self.cpr:.1f} เท่า "
+                                   "แก้ใน config/base.yaml")
 
     # ---------------------------------------------------------------
     def on_encoders(self, line: str):
