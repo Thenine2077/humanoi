@@ -1,0 +1,749 @@
+<section class="chapter" id="ch-pi">
+<h1>Raspberry Pi และ Docker</h1>
+
+<p>คอมพิวเตอร์ที่อยู่บนตัวหุ่น Humanoi คือ Raspberry Pi 5 (RAM 8 GB) อุปกรณ์ทุกชิ้นที่ขยับหรือมองเห็นได้จริง ได้แก่ แขน AR4 ทั้งสองข้าง มือ AmazingHand กล้อง Astra Pro ฐานล้อ (บอร์ด Mega) และ lidar ล้วนเสียบ USB เข้าเครื่องนี้ และโปรแกรมที่คุมอุปกรณ์เหล่านั้นก็รันอยู่บนเครื่องนี้ บทนี้อธิบายว่าโปรแกรมแต่ละส่วนอยู่ตรงไหน เข้าเครื่องอย่างไร ไฟล์สำคัญเก็บไว้ที่ใด และต้องดูแลเครื่องอย่างไรไม่ให้ระบบเสีย</p>
+
+<p>Pi ใช้ระบบปฏิบัติการ Raspberry Pi OS (Debian 13 "trixie") เพราะงานการ์ด AI Hailo และ YOLO ทำงานอยู่บนระบบนี้ ส่วน ROS 2 Jazzy ต้องการ Ubuntu 24.04 จึงแยกไปรันใน Docker container ชื่อ <code>humanoi_ros</code> ซึ่งข้างในเป็น Ubuntu 24.04 แบบเดียวกับ WSL บน PC โค้ดชุดเดียวกันจึงรันได้ทั้งบน PC และบน Pi</p>
+
+<h2>อะไรรันที่ไหน</h2>
+
+<p>ให้นึกภาพระบบเป็นสามชั้น ชั้นแรกคือ PC ซึ่งเป็นที่เก็บต้นฉบับ แก้โค้ด และดูภาพ ชั้นที่สองคือตัวเครื่อง Pi (นอก container) ซึ่งเป็นที่พิมพ์คำสั่งใช้งานหุ่น และชั้นที่สามคือ container <code>humanoi_ros</code> ซึ่งเป็นที่ที่โปรแกรม ROS ทุกตัวทำงานจริง</p>
+
+<table>
+<thead><tr><th>ที่</th><th>หน้าที่</th><th>ตัวอย่างสิ่งที่รันอยู่</th></tr></thead>
+<tbody>
+<tr><td>PC (Windows + WSL Ubuntu-24.04)</td><td>เก็บต้นฉบับโค้ด (git) แก้โค้ด ทดลองในซิม ดูภาพจากหุ่น และส่งโค้ดไป Pi</td><td><code>scripts/sync_to_pi.sh</code>, Foxglove, ซิม Gazebo, คำสั่ง <code>arm</code> รุ่น PC (<code>scripts/arm_pc.sh</code> ใน WSL)</td></tr>
+<tr><td>Pi นอก container (Raspberry Pi OS)</td><td>ที่พิมพ์คำสั่งใช้งานหุ่น เดสก์ท็อปสำหรับหน้าต่างภาพ และงานการ์ด Hailo</td><td>คำสั่ง <code>arm</code>, Docker, RViz/MoveIt ที่เปิดด้วย <code>arm moveit</code>, service <code>hailo-yolo-server</code>, <code>scripts/rebuild_image.sh</code></td></tr>
+<tr><td>container <code>humanoi_ros</code> (Ubuntu 24.04 + ROS 2 Jazzy)</td><td>โหนด ROS ทุกตัวที่คุมฮาร์ดแวร์</td><td>ตัวคุมแขน ตัวเล่นโปรแกรม ตัวคุมมือ กล้อง เกม ตัวหากล่อง ฐานล้อ lidar และ <code>foxglove_bridge</code></td></tr>
+</tbody>
+</table>
+
+<p>ผู้ใช้งานทั่วไปแทบไม่ต้องเข้าไปใน container เอง เพราะคำสั่ง <code>arm</code> รันบนตัวเครื่อง Pi แล้วสั่งงานข้างใน container ผ่าน <code>docker exec</code> ให้ทั้งหมด ข้อยกเว้นคืองาน YOLO บนการ์ด Hailo-10H ซึ่งรันบนตัวเครื่องนอก container เสมอ เป็น systemd service ชื่อ <code>hailo-yolo-server</code> ที่เปิดเองตอนบูต โหนดใน container ส่งภาพไปให้มันผ่าน <code>127.0.0.1:5555</code></p>
+
+<figure class="ph" data-kind="diagram"><img src="img/pi-what-runs-where.jpg" alt=""><figcaption>สามชั้นของระบบ: PC, ตัวเครื่อง Pi และ container humanoi_ros</figcaption><div class="ph-note">วาด: กล่องใหญ่ซ้าย "PC (Windows + WSL)" มี Foxglove, sync_to_pi.sh, ซิม · ลูกศร ssh / sync / ws://:8765 ไปกล่องใหญ่ขวา "Raspberry Pi 5 (Raspberry Pi OS)" ซึ่งข้างในมีคำสั่ง arm, เดสก์ท็อป (RViz), hailo-yolo-server และกล่องซ้อนด้านใน "container humanoi_ros (Ubuntu 24.04 + ROS 2 Jazzy)" มีโหนดแขน มือ กล้อง เกม foxglove_bridge · ด้านล่าง Pi วาดอุปกรณ์ USB (Teensy แขน, บอร์ดมือ, กล้อง, Mega, lidar) ต่อเข้า Pi · ลูกศร arm → docker exec → container</div></figure>
+
+<h2>เข้าใช้งาน Pi</h2>
+
+<p>Pi ชื่อเครื่อง <code>EIT-Raspberry-Pi-5.local</code> ผู้ใช้ <code>eitlaser</code> ตอนเขียนคู่มือนี้ได้ IP <code>192.168.1.74</code> แต่ IP เปลี่ยนได้ (เช่นหลังเปลี่ยนบอร์ด Pi) จึงควรเรียกด้วยชื่อเครื่องเป็นหลัก คำสั่ง <code>arm</code> ทุกคำสั่งพิมพ์ใน Terminal ของ Pi ซึ่งเปิดได้สองทาง</p>
+
+<h3>ทางที่ 1: ssh จาก PC</h3>
+<p>เหมาะกับงานที่ใช้แค่ตัวหนังสือ ซึ่งเป็นงานส่วนใหญ่ PC ที่ใช้ประจำตั้ง SSH key ไว้แล้ว จึงเข้าได้โดยไม่ถามรหัส (สคริปต์ส่งโค้ดจาก PC ไป Pi ต้องอาศัยข้อนี้)</p>
+<pre class="cmd">ssh eitlaser@EIT-Raspberry-Pi-5.local</pre>
+
+<h3>ทางที่ 2: Raspberry Pi Connect</h3>
+<p>งานที่ต้องเห็นหน้าจอ เช่น RViz/MoveIt ที่เปิดด้วย <code>arm moveit</code> หรือหน้าต่างภาพกล้องบนจอ Pi ต้องรันบนเดสก์ท็อปของ Pi ให้เข้าผ่าน Raspberry Pi Connect แบบ Screen sharing แล้วเปิด Terminal บนเดสก์ท็อป (ไอคอนจอดำ <code>&gt;_</code> ที่แถบบนซ้าย) ถ้าเดสก์ท็อปของ Pi ยังไม่ได้ล็อกอิน หน้าต่าง RViz จะไม่ขึ้น ต้องเปิด Pi Connect ให้เห็นหน้าจอก่อนแล้วค่อยสั่งใหม่ <span class="todo">ต้องเช็ก: บัญชีและวิธีเข้า Raspberry Pi Connect ที่ทีมใช้ (เอกสารใน repo ไม่ได้ระบุ)</span></p>
+
+<figure class="ph" data-kind="screenshot"><img src="img/pi-connect-terminal.jpg" alt=""><figcaption>เดสก์ท็อปของ Pi ผ่าน Raspberry Pi Connect พร้อม Terminal</figcaption><div class="ph-note">จับภาพหน้าจอ: หน้าต่าง Screen sharing ของ Raspberry Pi Connect ที่เห็นเดสก์ท็อป Pi · วงกลมไอคอน Terminal (&gt;_) ที่แถบบนซ้าย · มีหน้าต่าง Terminal เปิดอยู่ 1 หน้าต่างพิมพ์ arm status ไว้</div></figure>
+
+<h3>หนึ่งหน้าต่างต่อหนึ่งคำสั่ง</h3>
+<p>คำสั่งหลายตัว เช่น <code>arm start</code>, <code>arm player</code>, <code>arm rps</code> และ <code>arm tray</code> เป็นแบบ "เปิดค้าง" คือทำงานอยู่ตราบที่หน้าต่างยังเปิด จึงต้องเปิด Terminal หลายหน้าต่าง หน้าต่างละหนึ่งคำสั่ง และห้ามปิดหน้าต่างระหว่างใช้งาน เมื่อจะเลิกให้กด <kbd>Ctrl</kbd>+<kbd>C</kbd> ในหน้าต่างนั้น หน้าต่างจาก ssh และจาก Pi Connect ใช้ปนกันได้ ส่วนคำสั่งสั้นที่ทำเสร็จแล้วจบเอง เช่น <code>arm status</code> หรือ <code>arm hand rock</code> พิมพ์ในหน้าต่างว่างหน้าต่างไหนก็ได้</p>
+
+<h2>คำสั่ง <code>arm</code></h2>
+<p><code>arm</code> คือคำสั่งลัดสำหรับใช้งานหุ่นทั้งตัว (ไม่ใช่แค่แขน แต่รวมมือ กล้อง ฐานล้อ lidar และเกม) ตัวจริงคือสคริปต์ <code>~/Humanoi/scripts/arm.sh</code> ซึ่งติดตั้งเป็น alias ไว้ใน <code>~/.bashrc</code> ของ Pi แล้ว บรรทัดที่ใช้ติดตั้งคือ</p>
+<pre class="cmd">alias arm='bash ~/Humanoi/scripts/arm.sh'
+# มีอยู่ใน ~/.bashrc ของ Pi แล้ว — ต้องพิมพ์เองเฉพาะตอนตั้ง Pi ใหม่</pre>
+<p>สคริปต์นี้รันนอก container ถ้า container ไม่ได้เปิดอยู่ จะขึ้น <code>✗ container humanoi_ros ไม่ได้เปิดอยู่</code> พร้อมบอกคำสั่งเปิด ในทุกคำสั่ง <code>left</code> หมายถึงแขน 1 (ซ้ายเมื่อมองจากตัวหุ่น) และ <code>right</code> หมายถึงแขน 2 ดูรายการคำสั่งทั้งหมดได้ตลอดด้วย</p>
+<pre class="cmd">arm help</pre>
+<p>หรือดูทีละหมวด ใช้ชื่อหมวดภาษาอังกฤษหรือภาษาไทยก็ได้</p>
+<pre class="cmd">arm help hand
+# เท่ากับ arm help มือ</pre>
+
+<table>
+<thead><tr><th>หมวด</th><th>เรื่อง</th></tr></thead>
+<tbody>
+<tr><td><code>setup</code></td><td>ตั้งค่าบอร์ดแขน (ครั้งแรก / หลังเปลี่ยนบอร์ด)</td></tr>
+<tr><td><code>arm</code></td><td>เปิดใช้งานแขน: status, calibrate, start, player, moveit, off</td></tr>
+<tr><td><code>teach</code></td><td>สอนท่า สร้างโปรแกรม</td></tr>
+<tr><td><code>play</code></td><td>เล่นโปรแกรม</td></tr>
+<tr><td><code>hand</code></td><td>มือ AmazingHand</td></tr>
+<tr><td><code>tray</code></td><td>หยิบกล่องด้วยกล้อง</td></tr>
+<tr><td><code>base</code></td><td>ฐานล้อ</td></tr>
+<tr><td><code>lidar</code></td><td>lidar และแผนที่</td></tr>
+<tr><td><code>mission</code></td><td>ภารกิจ</td></tr>
+<tr><td><code>rps</code></td><td>เกมเป่ายิ้งฉุบ</td></tr>
+</tbody>
+</table>
+
+<h3>ดูว่าอะไรเปิดอยู่: <code>arm status</code></h3>
+<p>ก่อนเริ่มงานทุกครั้ง และทุกครั้งที่ไม่แน่ใจว่าหน้าต่างไหนยังทำงานอยู่ ให้สั่ง <code>arm status</code> คำสั่งนี้อ่านอย่างเดียว ไม่ขยับอะไร</p>
+<pre class="cmd">arm status</pre>
+<p>ผลเป็นรายการ ✓ (เปิดอยู่) และ ✗ (ปิด) ของแต่ละส่วน ถ้าระบบแขนปิดอยู่ จะแสดงรายชื่อบอร์ด Teensy ที่เสียบอยู่ด้วย ถ้าระบบแขนเปิดอยู่ จะแสดงรายชื่อ controller ของแต่ละแขนแทน (ตอนนั้นระบบแขนถือพอร์ต Teensy อยู่ จึงถามบอร์ดไม่ได้)</p>
+
+<table>
+<thead><tr><th>บรรทัดในผล</th><th>เปิดด้วยคำสั่ง</th></tr></thead>
+<tbody>
+<tr><td>ระบบสองแขน</td><td><code>arm start</code></td></tr>
+<tr><td>ตัวคุมแขนซ้าย / ตัวคุมแขนขวา</td><td>มากับ <code>arm start</code> (เปิดใหม่ทีละแขนด้วย <code>arm recal</code> / <code>arm reconnect</code>)</td></tr>
+<tr><td>ระบบแขนเดี่ยวแบบเก่า</td><td>ควรเป็น ✗ เสมอ — ถ้าเป็น ✓ ให้ <code>arm off</code></td></tr>
+<tr><td>ตัวเล่นโปรแกรม</td><td><code>arm player</code></td></tr>
+<tr><td>MoveIt + RViz</td><td><code>arm moveit</code></td></tr>
+<tr><td>สวิตช์รีโมท</td><td><code>arm remote</code></td></tr>
+<tr><td>เกมเป่ายิ้งฉุบ</td><td><code>arm rps</code></td></tr>
+<tr><td>ตัวคุมมือ</td><td>มากับ <code>arm player</code> หรือ <code>arm rps</code></td></tr>
+<tr><td>relay_bridge (Mega)</td><td><code>arm base</code> หรือ <code>arm remote</code></td></tr>
+</tbody>
+</table>
+
+<p>คำสั่งคู่กันคือ <code>arm off</code> ซึ่งปิดทุกอย่างของแขน (รวมเกม) แล้วแสดงสถานะให้ดูอีกครั้ง แขนจะค้างอยู่ที่ท่าปัจจุบัน</p>
+
+<figure class="ph" data-kind="screenshot"><img src="img/pi-arm-status.jpg" alt=""><figcaption>ผลของ arm status ขณะเปิดระบบแขนและตัวเล่นโปรแกรม</figcaption><div class="ph-note">จับภาพหน้าจอ: Terminal บน Pi หลังสั่ง arm status ตอนที่เปิด arm start และ arm player ไว้ · ให้เห็นทั้งบรรทัด ✓ และ ✗ และรายชื่อ controller ท้ายผล · ใช้ Terminal พื้นมืดตัวหนังสือใหญ่พออ่านเมื่อพิมพ์ A4</div></figure>
+
+<h2>container <code>humanoi_ros</code></h2>
+<p>container ถูกตั้งค่าไว้ใน <code>~/Humanoi/docker-compose.yml</code> ให้ทำงานโดยที่ผู้ใช้แทบไม่ต้องรู้ว่ามันมีอยู่ การตั้งค่าที่มีผลต่อการใช้งานมีดังนี้</p>
+
+<table>
+<thead><tr><th>การตั้งค่า</th><th>ผลต่อการใช้งาน</th></tr></thead>
+<tbody>
+<tr><td><code>restart: unless-stopped</code></td><td>container เปิดเองทุกครั้งที่ Pi บูต ไม่ต้องสั่งเอง</td></tr>
+<tr><td><code>network_mode: host</code></td><td>topic ของ ROS มองเห็นจากเครื่องอื่นในวง LAN และ Foxglove ต่อได้ที่พอร์ต 8765</td></tr>
+<tr><td><code>privileged</code> + <code>/dev</code></td><td>ใช้พอร์ต USB ได้ทุกตัว แม้เสียบทีหลัง</td></tr>
+<tr><td><code>./ros2_ws</code> → <code>/humanoi_ws</code></td><td>โค้ดและผล build อยู่บน Pi ถาวร ไม่หายแม้ container ถูกลบ — build ครั้งเดียวพอ</td></tr>
+<tr><td>ปิดไฟล์ core dump</td><td>โปรแกรมบางตัวของ Jazzy (move_group, ros2_control_node, rviz2) มักแครชตอนถูกปิดแล้วทิ้งไฟล์ core ราว 400 MB ทุกครั้ง เคยสะสมถึง 6.2 GB จนดิสก์เต็ม จึงปิดไว้</td></tr>
+</tbody>
+</table>
+
+<p>โดยปกติไม่ต้องยุ่งกับ container เลย ถ้าจำเป็น คำสั่งพื้นฐานบน Pi (นอก container) มีดังนี้</p>
+<pre class="cmd">cd ~/Humanoi &amp;&amp; docker compose up -d
+# เปิด container (ปกติเปิดเองหลังบูตอยู่แล้ว)</pre>
+<pre class="cmd">docker exec -it humanoi_ros bash
+# เข้าไปพิมพ์คำสั่ง ros2 ข้างใน container</pre>
+<p>ข้างใน container โค้ดอยู่ที่ <code>/humanoi_ws</code> หลังรับโค้ดใหม่จาก PC ให้ build แล้วโหลด environment ก่อนใช้ <code>ros2 run</code> หรือ <code>ros2 launch</code></p>
+<pre class="cmd">cd /humanoi_ws &amp;&amp; colcon build --symlink-install
+# ใน container</pre>
+<pre class="cmd">source install/setup.bash
+# ใน container</pre>
+
+<div class="note"><b>หมายเหตุ</b> ถ้าสั่งจากข้างนอกแบบไม่โต้ตอบ (<code>docker exec humanoi_ros ...</code>) ต้องนำหน้าด้วย <code>/entrypoint.sh</code> เสมอ เช่น <code>docker exec humanoi_ros /entrypoint.sh ros2 topic list</code> ไม่งั้นจะหา <code>ros2</code> ไม่เจอ (<code>bash -lc</code> ไม่โหลด ROS ให้)</div>
+
+<div class="warn"><b>ระวัง</b> คำสั่งที่ทำให้ container ถูกสร้างใหม่ เช่น <code>docker compose down</code> แล้ว <code>up</code> ใหม่ หรือแก้ <code>docker-compose.yml</code> แล้ว <code>up</code> จะทำให้ของที่เคยติดตั้งเพิ่มเข้าไปใน container ระหว่างใช้งาน (ที่ยังไม่อยู่ใน image) หายทั้งหมด ถ้าต้องการเปลี่ยนสิ่งที่ติดตั้งใน container ให้ใช้ <code>rebuild_image.sh</code> ตามหัวข้อด้านล่าง</div>
+
+<h2>ไฟล์บน Pi อยู่ที่ไหน</h2>
+<p>โฟลเดอร์ <code>~/Humanoi</code> บน Pi <b>ไม่ใช่ git clone</b> แต่เป็นสำเนาที่ส่งมาจาก PC ต้นฉบับของโค้ดอยู่ใน git บน PC (แพ็กเกจแขน AR4 อยู่อีก repo หนึ่งที่ <code>Desktop\ar4\ar4_ws</code>) การแก้โค้ดจึงต้องแก้บน PC แล้วส่งมา ไม่แก้บน Pi โดยตรง เพราะการส่งครั้งถัดไปจะเขียนทับ</p>
+<p>อย่างไรก็ตาม มีไฟล์ข้อมูลกลุ่มหนึ่งที่<b>เกิดขึ้นบน Pi</b> จากการสอนและการคาลิเบรต ไฟล์เหล่านี้อยู่บน Pi เท่านั้นจนกว่าจะคัดลอกกลับไป PC และเป็นไฟล์ที่ต้องระวังที่สุด</p>
+
+<table>
+<thead><tr><th>ไฟล์ (บน Pi อยู่ใต้ <code>~/Humanoi/ros2_ws/src/</code>)</th><th>เก็บอะไร</th><th>เกิดจาก</th></tr></thead>
+<tbody>
+<tr><td><code>ar_program/config/programs.yaml</code></td><td>ท่าแขน โปรแกรม และท่ามือที่สอนเอง (<code>hand_poses</code>, <code>hand_poses_left</code>)</td><td><code>arm teach</code>, <code>arm program</code>, <code>arm hand-teach</code></td></tr>
+<tr><td><code>humanoi_games/config/middle_pos.json</code>, <code>middle_pos_left.json</code></td><td>ค่าคาลิเบรตนิ้ว (ชุดมือขวา / ชุดมือซ้าย)</td><td><code>arm hand-calibrate</code></td></tr>
+<tr><td><code>humanoi_description/config/tray_grasp_left.yaml</code>, <code>tray_teach_left.captures.npz</code></td><td>ผลการสอนหยิบกล่อง และข้อมูลดิบ</td><td><code>arm tray-teach</code></td></tr>
+<tr><td><code>humanoi_description/config/astra_color.yaml</code>, <code>camera_to_left_arm.yaml</code></td><td>ค่าเลนส์กล้อง และตำแหน่งกล้องเทียบฐานแขนซ้าย</td><td>การคาลิเบรตกล้อง</td></tr>
+</tbody>
+</table>
+<p>ภายใน container ไฟล์เดียวกันนี้อยู่ใต้ <code>/humanoi_ws/src/</code> ไฟล์ที่ถูกเขียนจากใน container จะเป็นของผู้ใช้ root</p>
+
+<h3>ส่งโค้ดจาก PC: <code>sync_to_pi.sh</code></h3>
+<p>หลังแก้โค้ดบน PC ให้ส่งไป Pi ด้วยสคริปต์นี้ รันบน PC ใน Git Bash หรือ WSL จากโฟลเดอร์ Humanoi</p>
+<pre class="cmd">bash scripts/sync_to_pi.sh
+# บน PC — ค่าเริ่มส่งไป eitlaser@EIT-Raspberry-Pi-5.local (ใส่ user@host อื่นต่อท้ายได้)</pre>
+<p>สคริปต์ส่ง <code>docker/</code>, <code>docker-compose.yml</code>, <code>scripts/</code> และ <code>ros2_ws/src</code> (ไม่ส่งโฟลเดอร์ build, install, log) ไปไว้ใน <code>~/Humanoi</code> และถ้าพบ workspace แขน AR4 บน PC (<code>Desktop\ar4\ar4_ws\src</code>) จะส่งแพ็กเกจ <code>ar_description</code>, <code>ar_hardware_interface</code>, <code>ar_program</code>, <code>ar_moveit_config</code>, <code>ar_gz_bringup</code> และ <code>ar_dual</code> ไปรวมใน <code>ros2_ws/src</code> ของ Pi ด้วย จบแล้วสคริปต์พิมพ์คำสั่ง build ให้ ซึ่งคือ</p>
+<pre class="cmd">ssh eitlaser@EIT-Raspberry-Pi-5.local 'docker exec humanoi_ros /entrypoint.sh bash -c "cd /humanoi_ws &amp;&amp; colcon build --symlink-install"'
+# บน PC — build ใน container หลังส่งโค้ด</pre>
+
+<div class="warn"><b>ระวัง</b> การส่งโค้ด<b>เขียนทับ</b>ไฟล์บน Pi ที่มีชื่อเดียวกับบน PC <code>programs.yaml</code> บน Pi ถูกแทนด้วยของ PC ทุกครั้ง สคริปต์สำรองของเดิมไว้เป็น <code>programs.yaml.bak</code> ให้ แต่สำรองทับทุกรอบ ถ้า sync ซ้ำอีกครั้ง ไฟล์สำรองจะกลายเป็นของ PC และท่าที่สอนบน Pi หายถาวร ไฟล์ข้อมูลอื่นในตารางข้างบน ถ้าบน PC มีไฟล์ชื่อเดียวกันอยู่ ก็ถูกทับเช่นกันโดยไม่มีสำรอง (ไฟล์ที่มีเฉพาะบน Pi จะไม่ถูกลบ) ดังนั้นถ้ามีการสอนหรือคาลิเบรตบน Pi ให้ดึงไฟล์เหล่านั้นกลับมา PC <b>ก่อน</b> sync ทุกครั้ง <span class="todo">ต้องเช็ก: AMAZINGHAND.md บอกว่า sync ไม่ทับ middle_pos.json แต่ตอนนี้ใน ros2_ws/src บน PC มี middle_pos.json และ middle_pos_left.json อยู่แล้ว จึงน่าจะถูกทับ · และยังไม่มีเอกสารบอกคำสั่งที่ทีมใช้ดึงไฟล์กลับ PC</span></div>
+
+<h2>ดูหุ่นจาก PC ด้วย Foxglove</h2>
+<p>Foxglove เป็นโปรแกรมดูข้อมูล ROS เช่น ภาพกล้อง แผนที่ lidar และข้อความสถานะ จาก PC ฝั่ง Pi มีโหนด <code>foxglove_bridge</code> เปิดพอร์ต 8765 ให้ Foxglove บน PC ต่อเข้ามา วิธีนี้ทำให้ดูภาพได้โดยไม่ต้องเปิดหน้าจอของ Pi และไม่ต้องติดตั้งอะไรเพิ่มบน Pi</p>
+<p>ส่วนใหญ่ไม่ต้องเปิด bridge เอง เพราะคำสั่งที่เปิดกล้อง (<code>arm tray</code>, <code>arm rps</code> แบบที่เปิดกล้องเอง และ yolo) เปิด <code>foxglove_bridge</code> มาด้วย และ <code>arm map</code> ก็เปิดให้ถ้ายังไม่มี ถ้าไม่มีตัวไหนเปิดให้ สั่งเองใน container ได้</p>
+<pre class="cmd">ros2 launch foxglove_bridge foxglove_bridge_launch.xml
+# ใน container</pre>
+<p>ฝั่ง PC เปิด Foxglove แล้วต่อแบบ Foxglove WebSocket ไปที่ <code>ws://EIT-Raspberry-Pi-5.local:8765</code> (ถ้าชื่อเครื่องหาไม่เจอ ใช้ IP แทน เช่น <code>ws://192.168.1.74:8765</code>) จากนั้นเพิ่ม panel ตามสิ่งที่จะดู</p>
+
+<table>
+<thead><tr><th>ดูอะไร</th><th>panel</th><th>topic</th><th>มาจาก</th></tr></thead>
+<tbody>
+<tr><td>กล่องและป้าย ArUco</td><td>Image</td><td><code>/tray/image/compressed</code></td><td><code>arm tray</code></td></tr>
+<tr><td>จอ HUD ของเกมสำหรับผู้เล่น</td><td>Image</td><td><code>/rps/hud/image/compressed</code></td><td><code>arm rps</code></td></tr>
+<tr><td>ภาพที่เกมใช้อ่านมือผู้เล่น</td><td>Image</td><td><code>/rps/vision/image/compressed</code></td><td><code>arm rps</code></td></tr>
+<tr><td>กรอบวัตถุจาก YOLO</td><td>Image</td><td><code>/yolo/image/compressed</code></td><td><code>yolo.launch.py</code></td></tr>
+<tr><td>แผนที่และ lidar</td><td>3D (Display frame = <code>map</code>)</td><td><code>/map</code>, <code>/scan</code></td><td><code>arm map</code></td></tr>
+</tbody>
+</table>
+<p>ภาพบาง topic เช่นภาพของตัวหากล่องและจอ HUD ของเกม ถูกวาดเฉพาะตอนมีคนเปิด panel ดูอยู่เท่านั้น</p>
+
+<figure class="ph" data-kind="screenshot"><img src="img/pi-foxglove-connection.jpg" alt=""><figcaption>ต่อ Foxglove บน PC เข้ากับ Pi ที่พอร์ต 8765</figcaption><div class="ph-note">จับภาพหน้าจอ: หน้าต่างเลือกการเชื่อมต่อของ Foxglove บน PC เลือก Foxglove WebSocket ช่อง URL ใส่ ws://EIT-Raspberry-Pi-5.local:8765 · ถ้าได้ ให้ถ่ายคู่กับภาพหลังต่อสำเร็จที่มี Image panel แสดง /tray/image/compressed</div></figure>
+
+<h2>สร้าง Docker image ใหม่: <code>rebuild_image.sh</code></h2>
+<p>container สร้างจาก image ชื่อ <code>humanoi-ros:jazzy</code> ซึ่ง build จาก <code>docker/Dockerfile</code> ระหว่างพัฒนามีการติดตั้งของเพิ่มเข้าไปใน container ที่รันอยู่ เช่น MoveIt/RViz ไลบรารีของมือและเกม (<code>rustypot</code>, <code>mediapipe</code>) และ <code>teensy_loader_cli</code> ของพวกนี้จะหายถ้า container ถูกสร้างใหม่ ปัจจุบัน Dockerfile รวมของเหล่านี้ไว้แล้ว สคริปต์ <code>rebuild_image.sh</code> ใช้สร้าง image ใหม่จาก Dockerfile แล้วสลับ container ไปใช้ เพื่อให้ของทั้งหมดติดถาวร สคริปต์รันบน Pi นอก container และมีสี่โหมด</p>
+
+<table>
+<thead><tr><th>โหมด</th><th>ทำอะไร</th><th>ต้องปิดระบบก่อนไหม</th></tr></thead>
+<tbody>
+<tr><td><code>check</code> (ค่าเริ่ม)</td><td>เช็กอย่างเดียว: ดิสก์ว่างอย่างน้อย 4 GB, Dockerfile บน Pi เป็นรุ่นที่มีชั้นไลบรารีมือ/เกม (ตรงกับ PC), มีโปรแกรม ROS รันอยู่หรือไม่</td><td>ไม่ต้อง</td></tr>
+<tr><td><code>build</code></td><td>เก็บ image เดิมไว้ชื่อ <code>humanoi-ros:jazzy-prev</code> สร้าง image ใหม่ (log อยู่ที่ <code>~/Humanoi/docker_build.log</code>) แล้วเทียบรายชื่อแพ็กเกจที่มีใน container ตอนนี้แต่ไม่มีใน image ใหม่</td><td>ไม่ต้อง — container เดิมทำงานต่อได้</td></tr>
+<tr><td><code>switch</code></td><td>สร้าง container ใหม่จาก image ใหม่ แล้วตรวจว่ามี MoveIt, RViz, controller_manager, ไดรเวอร์กล้อง, ไลบรารี Python ของมือ/เกม, <code>teensy_loader_cli</code> และ workspace ครบ</td><td>ต้องปิดทุกโปรแกรม ROS</td></tr>
+<tr><td><code>rollback</code></td><td>กลับไปใช้ image เดิม (<code>humanoi-ros:jazzy-prev</code>)</td><td>ต้องปิดทุกโปรแกรม ROS</td></tr>
+</tbody>
+</table>
+
+<ol class="steps">
+<li>ส่ง <code>docker/Dockerfile</code> รุ่นล่าสุดจาก PC มาก่อน (<code>sync_to_pi.sh</code> ส่งให้)</li>
+<li>เช็กความพร้อม ทุกบรรทัดควรเป็น ✓ ถ้าดิสก์ไม่พอ ดูหัวข้อพื้นที่ดิสก์ด้านล่าง
+<pre class="cmd">bash ~/Humanoi/scripts/rebuild_image.sh check</pre></li>
+<li>สร้าง image ใหม่ ระหว่างนี้ใช้หุ่นต่อได้ ตอนจบดูรายการ "มีใน container ตอนนี้ แต่ image ใหม่ไม่มี" ถ้าขึ้นว่าไม่มีอะไรหาย ไปขั้นต่อไปได้ ถ้ามีรายการและในนั้นมีของที่ใช้อยู่ ต้องเพิ่มลง Dockerfile บน PC แล้ว build ใหม่ก่อน
+<pre class="cmd">bash ~/Humanoi/scripts/rebuild_image.sh build</pre></li>
+<li>ปิดทุกโปรแกรม ROS: <code>arm off</code> ปิดฝั่งแขนและเกม ส่วนหน้าต่างเปิดค้างอื่น เช่น <code>arm base</code>, <code>arm lidar</code>, <code>arm tray</code> ให้กด <kbd>Ctrl</kbd>+<kbd>C</kbd></li>
+<li>สลับ container ไป image ใหม่ แล้วดูผลตรวจท้ายคำสั่ง ทุกบรรทัดควรเป็น ✓
+<pre class="cmd">bash ~/Humanoi/scripts/rebuild_image.sh switch</pre></li>
+<li>ถ้ามี ✗ หรือระบบใช้งานไม่ได้ ย้อนกลับไป image เดิม
+<pre class="cmd">bash ~/Humanoi/scripts/rebuild_image.sh rollback</pre></li>
+</ol>
+<p>เพราะ <code>ros2_ws</code> อยู่บน Pi ผ่าน volume โค้ดและผล build จึงไม่หายตอนสลับ ไม่ต้อง <code>colcon build</code> ใหม่ <span class="todo">ต้องเช็ก: ณ วันพิมพ์ container บน Pi สลับไป image ใหม่ (switch) แล้วหรือยัง</span></p>
+
+<figure class="ph" data-kind="screenshot"><img src="img/pi-rebuild-check.jpg" alt=""><figcaption>ผลของ rebuild_image.sh check เมื่อพร้อมสร้าง image ใหม่</figcaption><div class="ph-note">จับภาพหน้าจอ: Terminal บน Pi หลังสั่ง bash ~/Humanoi/scripts/rebuild_image.sh check · ให้เห็นบรรทัดดิสก์ที่เหลือ, บรรทัด Dockerfile ตรงกับ PC และบรรทัดโปรแกรม ROS ที่รันอยู่</div></figure>
+
+<h2>พื้นที่ดิสก์</h2>
+<p>การ์ดของ Pi มีความจุ 29 GB และ image ROS อย่างเดียวก็กินไป 3.6 GB ที่ว่างจึงเหลือไม่มาก ดูที่ว่างได้จากบรรทัดแรกของ <code>rebuild_image.sh check</code> ซึ่งจะเตือนเมื่อเหลือไม่ถึง 4 GB และแนะนำของที่ลบได้ เช่น <code>docker builder prune</code> ไฟล์ core dump และ log</p>
+<p>ที่ผ่านมามีสองเหตุที่ทำให้การ์ดเต็ม เหตุแรกคือไฟล์ core dump ของ Jazzy ซึ่งตอนนี้ปิดไว้ใน <code>docker-compose.yml</code> แล้ว เหตุที่สองคือเปิดโปรแกรม guvcview กับกล้อง Orbbec แล้วกล้องหลุด guvcview จะเขียน error ลง <code>~/.xsession-errors</code> ไม่หยุดจนการ์ดเต็ม (เคยโตถึง 6 GB) ถ้าเจอ ให้ปิดโปรแกรมแล้วล้างไฟล์นั้น</p>
+<pre class="cmd">truncate -s 0 ~/.xsession-errors
+# บน Pi นอก container</pre>
+<div class="warn"><b>ระวัง</b> อย่าเปิด guvcview พร้อมกับโปรแกรม ROS ที่ใช้กล้อง กล้องต้องเสียบที่ Pi และเปิดได้ทีละโปรแกรม</div>
+
+<h2>ข้อควรระวังเรื่อง USB และไฟ</h2>
+<div class="warn"><b>ระวัง</b> ห้ามถอดหรือเสียบสาย USB ของแขนขณะไฟแขนเปิด ปิดไฟแขนก่อนทุกครั้ง Pi 5 ตัวแรกเสียหลังถอดสาย Teensy ตอนไฟแขนเปิดอยู่ (19 ต.ค. 2026) และก่อนต่อแขนเข้า Pi เครื่องใหม่ ต้องวัดว่าไม่มีไฟย้อนจากแขนเข้าทางหัว USB (ขา 5V กับ GND ต้องได้ 0 V)</div>
+<p>บอร์ด Teensy ของแขนถูกหาเองจากชื่อแขนที่เก็บในบอร์ด จึงย้ายสายไปช่องไหนของ Pi ก็ได้ (ปิดไฟแขนก่อน) ส่วนบอร์ดมือถูกหาจากหมายเลขบอร์ด (ดูบทมือ AmazingHand) เอกสารวันที่ 21 ต.ค. บันทึกว่า Pi มี USB 4 ช่อง ไม่พอสำหรับแขนสองข้าง มือ และกล้องพร้อมกัน ต้องใช้ USB hub ที่มีไฟเลี้ยง <span class="todo">ต้องเช็ก: ตอนนี้ใช้ USB hub รุ่นใด และอุปกรณ์ไหนเสียบช่องไหน</span></p>
+
+<figure class="ph" data-kind="photo"><img src="img/pi-usb-devices.jpg" alt=""><figcaption>Raspberry Pi 5 บนหุ่นและอุปกรณ์ USB ที่ต่ออยู่</figcaption><div class="ph-note">ถ่าย: มุมตรงจากด้านพอร์ต USB ของ Pi 5 (เห็นการ์ด Hailo บนบอร์ดด้วยถ้าทำได้) · ติดป้ายกระดาษที่สายแต่ละเส้น: Teensy แขนซ้าย, Teensy แขนขวา, บอร์ดมือซ้าย/ขวา (Waveshare), กล้อง Astra Pro, Mega ฐานล้อ, lidar · ถ้ามี USB hub ให้เห็นสายไฟเลี้ยงของ hub</div></figure>
+
+</section>
+
+<section class="chapter" id="ch-hand">
+<h1>มือ AmazingHand</h1>
+
+<p>ปลายแขน AR4 ติดมือหุ่นยนต์ AmazingHand ซึ่งเป็นมือสี่นิ้ว (ชี้ กลาง นาง โป้ง) ต้นแบบของ Pollen ทีมใช้ชุดประกอบที่ซื้อจาก AliExpress มือใช้ทำท่าสื่อสาร เช่น ชูนิ้วโป้ง ส่ายนิ้ว และท่าในเกมเป่ายิ้งฉุบ และใช้จับของเบาๆ เช่นหูกล่องในงานหยิบกล่องด้วยกล้อง บทนี้อธิบายว่ามือทำงานอย่างไร ต้องเช็กอะไรก่อนสั่งขยับ ลองท่า สอนท่าใหม่ คาลิเบรตนิ้ว และใส่ท่ามือลงในโปรแกรมแขน</p>
+
+<figure class="ph" data-kind="photo"><img src="../images/hand_closeup.jpg" alt=""><figcaption>มือ AmazingHand ที่ปลายแขน AR4</figcaption><div class="ph-note">มีรูปแล้ว</div></figure>
+
+<h2>มือทำงานอย่างไร</h2>
+<p>แต่ละนิ้วขยับด้วย servo สองตัว (เรียกตัวแรกของคู่ว่า a ตัวที่สองว่า b) ถ้า servo สองตัวหมุน<b>สวนทางกัน</b> นิ้วจะงอหรือเหยียด ถ้าหมุน<b>ไปทางเดียวกัน</b> นิ้วจะเอียงหรือกางออกด้านข้าง มือหนึ่งข้างจึงมี servo 8 ตัว ทั้ง 8 ตัวต่อเข้าบอร์ดเดียวกันและแยกกันด้วยหมายเลข ID</p>
+
+<table>
+<thead><tr><th>ส่วน</th><th>รายละเอียด</th></tr></thead>
+<tbody>
+<tr><td>servo</td><td>Feetech SCS0009 × 8 (ลิมิตโรงงานราว ±144°)</td></tr>
+<tr><td>หมายเลข servo (ID)</td><td>นิ้วชี้ 1–2 · กลาง 3–4 · นาง 5–6 · โป้ง 7–8</td></tr>
+<tr><td>บอร์ดต่อ</td><td>Waveshare Bus Servo Adapter (A) ชิป CH343 (USB ID <code>1a86:55d3</code>) ตั้ง jumper ไว้ที่ <b>B</b> (USB) แล้วเสียบ USB เข้า Pi</td></tr>
+<tr><td>ไฟเลี้ยง</td><td>แหล่งจ่าย 6 V อย่างน้อย 3 A เข้าช่องไฟของบอร์ด ที่ servo ได้ 5.1–5.4 V เพราะบอร์ดทำไฟตกราว 0.8–1 V</td></tr>
+<tr><td>ความเร็วสื่อสาร (baud)</td><td>โปรแกรมหาเอง (ตอนเขียนเอกสารเป็น 250000)</td></tr>
+</tbody>
+</table>
+
+<figure class="ph" data-kind="diagram"><img src="img/hand-servo-ids.jpg" alt=""><figcaption>หมายเลข servo ของแต่ละนิ้ว และการหมุนที่ทำให้นิ้วงอหรือเอียง</figcaption><div class="ph-note">วาด: มือมองจากด้านฝ่ามือ ติดเลข ID 1–8 ที่ servo คู่ของแต่ละนิ้ว (ชี้ 1-2, กลาง 3-4, นาง 5-6, โป้ง 7-8) · ภาพเล็กด้านข้างสองภาพ: ลูกศร a กับ b หมุนสวนกัน = นิ้วงอ/เหยียด, ลูกศร a กับ b หมุนทางเดียวกัน = นิ้วเอียง/กาง</div></figure>
+
+<p>ซอฟต์แวร์ของมืออยู่ในแพ็กเกจ <code>humanoi_games</code> ใน container ตัวคุมมือ (<code>amazinghand_node</code>) เป็นโปรแกรมเดียวที่สั่งมือระหว่างใช้งานปกติ และเปิดมาพร้อมกับ <code>arm player</code> และ <code>arm rps</code> ทุกครั้งที่เชื่อมต่อ ตัวคุมมือทำตามลำดับดังนี้ หาพอร์ตจาก USB ID ของบอร์ด หา baud เอง เช็กว่า servo ตอบครบ 8 ตัวและไฟของทุกตัวอยู่ในช่วง 4.8–7.4 V อ่านขีดจำกัดมุมจาก servo แต่ละตัว แล้วสั่งให้ถือท่าปัจจุบันก่อนจึงเปิดแรงบิด นิ้วจึงไม่กระตุก ถ้าขั้นไหนไม่ผ่าน มือจะ<b>ไม่เปิดแรงบิดและไม่ขยับ</b> แล้วบอกเหตุผลใน log ของหน้าต่างนั้น</p>
+<p>เมื่อปิดตัวคุมมือ (ปิด <code>arm player</code> หรือ <code>arm rps</code>) servo ทุกตัวถูกปลดแรงบิด นิ้วจะอ่อนลงเป็นกำ ข้อนี้สำคัญเวลามือถือของอยู่</p>
+
+<h2>มือไหนต่อกับบอร์ดไหน</h2>
+<p>มือสองข้างใช้ servo ID 1–8 เหมือนกัน และลำดับพอร์ต <code>ttyACM</code> อาจสลับกันทุกครั้งที่เสียบ โปรแกรมจึงแยกมือจาก "หมายเลขบอร์ด" (serial ของบอร์ด Waveshare ซึ่งเห็นได้ใน <code>/dev/serial/by-id</code>) ตามที่กำหนดในไฟล์ <code>humanoi_games/config/hand_boards.yaml</code> นอกจากหมายเลขบอร์ด ไฟล์ยังบอก "ชุดมือ" (kit) ที่ติดแขนนั้น ซึ่งเป็นตัวเลือกไฟล์คาลิเบรตและชุดท่าที่สอนไว้ เพราะมือซ้ายกับมือขวาประกอบสะท้อนกัน ค่าของมือหนึ่งจึงใช้กับอีกมือตรงๆ ไม่ได้</p>
+
+<table>
+<thead><tr><th>แขน</th><th>หมายเลขบอร์ด</th><th>ชุดมือ</th><th>ไฟล์คาลิเบรต</th><th>ท่าที่สอน (ใน <code>programs.yaml</code>)</th><th>topic สั่งท่า</th></tr></thead>
+<tbody>
+<tr><td><code>left</code> (แขน 1)</td><td><code>5B91044327</code></td><td>left</td><td><code>middle_pos_left.json</code></td><td><code>hand_poses_left</code></td><td><code>/hand/gesture</code></td></tr>
+<tr><td><code>right</code> (แขน 2)</td><td><code>5B91030501</code></td><td>right</td><td><code>middle_pos.json</code></td><td><code>hand_poses</code></td><td><code>/right_hand/gesture</code></td></tr>
+</tbody>
+</table>
+<p>ค่าในตารางเป็นค่าในไฟล์ตอนเขียนคู่มือ <span class="todo">ต้องเช็ก: AMAZINGHAND.md (21 ต.ค.) บอกว่าแขนซ้ายติด "มือขวา" ที่บอร์ด 5B91044327 แต่ hand_boards.yaml (27 ต.ค.) ตั้งบอร์ดนี้เป็นชุดมือซ้าย — ดูของจริงว่าชุดมือไหนติดแขนไหนก่อนพิมพ์</span></p>
+<p>ดูการจับคู่ปัจจุบันได้ด้วยคำสั่ง</p>
+<pre class="cmd">arm hand-side</pre>
+<p>เมื่อมีไฟล์ <code>hand_boards.yaml</code> คำสั่งนี้แค่แสดงว่าบอร์ดไหนเป็นของแขนไหน ถ้าย้ายชุดมือหรือบอร์ดไปอีกแขน ต้องแก้ไฟล์นั้น (แก้บน PC แล้ว sync เพราะไฟล์อยู่ใน <code>ros2_ws/src</code>) ส่วนหมายเลขบอร์ดที่เสียบอยู่จริงดูได้จาก <code>arm hand-scan</code> ถ้าไม่มีไฟล์นี้ ระบบจะทำงานแบบมือข้างเดียวตามเดิม คือหาบอร์ดเอง และใช้ <code>arm hand-side left</code> หรือ <code>arm hand-side right</code> ตั้งว่าใส่ชุดมือไหน (ต้องปิดโปรแกรมที่ใช้มือก่อน)</p>
+
+<figure class="ph" data-kind="photo"><img src="img/hand-board-labels.jpg" alt=""><figcaption>บอร์ด Waveshare Bus Servo Adapter (A) และจุดที่ต้องรู้</figcaption><div class="ph-note">ถ่าย: บอร์ดมองจากด้านบน ตรงๆ แสงพอ · ติดป้าย: ช่องไฟเข้า (6 V), jumper ที่ตำแหน่ง B, ขั้ว V–G สำหรับวัดไฟ, ช่องสาย servo (D V G), พอร์ต USB · แปะสติกเกอร์บนบอร์ดจริงบอกว่าเป็นของแขนไหนพร้อมหมายเลขบอร์ด แล้วให้เห็นในรูป · ถ่ายอีกภาพเป็นมิเตอร์กำลังวัดที่ V–G</div></figure>
+
+<h2>กฎความปลอดภัยเรื่องไฟ</h2>
+<div class="warn"><b>ระวัง</b> ไฟเลี้ยง servo ของมือ<b>ห้ามเกิน 7.4 V</b> แม้บนบอร์ด Waveshare จะเขียนว่ารับไฟ 9–12.6 V แต่บอร์ดส่งไฟนั้นตรงเข้า servo ห้ามใช้ไฟช่วงนั้นเด็ดขาด ไฟ 5 V ก็ไม่พอ (servo ได้แค่ 3.9–4.3 V ต่ำกว่า 4.5 V ที่มันยอมทำงาน) ใช้แหล่งจ่าย 6 V อย่างน้อย 3 A</div>
+<p>ก่อนสั่งมือขยับ โดยเฉพาะหลังเปลี่ยนแหล่งจ่ายหรือย้ายสาย ให้ทำตามขั้นนี้ทุกครั้ง</p>
+<ol class="steps">
+<li>ก่อนเสียบมือ วัดแรงดันด้วยมิเตอร์ที่ขั้ว V–G ของบอร์ด (ทุกครั้งที่เปลี่ยนแหล่งจ่าย)</li>
+<li>ต่อสาย: ไฟ 6 V เข้าบอร์ด · jumper ที่ B · USB ของบอร์ดเข้า Pi</li>
+<li>ปิดโปรแกรมที่ใช้พอร์ตมืออยู่ (<code>arm player</code>, <code>arm rps</code>, <code>arm hand-teach</code>, <code>arm hand-calibrate</code>)</li>
+<li>สแกนบอร์ดมือ คำสั่งนี้อ่านอย่างเดียว ไม่ขยับนิ้ว
+<pre class="cmd">arm hand-scan</pre></li>
+<li>อ่านผล: ทุกบอร์ดต้องขึ้น ✓ พร้อม servo 8 ตัว (ID1–ID8) และไม่มีเครื่องหมาย ⚠ ข้างค่าไฟ เครื่องหมาย ⚠ หมายถึงไฟนอกช่วง 4.8–7.4 V <b>ห้ามสั่งขยับ</b></li>
+</ol>
+<p>ผลของ <code>arm hand-scan</code> แสดงทีละบอร์ด บรรทัดแรกบอกพอร์ต หมายเลขบอร์ด และบอกว่าบอร์ดนี้เป็นมือแขนไหน ชุดมือไหน ตาม <code>hand_boards.yaml</code> (หรือ "ไม่อยู่ใน hand_boards.yaml") บรรทัดถัดไปบอกว่าที่ baud ไหนมี servo ตอบกี่ตัว และไฟของแต่ละตัว ถ้าขึ้น <code>✗ ไม่มีเซอร์โวตอบ</code> แปลว่าไฟมือปิด สาย servo ไม่ได้ต่อ (ช่อง D V G) หรือ jumper ไม่อยู่ที่ B ถ้าขึ้นว่าเปิดพอร์ตไม่ได้ แปลว่ามีโปรแกรมอื่นใช้พอร์ตอยู่</p>
+
+<figure class="ph" data-kind="screenshot"><img src="img/hand-scan-output.jpg" alt=""><figcaption>ผลของ arm hand-scan เมื่อมือทั้งสองข้างพร้อมใช้งาน</figcaption><div class="ph-note">จับภาพหน้าจอ: Terminal บน Pi หลังสั่ง arm hand-scan ขณะเสียบบอร์ดมือทั้งสองบอร์ด · ให้เห็นบรรทัดหมายเลขบอร์ด + "มือแขนซ้าย/ขวา", บรรทัด ✓ baud พร้อม ID1–ID8 และค่าไฟ, และบรรทัดสรุปช่วงไฟปลอดภัยท้ายผล · วงสีค่าไฟของ servo หนึ่งตัวไว้อธิบาย</div></figure>
+
+<h3>พอร์ตมือเปิดได้ทีละโปรแกรม</h3>
+<p>บอร์ดมือหนึ่งบอร์ดเปิดได้ทีละโปรแกรมเท่านั้น คำสั่ง <code>arm</code> จะไม่ยอมเปิดคำสั่งที่ชนกัน และขึ้น <code>✗ มีโปรแกรมใช้พอร์ตมืออยู่</code> พร้อมบอกว่าต้องปิดอะไร</p>
+<table>
+<thead><tr><th>โปรแกรม</th><th>ถือพอร์ตมือเมื่อไร</th></tr></thead>
+<tbody>
+<tr><td><code>arm player</code></td><td>ตลอดที่เปิด (มีตัวคุมมือ) — <code>arm player nohand</code> ไม่ต่อมือจริง แค่ log ท่า</td></tr>
+<tr><td><code>arm rps</code></td><td>ตลอดที่เปิด (มีตัวคุมมือ) — <code>nohand</code> ได้เช่นกัน</td></tr>
+<tr><td><code>arm hand-teach</code></td><td>ตลอดที่เปิด</td></tr>
+<tr><td><code>arm hand-calibrate</code></td><td>ตลอดที่เปิด</td></tr>
+<tr><td><code>arm hand-scan</code></td><td>ชั่วครู่ระหว่างสแกน</td></tr>
+<tr><td>เครื่องมือบน Windows (<code>Desktop\AmazingHand\tools\*.py</code>)</td><td>เฉพาะตอนเสียบมือเข้า PC (ต้องใส่ <code>--baud 250000</code>)</td></tr>
+</tbody>
+</table>
+
+<h2>ท่าในตัว</h2>
+<p>ท่าในตัวไม่ได้เก็บเป็นมุม servo ตายตัว แต่คำนวณจากค่าคาลิเบรตสามค่าของแต่ละนิ้ว คือ แบสุด กำสุด และเอียง (ให้นิ้วตั้งตรง) เมื่อคาลิเบรตใหม่ ท่าในตัวทุกท่าจึงเปลี่ยนตาม</p>
+
+<table>
+<thead><tr><th>ชื่อท่า</th><th>ลักษณะ</th></tr></thead>
+<tbody>
+<tr><td><code>rock</code></td><td>ทุกนิ้วกำสุด (ค้อน)</td></tr>
+<tr><td><code>fist</code></td><td>เหมือน <code>rock</code> ทุกนิ้วกำสุด</td></tr>
+<tr><td><code>paper</code></td><td>ทุกนิ้วแบสุด (กระดาษ)</td></tr>
+<tr><td><code>scissors</code></td><td>ชี้และกลางแบพร้อมกางออกจากกัน 25° นางและโป้งกำ (กรรไกร)</td></tr>
+<tr><td><code>windup</code></td><td>ทุกนิ้วอยู่กึ่งกลางระหว่างแบกับกำ (กำหลวม — ท่าง้างในเกม)</td></tr>
+<tr><td><code>like</code></td><td>โป้งแบ นิ้วอื่นกำ (ชูนิ้วโป้ง)</td></tr>
+<tr><td><code>point</code></td><td>ชี้แบ นิ้วอื่นกำ (ชี้นิ้ว)</td></tr>
+<tr><td><code>victory</code></td><td>ท่าเคลื่อนไหว: ชูสองนิ้วแล้วหุบ-กางแบบกรรไกร 3 รอบ</td></tr>
+<tr><td><code>nonono</code></td><td>ท่าเคลื่อนไหว: ชี้นิ้วแล้วส่ายซ้าย-ขวา ±35° 3 รอบ</td></tr>
+<tr><td><code>relax</code></td><td>ไม่ใช่ท่า — ปลดแรงบิด นิ้วอ่อน</td></tr>
+</tbody>
+</table>
+<p>นอกจากท่าในตัว ยังใช้ท่าที่สอนเองได้ทุกที่ (หัวข้อถัดไป) และถ้าสอนท่าโดยตั้งชื่อซ้ำกับท่าในตัว ท่าที่สอนจะถูกใช้แทนท่าในตัวทุกที่ รวมถึงในเกมเป่ายิ้งฉุบ</p>
+
+<figure class="ph" data-kind="photo"><img src="img/hand-builtin-poses.jpg" alt=""><figcaption>ท่าในตัวของมือ</figcaption><div class="ph-note">ถ่าย: ภาพชุด 8 ช่องเรียงเป็นตาราง 4×2 ฉากหลังเรียบ มุมเดียวกันทุกภาพ (ด้านหน้ามือ ระดับสายตา) ท่า rock, paper, scissors, windup, like, point, victory (จังหวะชูสองนิ้ว), nonono (จังหวะชี้) · ใส่ชื่อท่าใต้แต่ละช่อง · ถ่ายหลังคาลิเบรตเสร็จแล้ว</div></figure>
+
+<h2>ลองท่ามือ: <code>arm hand</code></h2>
+<p>ใช้เช็กว่ามือตอบ และดูว่าท่าหนึ่งออกมาหน้าตาอย่างไร คำสั่งนี้ส่งท่าให้ตัวคุมมือ จึงต้องมีตัวคุมมือเปิดอยู่ก่อน คือ <code>arm player</code> (หรือ <code>arm rps</code>)</p>
+<ol class="steps">
+<li>หน้าต่างที่หนึ่ง เปิดตัวเล่นโปรแกรมค้างไว้ ตัวคุมมือจะเปิดให้ทุกแขนที่มีใน <code>hand_boards.yaml</code>
+<pre class="cmd">arm player</pre></li>
+<li>อีกหน้าต่าง สั่งท่าให้มือแขนซ้าย (ค่าเริ่ม) ถ้าส่งถึง จะขึ้น <code>มือซ้าย -&gt; rock</code>
+<pre class="cmd">arm hand rock</pre></li>
+<li>สั่งมือแขนขวา ให้เติม <code>right</code> ต่อท้าย
+<pre class="cmd">arm hand paper right</pre></li>
+</ol>
+<p>ถ้าพิมพ์ชื่อท่าผิด คำสั่งจะพิมพ์รายชื่อท่าที่ใช้ได้ทั้งหมด (ท่าในตัวและท่าที่สอนเอง) ถ้าขึ้น <code>✗ ไม่มีตัวคุมมือบนแขน...</code> แปลว่ายังไม่ได้เปิด <code>arm player</code> ถ้าสั่งแล้วนิ้วไม่ขยับ ให้ดู log ในหน้าต่าง <code>arm player</code> ตัวคุมมือจะบอกเหตุผล เช่น servo ตอบไม่ครบหรือไฟไม่อยู่ในช่วง</p>
+
+<h2>สอนท่ามือเอง: <code>arm hand-teach</code></h2>
+<p>บางครั้งท่าที่คำนวณจากค่าคาลิเบรตดูไม่สวยกับมือตัวจริง หรืออยากได้ท่าใหม่ที่ไม่มีในตัว เช่นท่าจับหูกล่อง <code>hand-teach</code> ให้จัดท่าทีละนิ้วแบบสอนหุ่นยนต์ แล้วบันทึกเป็นชื่อท่า ท่าที่สอนเก็บเป็นมุม servo ทั้ง 8 ตัวตรงๆ จึงไม่ขึ้นกับค่าคาลิเบรต</p>
+<p>จัดนิ้วได้สองวิธี วิธีแรกคือจ็อก กดปุ่มให้นิ้วที่เลือกกำ แบ หรือเอียงทีละ 5° วิธีที่สองคือปล่อยนิ้วให้อ่อน (<code>free</code>) แล้วจับดัดด้วยมือ จากนั้นล็อกไว้ (<code>hold</code>)</p>
+
+<table>
+<thead><tr><th>พิมพ์</th><th>ทำอะไร</th></tr></thead>
+<tbody>
+<tr><td><code>1</code> <code>2</code> <code>3</code> <code>4</code></td><td>เลือกนิ้ว ชี้ / กลาง / นาง / โป้ง · <code>0</code> = ทุกนิ้ว</td></tr>
+<tr><td><code>+</code> / <code>-</code></td><td>กำ / แบ นิ้วที่เลือก 5° (ใส่ตัวเลขได้ เช่น <code>+10</code> = 10°)</td></tr>
+<tr><td><code>l</code> / <code>r</code></td><td>เอียงนิ้วที่เลือก 5° (เช่น <code>l10</code> = 10°)</td></tr>
+<tr><td><code>free</code></td><td>ปล่อยนิ้วที่เลือกให้อ่อน จับดัดด้วยมือได้</td></tr>
+<tr><td><code>hold</code></td><td>ล็อกนิ้วที่ปล่อยไว้ตรงที่ดัด (<code>save</code> และการจ็อกก็ล็อกให้เอง)</td></tr>
+<tr><td><code>load &lt;ชื่อ&gt;</code></td><td>เรียกท่า (ในตัวหรือที่สอนไว้) มาแก้ต่อ ขยับเร็วเท่าตอนเล่นจริง ใช้ดูว่าท่าจะออกมาแบบไหนใน <code>arm hand</code> หรือในเกม</td></tr>
+<tr><td><code>save &lt;ชื่อ&gt;</code></td><td>บันทึกท่าตอนนี้ ชื่อเป็นภาษาอังกฤษ (a-z 0-9 _) ขึ้นต้นด้วยตัวอักษร</td></tr>
+<tr><td><code>list</code></td><td>ดูท่าที่สอนไว้</td></tr>
+<tr><td><code>del &lt;ชื่อ&gt;</code></td><td>ลบท่า (ท่าที่ยังใช้อยู่ในโปรแกรมลบไม่ได้)</td></tr>
+<tr><td><code>q</code></td><td>ออก (นิ้วอ่อนลง)</td></tr>
+</tbody>
+</table>
+
+<ol class="steps">
+<li>ปิด <code>arm player</code>, <code>arm rps</code> และ <code>arm hand-calibrate</code> ก่อน (ใช้พอร์ตมือเดียวกัน) และเช็กไฟด้วย <code>arm hand-scan</code></li>
+<li>เปิดโปรแกรมสอนของมือแขนซ้าย (ค่าเริ่ม) หรือเติม <code>right</code> สำหรับมือแขนขวา
+<pre class="cmd">arm hand-teach
+# มือแขนขวา: arm hand-teach right</pre></li>
+<li>มือเริ่มที่ท่าที่ค้างอยู่ตอนเปิด ถ้าจะแก้ท่าเดิม พิมพ์ <code>load &lt;ชื่อ&gt;</code> ก่อน</li>
+<li>เลือกนิ้วด้วย <code>1</code>–<code>4</code> แล้วจ็อกด้วย <code>+</code> <code>-</code> <code>l</code> <code>r</code> หรือ <code>free</code> แล้วดัดด้วยมือแล้ว <code>hold</code> บรรทัดคำสั่งจะบอกค่าของนิ้วที่เลือก เช่น <code>ชี้ งอ +20 เอียง +4</code> (ถ้าเห็น <code>(ปล่อย)</code> แปลว่านิ้วนั้นอ่อนอยู่)</li>
+<li>ได้ท่าที่ต้องการแล้ว <code>save &lt;ชื่อ&gt;</code> แล้วลอง <code>load &lt;ชื่อ&gt;</code> ดูที่ความเร็วจริงอีกครั้ง</li>
+<li>เสร็จแล้วพิมพ์ <code>q</code> นิ้วจะอ่อนลง จากนั้นเปิด <code>arm player</code> แล้วใช้ท่าใหม่ได้ทันที</li>
+</ol>
+
+<figure class="ph" data-kind="screenshot"><img src="img/hand-teach-terminal.jpg" alt=""><figcaption>หน้าต่าง arm hand-teach ระหว่างจัดท่า</figcaption><div class="ph-note">จับภาพหน้าจอ: Terminal บน Pi ระหว่าง arm hand-teach · ให้เห็นบรรทัดช่วยเหลือตอนเปิด, การเลือกนิ้ว 1, คำสั่ง +10, บรรทัดสถานะ "ชี้ งอ … เอียง …", และคำสั่ง save ที่สำเร็จ · ถ้าจับได้ ให้มีบรรทัดเตือน "! นิ้วไปต่อไม่ได้" หนึ่งบรรทัดไว้อธิบาย</div></figure>
+
+<div class="warn"><b>ระวัง</b> ถ้าขึ้นเตือนแบบ <code>! นิ้วไปต่อไม่ได้: นาง ID5 ค้างที่ +70 (สั่ง +90)</code> แปลว่านิ้วชนฝ่ามือ ชนนิ้วอื่น หรือสุดทางกลไกแล้ว โปรแกรมจะถือนิ้วไว้ตรงที่ไปถึง <b>อย่ากดต่อ</b> เพราะ servo ตั้งไว้ว่าถ้าโหลดเกิน 80% นานๆ จะตัดแรงบิดตัวเอง นิ้วนั้นจะอ่อนไปทุกท่าหลังจากนั้นและท่าจะดูมั่ว ตัวคุมมือใน <code>arm player</code> และในเกมก็เช็กแบบเดียวกันทุกท่า คือเปิดแรงบิดคืนให้ก่อนทำท่า และถ้านิ้วไหนไปไม่ถึงจะถือไว้ตรงนั้นแล้วเตือนชื่อท่าในหน้าต่าง</div>
+
+<p>ข้อควรรู้เกี่ยวกับท่าที่สอน</p>
+<table>
+<thead><tr><th>เรื่อง</th><th>รายละเอียด</th></tr></thead>
+<tbody>
+<tr><td>ที่เก็บ</td><td><code>programs.yaml</code> ไฟล์เดียวกับท่าแขน หัวข้อ <code>hand_poses</code> (ชุดมือขวา) และ <code>hand_poses_left</code> (ชุดมือซ้าย) · <code>arm list</code> แสดงท่าเหล่านี้ด้วย</td></tr>
+<tr><td>ชื่อซ้ำท่าในตัว</td><td>ชื่อ <code>rock</code> <code>paper</code> <code>scissors</code> <code>point</code> <code>like</code> <code>windup</code> <code>victory</code> <code>nonono</code> <code>fist</code> = ใช้แทนท่าในตัวทุกที่ รวมถึงเกม · <code>del</code> ชื่อนั้น = กลับไปใช้ท่าคำนวณ · <code>victory</code> / <code>nonono</code> ที่สอนเองเป็นท่านิ่ง</td></tr>
+<tr><td>ชื่อใหม่</td><td>เช่น <code>ok</code>, <code>wave1</code> ใช้ใน <code>arm program</code> และ <code>arm hand</code> ได้ทันที</td></tr>
+<tr><td>ไม่ต้องรีสตาร์ท</td><td>ตัวคุมมืออ่านไฟล์ใหม่ทุกคำสั่ง สอนเพิ่มแล้วไม่ต้องปิดเปิด <code>arm player</code> หรือเกม</td></tr>
+<tr><td>ผูกกับมือตัวนี้</td><td>ถ้าถอดแตร servo ใส่ใหม่หรือเปลี่ยนมือ ต้องสอนใหม่</td></tr>
+<tr><td>ขอบของ servo</td><td>ถึงขอบที่ servo หมุนได้ (ราว ±143) จะหยุดที่ขอบแล้วเตือน</td></tr>
+</tbody>
+</table>
+<div class="note"><b>หมายเหตุ</b> <code>programs.yaml</code> อยู่บน Pi และถูกเขียนทับเมื่อ sync โค้ดจาก PC ถ้าสอนท่ามือบน Pi ให้ดึงไฟล์กลับมา PC ก่อน sync ครั้งถัดไป (ดูบท Raspberry Pi และ Docker)</div>
+
+<h2>คาลิเบรตนิ้ว: <code>arm hand-calibrate</code></h2>
+<p>การคาลิเบรตตั้งค่าสามค่าของแต่ละนิ้ว คือ <b>แบสุด</b> <b>กำสุด</b> และ<b>เอียง</b> (ให้นิ้วตั้งตรงไม่เอียงข้าง) ท่าในตัวทุกท่าคำนวณจากสามค่านี้ เช่น ค้อนใช้กำสุด กระดาษใช้แบสุด ท่าง้างใช้กึ่งกลาง ส่วนท่าที่สอนเองเป็นมุม servo ตรงๆ จึงไม่ได้รับผลจากการคาลิเบรต สรุปง่ายๆ คือ ถ้าท่าในตัว<b>หลายท่า</b>ดูเพี้ยน ให้คาลิเบรต ถ้าเพี้ยน<b>ท่าเดียว</b> ให้สอนท่านั้นใหม่ด้วยชื่อเดิม</p>
+
+<div class="warn"><b>ระวัง</b> นิ้วที่หลวมหรือมีระยะฟรีทำให้ตำแหน่งนิ้วไม่ซ้ำเดิม คาลิเบรตแล้วก็ไม่นิ่ง ซอฟต์แวร์แก้ไม่ได้ ให้ปิดไฟมือแล้วขันสกรูแตร servo และข้อต่อก้านนิ้วให้แน่น<b>ก่อน</b>คาลิเบรต</div>
+
+<ol class="steps">
+<li>ปิดเกมและ <code>arm player</code> (กด <kbd>Ctrl</kbd>+<kbd>C</kbd> ที่หน้าต่างนั้น) และ <code>arm hand-teach</code> เพราะใช้พอร์ตมือเดียวกัน</li>
+<li>เปิดเครื่องมือคาลิเบรตของมือแขนซ้าย (ค่าเริ่ม) หรือเติม <code>right</code> สำหรับมือแขนขวา ตอนเปิดจะพิมพ์ baud และขีดจำกัดมุมที่อ่านจาก servo ทุกตัว
+<pre class="cmd">arm hand-calibrate
+# มือแขนขวา: arm hand-calibrate right</pre></li>
+<li>ถ้าค่าเดิมเละจนอยากเริ่มใหม่ ใช้ <code>--reset</code> เริ่มจากค่าเดโม (ไฟล์ค่าเดิมถูกเปลี่ยนชื่อเป็น <code>.bak-&lt;เวลา&gt;</code> ไม่ลบ)
+<pre class="cmd">arm hand-calibrate --reset</pre></li>
+<li>เริ่มที่นิ้วชี้ใน<b>ท่าแบสุด</b>: กด <code>+</code> / <code>-</code> ให้แบมากขึ้นหรือน้อยลง และ <code>l</code> / <code>r</code> ให้นิ้วตั้งตรง (ทิศของ <code>l</code>/<code>r</code> ขึ้นกับการประกอบมือ ลองกดแล้วดูว่านิ้วไปทางไหน)</li>
+<li>กด <code>c</code> ไป<b>ท่ากำสุด</b>: กด <code>+</code> / <code>-</code> จนปลายนิ้วแตะฝ่ามือพอดี ถ้าได้ยิน servo ครางค้าง แปลว่ากำเกิน กด <code>-</code> จนเงียบ</li>
+<li>กด <code>n</code> ไปนิ้วถัดไป (บันทึกให้) ตามลำดับ ชี้ → กลาง → นาง → โป้ง ระหว่างทางกด <code>o</code> กลับไปดูท่าแบสุด หรือ <code>p</code> กลับนิ้วก่อนหน้าได้</li>
+<li>ครบแล้วกด <code>q</code> บันทึกแล้วออก (กด <code>x</code> หรือ <kbd>Ctrl</kbd>+<kbd>C</kbd> = ออกโดยไม่บันทึก)</li>
+<li>เปิด <code>arm player</code> หรือ <code>arm rps</code> ใหม่ ค่าใหม่ถูกโหลดตอนเปิดเท่านั้น</li>
+</ol>
+<p>ทุกปุ่มใส่ตัวเลขต่อท้ายได้ เช่น <code>+5</code> หรือ <code>l3</code> บรรทัดคำสั่งบอกค่าปัจจุบันและมุม servo จริง เช่น <code>[นิ้วชี้ · ท่ากำสุด] แบ -94 · กำ +112 · เอียง -20 · servo ID1 +92 ID2 -132</code> ถ้าค่าที่ขอทำไม่ได้ จะไม่แก้และบอกเหตุผลเป็นตัวเลข เช่น <code>servo ID2 ต้องไป -150° แต่หมุนได้ -144..+144°</code> ระหว่างตั้งนิ้วหนึ่ง นิ้วอื่นจะถูกจัดไว้ไม่ให้ขวาง <span class="todo">ต้องเช็ก: เอกสาร AMAZINGHAND.md / RPS_GAME.md บอกว่านิ้วอื่น "กำไว้" แต่ hand_calibrate.py รุ่นปัจจุบันบอกว่า "แบไว้" — ดูของจริง</span></p>
+<p>ค่าที่ได้เก็บใน <code>~/Humanoi/ros2_ws/src/humanoi_games/config/</code> บน Pi ไฟล์ <code>middle_pos.json</code> (ชุดมือขวา) หรือ <code>middle_pos_left.json</code> (ชุดมือซ้าย) ไฟล์นี้เกิดบน Pi ควรดึงกลับมาเก็บที่ PC เช่นเดียวกับ <code>programs.yaml</code> ถ้าไม่มีไฟล์ ท่าจะเหมือนเดโมต้นฉบับของ Pollen</p>
+
+<h2>ใช้ท่ามือในโปรแกรมแขน</h2>
+<p>ท่ามือใส่ลงในขั้นของโปรแกรมแขนได้ (<code>arm player</code> เปิดตัวคุมมือให้เอง) แต่ละขั้นของ <code>arm program</code> เขียนเป็น</p>
+<pre class="cmd">arm program &lt;ชื่อ&gt; &lt;แขนซ้าย&gt;/&lt;แขนขวา&gt;[/&lt;มือซ้าย&gt;[/&lt;มือขวา&gt;]] ...
+# - = ไม่ขยับ · wait=วินาที = รอ</pre>
+<p>ช่องที่สามคือมือบนแขนซ้าย ช่องที่สี่คือมือบนแขนขวา ใช้ได้ทั้งท่าในตัว (<code>rock</code> <code>paper</code> <code>scissors</code> <code>point</code> <code>like</code> <code>windup</code> <code>victory</code> <code>nonono</code> <code>fist</code> <code>relax</code>) และท่าที่สอนเอง ตัวอย่างต่อไปนี้พาแขนซ้ายไปท่า <code>act1</code> แล้วกำมือ จากนั้นพาแขนไป <code>act2</code> พร้อมแบมือ</p>
+<pre class="cmd">arm program grab act1/- -/-/rock act2/-/paper</pre>
+<pre class="cmd">arm show grab
+# ตารางมีคอลัมน์มือซ้าย / มือขวา</pre>
+<pre class="cmd">arm run grab
+# ต้องเปิด arm player ไว้</pre>
+<p>แขนกับมือที่อยู่ในขั้นเดียวกัน<b>ขยับพร้อมกัน</b> ถ้าต้องการให้แขนถึงที่ก่อนแล้วมือค่อยกำ ให้แยกเป็นสองขั้น (<code>act1/-</code> แล้ว <code>-/-/rock</code>) ขั้นถัดไปจะรอจนแขนถึงและมือทำท่าเสร็จ (ท่านิ่งรอ 0.6 วินาที <code>victory</code> และ <code>nonono</code> รอ 1.8 วินาที) โปรแกรมแบบเดิมที่มีแค่ <code>&lt;แขนซ้าย&gt;/&lt;แขนขวา&gt;</code> ยังใช้ได้เหมือนเดิม ในไฟล์ <code>programs.yaml</code> ขั้นหนึ่งจะเก็บเป็นรูป <code>{left: act1, right: still, left_hand: rock}</code></p>
+<p>ช่องมือขวาส่งท่าไปที่ topic <code>/right_hand/gesture</code> ซึ่ง <code>arm player</code> เปิดตัวคุมมือให้เมื่อแขนขวามีบอร์ดอยู่ใน <code>hand_boards.yaml</code> <span class="todo">ต้องเช็ก: AMAZINGHAND.md (21 ต.ค.) ยังบอกว่าช่องมือขวา "ยังไม่มีมือ จะเตือนแล้วข้าม" และ ARM_TRAY_PICK.md (26 ต.ค.) บอกว่าตัวคุมมือรองรับมือเดียว — ลองกับของจริงว่ามือขวาทำท่าตามโปรแกรมแล้ว</span></p>
+
+<h2>ข้อจำกัดที่รู้อยู่</h2>
+<p>ตามบันทึกสถานะวันที่ 21 ต.ค. 2026 มือยังมีข้อจำกัดที่ผู้ใช้ควรรู้ เพื่อไม่ให้เข้าใจผิดว่าระบบเสีย</p>
+<table>
+<thead><tr><th>เรื่อง</th><th>ผล</th><th>ทางแก้</th></tr></thead>
+<tbody>
+<tr><td>นิ้วมีระยะฟรี</td><td>ตำแหน่งนิ้วไม่ซ้ำเดิม คาลิเบรตแล้วก็ไม่นิ่ง</td><td>ปิดไฟมือ ขันสกรูแตร servo และข้อต่อก้านนิ้วให้แน่นก่อนคาลิเบรต</td></tr>
+<tr><td>แตร servo น่าจะใส่คลาดหลายฟัน</td><td>ช่วงหมุนที่เหลือของ servo น้อย กำหรือแบอาจชนขอบก่อนนิ้วถึง</td><td>ถาวร: ถอดแตรใส่ใหม่ให้ตรงฟัน (ฟันละ 18°) · ตอนนี้ชดเชยด้วยซอฟต์แวร์</td></tr>
+<tr><td>คาลิเบรตยังไม่ครบทุกนิ้ว</td><td>ท่าในตัวบางท่าอาจดูแปลก</td><td>แก้นิ้วหลวมก่อน แล้วคาลิเบรตครบ 4 นิ้ว</td></tr>
+<tr><td>มุมกางของท่ากรรไกร ชี้ ส่ายนิ้ว เป็นค่าตายตัวของเดโม (±25°, ±15°, ±35°)</td><td>อาจดูไม่สวยกับมือนี้</td><td>สอนท่าชื่อเดิมด้วย <code>arm hand-teach</code> แทน</td></tr>
+<tr><td>baud เคยเปลี่ยนกลับเองจาก 1 Mbps เป็น 250000</td><td>เครื่องมือบน Windows ที่ตั้ง 1 Mbps ต่อไม่ติด</td><td>บน Pi หาเองอยู่แล้ว · บน Windows ใส่ <code>--baud 250000</code></td></tr>
+</tbody>
+</table>
+<p><span class="todo">ต้องเช็ก: ตารางนี้มาจาก AMAZINGHAND.md วันที่ 21 ต.ค. ซึ่งเขียนตอนมีมือข้างเดียว — อัปเดตสถานะของมือทั้งสองข้างก่อนพิมพ์</span></p>
+
+</section>
+
+<section class="chapter" id="ch-tray">
+<h1>หยิบกล่องด้วยกล้อง</h1>
+
+<p>งานนี้ให้แขนซ้ายหยิบกล่อง (ถาด) ที่วางอยู่บนโต๊ะ โดยดูตำแหน่งกล่องจากกล้อง Astra Pro ที่ติดอยู่ใต้คางของหุ่น กล้องไม่ได้มองตัวกล่องโดยตรง แต่มองป้าย ArUco (สี่เหลี่ยมลายขาวดำ) ที่แปะไว้กลางพื้นกล่อง ป้ายนี้ทำให้รู้ทั้งตำแหน่งและมุมของกล่องได้แม่นจากภาพสีอย่างเดียว</p>
+
+<p>วิธีที่ใช้เรียกว่า "ทางลัด" คือไม่ต้องรู้ว่ากล้องอยู่ตรงไหนของตัวหุ่นอย่างละเอียด ผู้ใช้สอนท่าจับจริงไว้หนึ่งครั้งตอนกล่องอยู่ตำแหน่งปกติ และสอนให้ระบบรู้ว่าทิศของกล้องหันอย่างไรเทียบกับแขน เวลาหยิบจริง ระบบดูว่าป้ายเลื่อนไปจากตอนสอนเท่าไร แล้วเลื่อนมือตามไปเท่านั้น โดยข้อมือคงมุมเดิม วิธีนี้ง่ายและแม่น แต่มีข้อแลกคือ ใช้ได้เฉพาะเมื่อกล่องอยู่ใกล้ตำแหน่งที่สอน (ไม่เกิน 8 cm) และไม่หมุน (ไม่เกิน 4°)</p>
+
+<h2>อุปกรณ์และป้าย ArUco</h2>
+<table>
+<thead><tr><th>ชิ้น</th><th>รายละเอียด</th></tr></thead>
+<tbody>
+<tr><td>กล่อง</td><td>26.5 × 23.5 × 10 cm มีหูกล่องขนาด 1 × 1 cm ด้านยาว</td></tr>
+<tr><td>ป้าย</td><td>ArUco ชุด DICT_4X4_50 หมายเลข (id) <b>1</b> ด้านสี่เหลี่ยมดำ <b>120 mm</b> แปะกลางพื้นกล่อง</td></tr>
+<tr><td>ไฟล์ป้าย</td><td><code>docs/calibration/aruco_tray_id1_120mm.pdf</code> (หรือ <code>.html</code>)</td></tr>
+<tr><td>กล้อง</td><td>Astra Pro ใต้คาง ใช้ภาพสีอย่างเดียว ไม่ใช้ depth เพราะกล่องอยู่ใกล้กว่าระยะต่ำสุดที่ depth วัดได้ (ราว 0.6 m)</td></tr>
+<tr><td>แขนและมือ</td><td>แขนซ้าย + มือ ใช้ท่ามือ <code>tray_grip0</code> (นิ้วเตรียม) และ <code>tray_grip</code> (นิ้วจับหูกล่อง) ซึ่งเป็นท่าที่สอนไว้ด้วย <code>arm hand-teach</code></td></tr>
+</tbody>
+</table>
+
+<h3>พิมพ์และแปะป้าย</h3>
+<p>ความแม่นของทั้งระบบขึ้นกับว่าขนาดป้ายตรงกับที่โปรแกรมเข้าใจหรือไม่ เครื่องพิมพ์มักย่อภาพเองโดยไม่บอก (เคยพิมพ์ออกมาเหลือ 94%) จึงต้องวัดทุกครั้ง</p>
+<ol class="steps">
+<li>เปิดไฟล์ <code>docs/calibration/aruco_tray_id1_120mm.pdf</code> แล้วสั่งพิมพ์แบบ <b>ขนาดจริง / Actual size / 100%</b> ปิดตัวเลือก "Fit to page"</li>
+<li>วัดด้านสี่เหลี่ยมดำ ต้องได้ 120 mm และแถบมาตราส่วนด้านล่างต้องยาว 100 mm ถ้าไม่ตรง จดค่าที่วัดได้ไว้ (ใช้ตอนเปิด <code>arm tray</code>)</li>
+<li>ตัดตามเส้นเทาอ่อน เหลือขอบขาวรอบป้าย 20 mm <b>ห้ามตัดขอบขาวทิ้ง</b></li>
+<li>แปะให้เรียบกลางพื้นกล่อง ห้ามงอหรือยับ หันด้านบนของป้าย (ด้านหัวกระดาษ) ไปทางหุ่น</li>
+<li>แปะแล้ว<b>ห้ามย้าย</b> เพราะท่าจับที่สอนอ้างอิงกับตำแหน่งป้าย ถ้าจำเป็นต้องย้ายป้าย ต้องสอนใหม่</li>
+</ol>
+<div class="note"><b>หมายเหตุ</b> ในโฟลเดอร์ <code>docs/calibration</code> มีป้ายอีกแผ่นคือ <code>aruco_handeye_id0.pdf</code> (id 0) ซึ่งเป็นป้ายติดมือสำหรับงาน hand-eye calibration คนละงานกัน อย่าใช้สลับกัน ป้ายของกล่องต้องเป็น id 1</div>
+
+<figure class="ph" data-kind="photo"><img src="img/tray-marker-on-box.jpg" alt=""><figcaption>ป้าย ArUco id 1 แปะกลางพื้นกล่อง หันด้านบนเข้าหาหุ่น</figcaption><div class="ph-note">ถ่าย: มุมสูงมองลงในกล่อง เห็นทั้งกล่องและป้าย · ใส่ลูกศรบอก "ทางหุ่น" ชี้ไปด้านบนของป้าย · ใส่เส้นบอกขนาด 120 mm ที่ด้านดำ และวงหูกล่องด้านยาวทั้งสองข้าง · ถ้าบนโต๊ะมีเทปหรือที่กั้นตำแหน่งกล่อง ให้เห็นในรูปด้วย</div></figure>
+
+<h2>เปิดกล้องและตัวหากล่อง: <code>arm tray</code></h2>
+<p><code>arm tray</code> เปิดกล้องพร้อมตัวหากล่อง (<code>tray_detector</code>) และ Foxglove bridge ในคำสั่งเดียว เป็นคำสั่งเปิดค้าง ต้องเปิดไว้ตลอดทั้งตอนสอนและตอนหยิบ</p>
+<pre class="cmd">arm tray</pre>
+<p>ถ้าวัดป้ายที่พิมพ์ได้ไม่ตรง 120 mm ให้บอกขนาดจริงเป็นเมตร เช่นวัดได้ 118 mm</p>
+<pre class="cmd">arm tray marker_size:=0.118</pre>
+<p>ตัวหากล่องเก็บตำแหน่งป้ายจากหลายเฟรมแล้วเฉลี่ย ส่งตำแหน่งออกไปเฉพาะเมื่อป้าย "นิ่ง" คือเห็นป้ายพอหลายเฟรม ตำแหน่งแกว่งไม่เกินเกณฑ์ และป้ายไม่เอียงหนีกล้องมากเกินไป เปิดดูภาพได้ใน Foxglove ที่ Image panel topic <code>/tray/image/compressed</code> ภาพจะมีกรอบสีเขียวรอบป้าย แกนสามสี และตัวเลขด้านบน</p>
+
+<figure class="ph" data-kind="screenshot"><img src="../calibration/tray_detector_view.jpg" alt=""><figcaption>ภาพจาก arm tray ใน Foxglove: กรอบป้าย แกน และตัวเลขความนิ่ง</figcaption><div class="ph-note">มีรูปแล้ว — ภาพจาก /tray/image/compressed บรรทัดบน: OK, frames, spread, ตำแหน่งเทียบแขน (arm), ระยะ (dist), reproj</div></figure>
+
+<table>
+<thead><tr><th>สถานะ (topic <code>/tray/status</code>)</th><th>ความหมาย</th></tr></thead>
+<tbody>
+<tr><td><code>ok</code></td><td>เห็นป้ายและนิ่ง ส่งตำแหน่งแล้ว</td></tr>
+<tr><td><code>no_marker</code></td><td>ไม่เห็นป้าย</td></tr>
+<tr><td><code>unstable</code></td><td>เห็นแต่ยังไม่นิ่ง (กล่องกำลังขยับ หรือมองเฉียง)</td></tr>
+<tr><td><code>tilted</code></td><td>ป้ายเอียงหนีกล้องมากเกินไป</td></tr>
+<tr><td><code>no_camera_info</code></td><td>ยังไม่ได้ข้อมูลเลนส์จากกล้อง</td></tr>
+</tbody>
+</table>
+<p>กล้องเปิดได้ทีละโปรแกรม ถ้ามีโปรแกรมอื่นเปิดกล้องอยู่ (hand-eye calibration, yolo หรือ <code>arm rps</code>) คำสั่งจะขึ้น <code>✗ กล้องถูกเปิดอยู่โดยโปรแกรมอื่น</code> ให้ปิดหน้าต่างนั้นก่อน หรือใช้กล้องตัวที่เปิดอยู่แล้วด้วย</p>
+<pre class="cmd">arm tray camera:=false</pre>
+
+<h2>หน้าต่างที่ต้องเปิด</h2>
+<p>งานนี้ใช้หลายโปรแกรมทำงานพร้อมกัน แต่ละตัวเปิดค้างในหน้าต่างของตัวเอง ก่อนสอนหรือหยิบ ให้เปิดตามตารางนี้ให้ครบ</p>
+<table>
+<thead><tr><th>หน้าต่าง</th><th>คำสั่ง</th><th>ตอนสอน (<code>tray-teach</code>)</th><th>ตอนหยิบ (<code>tray-pick</code>)</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>arm start left</code> — ระบบแขน (แขนซ้ายจริง แขนขวาจำลอง)</td><td>ต้องมี</td><td>ต้องมี</td></tr>
+<tr><td>2</td><td><code>arm tray</code> — กล้อง + ตัวหากล่อง</td><td>ต้องมี</td><td>ต้องมี</td></tr>
+<tr><td>3</td><td><code>arm moveit</code> — บนเดสก์ท็อป Pi ใช้จ็อกแขน</td><td>ใช้จ็อกแขนไปแตะและจับ</td><td>ไม่ต้อง</td></tr>
+<tr><td>4</td><td><code>arm player</code> — ตัวเล่นโปรแกรม + ตัวคุมมือ</td><td><span class="todo">ต้องเช็ก: ต้องเปิดตอนสอนด้วยหรือไม่ (เพื่อสั่งนิ้วเป็น tray_grip)</span></td><td>ต้องมี (สั่งนิ้ว <code>tray_grip0</code> / <code>tray_grip</code>)</td></tr>
+<tr><td>5</td><td><code>arm tray-teach</code> หรือ <code>arm tray-pick</code></td><td colspan="2">หน้าต่างที่ใช้พิมพ์คำสั่งสอน/หยิบ</td></tr>
+</tbody>
+</table>
+<p><code>arm tray-teach</code> และ <code>arm tray-pick</code> จะไม่ยอมเปิดถ้า <code>arm tray</code> ยังไม่ได้เปิด <code>arm tray-pick</code> ยังเช็กเพิ่มว่าระบบแขนและตัวคุมมือเปิดอยู่ด้วย ทั้งสองคำสั่งใช้แขนซ้ายเป็นค่าเริ่ม (แขนขวายังไม่ได้สอนท่าจับ)</p>
+
+<h2>สอนหยิบ: <code>arm tray-teach</code></h2>
+<p>การสอนมีสองขั้น ขั้นแรกคือ "ท่าแตะ" เพื่อให้ระบบรู้ทิศของกล้องเทียบกับแขน โดยให้ปลายนิ้วแตะจุดเดิมบนกล่องหลายครั้ง ขณะที่กล่องเลื่อนไปหลายตำแหน่ง ระบบจะเทียบว่าเมื่อป้ายในภาพเลื่อนไปทางหนึ่ง ข้อมือต้องเลื่อนไปทางไหน ขั้นที่สองคือ "ท่าจับจริง" ซึ่งเป็นท่าที่นิ้วจับหูกล่องจริงๆ ระบบจะใช้ท่านี้เป็นจุดตั้งต้นแล้วเลื่อนตามกล่องตอนหยิบ ทำครั้งเดียวก็ใช้ได้ไปเรื่อยๆ ตราบที่ป้ายไม่ถูกย้าย <span class="todo">ต้องเช็ก: ถ้ากล้องถูกขยับหรือหมุน ต้องสอน tray-teach ใหม่หรือไม่ (ทิศกล้องเทียบแขนเปลี่ยน) — เอกสารไม่ได้บอกตรงๆ</span></p>
+
+<table>
+<thead><tr><th>พิมพ์</th><th>ทำอะไร</th></tr></thead>
+<tbody>
+<tr><td><kbd>Enter</kbd></td><td>เก็บท่าแตะ</td></tr>
+<tr><td><code>u</code></td><td>ลบท่าแตะล่าสุด</td></tr>
+<tr><td><code>d &lt;n&gt;</code></td><td>ลบท่าแตะครั้งที่ n</td></tr>
+<tr><td><code>g</code></td><td>เก็บท่าจับจริง</td></tr>
+<tr><td><code>gu</code></td><td>ลบท่าจับล่าสุด</td></tr>
+<tr><td><code>l</code></td><td>ดูสิ่งที่เก็บไว้</td></tr>
+<tr><td><code>w</code></td><td>บันทึกผล</td></tr>
+<tr><td><code>q</code></td><td>ออก</td></tr>
+</tbody>
+</table>
+
+<ol class="steps">
+<li>เปิดหน้าต่างตามตารางข้างบน แล้ววางกล่องที่ตำแหน่งปกติ เช็กใน Foxglove ว่าภาพขึ้น OK</li>
+<li>เปิดโปรแกรมสอน
+<pre class="cmd">arm tray-teach</pre></li>
+<li><b>ท่าแตะ:</b> ใน RViz จ็อกแขนให้ "จุดเดิมบนนิ้ว" แตะ "จุดเดิมบนกล่อง" รอให้แขนนิ่ง แล้วกด <kbd>Enter</kbd> ข้อมือต้องมุมเดิมทุกครั้ง ใน RViz ให้ลากเฉพาะลูกศรเลื่อน ไม่ลากวงหมุน</li>
+<li>เลื่อนกล่องไปราว 3–7 cm (ไม่หมุนกล่อง) แล้วแตะซ้ำ ทำทั้งหมด 4–6 ครั้ง โดยเลื่อนอย่างน้อยสองทิศ คือซ้าย/ขวา และหน้า/หลัง ครั้งที่ข้อมือหรือกล่องหมุนไปจากกลุ่มเกิน 3° ระบบจะไม่ใช้เอง ไม่ต้องลบ ถ้ารู้ว่าครั้งไหนแตะผิดจุด ลบด้วย <code>u</code> หรือ <code>d &lt;n&gt;</code></li>
+<li><b>ท่าจับจริง:</b> วางกล่องกลับที่ตำแหน่งปกติ จัดแขนให้นิ้วท่า <code>tray_grip</code> จับหูกล่องจริง แล้วกด <code>g</code> <span class="todo">ต้องเช็ก: ระหว่างสอนสั่งนิ้วเป็น tray_grip ด้วยวิธีใด (เช่นเปิด arm player แล้ว arm hand tray_grip) — เอกสารไม่ได้ระบุ</span></li>
+<li>ถ้าต้องการ สอนท่าจับเพิ่มตอนกล่องอยู่ตำแหน่งอื่น ระบบจะครอบคลุมพื้นที่กว้างขึ้น (ตอนหยิบเลือกท่าที่กล่องอยู่ใกล้ที่สุด) และจะบอกได้ว่าท่าที่สองทายจากท่าแรกคลาดกี่ mm ซึ่งคือความแม่นจริงของวิธีนี้</li>
+<li>กด <code>w</code> บันทึก ผลอยู่ที่ <code>humanoi_description/config/tray_grasp_left.yaml</code> แล้วกด <code>q</code> ออก</li>
+</ol>
+<p>ทุกครั้งที่เก็บหรือลบ โปรแกรมบันทึกข้อมูลดิบไว้ที่ <code>tray_teach_left.captures.npz</code> ด้วย ถ้าโปรแกรมปิดไปกลางคัน เปิดใหม่จะโหลดของเดิมคืน ไม่ต้องเริ่มใหม่ ผลการสอนล่าสุดที่บันทึกไว้คือ ท่าแตะ 5 ครั้ง ทิศกล้องแกว่ง ±3.9° และท่าจับ 2 ท่า ท่าที่สองทายจากท่าแรกคลาด 5.5 mm (กล่องเลื่อน 32 mm หมุน 3°)</p>
+
+<figure class="ph" data-kind="diagram"><img src="img/tray-teach-touches.jpg" alt=""><figcaption>ท่าแตะ: เลื่อนกล่องสองทิศ ข้อมือมุมเดิมทุกครั้ง</figcaption><div class="ph-note">วาด: มุมมองจากด้านบน กล่องตำแหน่งปกติ (เส้นทึบ) และตำแหน่งที่เลื่อนไป 4–5 ตำแหน่ง (เส้นประ) ห่างกัน 3–7 cm ทั้งแนวซ้าย-ขวาและหน้า-หลัง ทุกกล่องหันมุมเดียวกัน · จุดแตะสีแดงที่ตำแหน่งเดียวกันบนกล่องทุกกล่อง · มุมภาพมีปลายนิ้ว/ข้อมือวาดในทิศเดิมทุกครั้ง พร้อมข้อความ "ข้อมือมุมเดิม" และ "ไม่หมุนกล่อง"</div></figure>
+
+<figure class="ph" data-kind="photo"><img src="img/tray-grip-handle.jpg" alt=""><figcaption>ท่าจับจริง: นิ้วท่า tray_grip จับหูกล่อง</figcaption><div class="ph-note">ถ่าย: มุมข้างระดับขอบกล่อง ใกล้พอเห็นนิ้วเกี่ยวหูกล่องด้านยาว · ถ่ายคู่อีกภาพเป็นท่า tray_grip0 (นิ้วเตรียม ก่อนจับ) ในมุมเดียวกัน · วางคู่ซ้าย-ขวาพร้อมชื่อท่า</div></figure>
+
+<h2>หยิบ: <code>arm tray-pick</code></h2>
+<p>ตัวหยิบไม่ขยับทันทีที่เปิด ผู้ใช้กด <kbd>Enter</kbd> ให้ระบบคำนวณแผนและแสดงให้ดูก่อน แล้วจึงพิมพ์ <code>y</code> เพื่อยืนยัน ที่ต้องดูแผนก่อนเพราะแขนไม่มีการเช็กการชน ผู้ใช้เป็นคนสุดท้ายที่ตัดสินว่าปลอดภัย การคำนวณท่า (IK) ทำจากโมเดลแขนที่ระบบใช้อยู่ ไม่ต้องเปิด MoveIt</p>
+
+<table>
+<thead><tr><th>พิมพ์</th><th>ทำอะไร</th></tr></thead>
+<tbody>
+<tr><td><kbd>Enter</kbd></td><td>ดูแผน (ยังไม่ขยับ) แล้วถามยืนยัน — พิมพ์ <code>y</code> แล้ว <kbd>Enter</kbd> = หยิบ อย่างอื่น = ยกเลิก</td></tr>
+<tr><td><code>r</code></td><td>วางคืนที่เดิม (ถามยืนยัน <code>y</code> อีกครั้ง)</td></tr>
+<tr><td><code>h &lt;cm&gt;</code></td><td>ยกจุดจับขึ้นหรือลง เช่น <code>h 0.5</code> (ปรับได้ไม่เกิน ±3 cm เก็บลงไฟล์) · <code>h</code> เฉยๆ = ดูค่าปัจจุบัน</td></tr>
+<tr><td><code>q</code></td><td>ออก</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd></td><td>ระหว่างแขนขยับ = หยุดทันที แขนค้างอยู่ตรงนั้น</td></tr>
+</tbody>
+</table>
+
+<ol class="steps">
+<li>เปิดหน้าต่าง <code>arm start left</code>, <code>arm tray</code> และ <code>arm player</code> ไว้ แล้ววางกล่องใกล้ตำแหน่งที่สอน ให้ตรงไม่หมุน</li>
+<li>ยกแขนให้สูงกว่ากล่อง (ข้อมือต้องเริ่มสูงกว่าจุดรอเหนือที่จับ)</li>
+<li>เปิดตัวหยิบ
+<pre class="cmd">arm tray-pick</pre></li>
+<li>กด <kbd>Enter</kbd> อ่านแผนที่แสดง ถ้าระบบไม่ยอมหยิบ จะบอกเหตุผล (ดูรายการด้านล่าง)</li>
+<li>ถ้าแผนดูปลอดภัย พิมพ์ <code>y</code> แล้ว <kbd>Enter</kbd> แขนจะทำตามลำดับ: นิ้วท่า <code>tray_grip0</code> → ข้อมือไปรอเหนือที่จับ 8 cm → ลงเป็นเส้นตรงตั้งฉากกับพื้นกล่อง → นิ้วท่า <code>tray_grip</code> → ยกขึ้นเป็นเส้นตรงแล้วค้างไว้</li>
+<li>เมื่อหยิบแล้ว ข้อความนำหน้าจะเป็น <code>[ถือกล่องอยู่]</code> สั่ง <code>r</code> เพื่อวางคืน: ลงเส้นตรงที่เดิม → นิ้ว <code>tray_grip0</code> → ขึ้นไปจุดรอ</li>
+</ol>
+
+<figure class="ph" data-kind="diagram"><img src="img/tray-pick-sequence.jpg" alt=""><figcaption>ลำดับการหยิบห้าขั้นของ arm tray-pick</figcaption><div class="ph-note">วาด: มุมมองด้านข้าง 5 ช่องเรียงซ้ายไปขวา (1) นิ้ว tray_grip0 (2) ข้อมือไปรอเหนือที่จับ 8 cm (3) ลงเส้นตรงตั้งฉากพื้นกล่อง (ลูกศรลง) (4) นิ้ว tray_grip จับหู (5) ยกขึ้นเส้นตรงแล้วค้าง (ลูกศรขึ้น ราว 9–10 cm) · ช่องเล็กท้ายภาพแสดงการวางคืน r ย้อนลำดับ</div></figure>
+
+<figure class="ph" data-kind="screenshot"><img src="img/tray-pick-plan.jpg" alt=""><figcaption>หน้าต่าง arm tray-pick หลังกด Enter: แผนและคำถามยืนยัน</figcaption><div class="ph-note">จับภาพหน้าจอ: Terminal บน Pi ระหว่าง arm tray-pick หลังกด Enter ให้เห็นข้อความแผน และบรรทัด "หยิบเลย? พิมพ์ y แล้ว Enter" · ถ้าได้ ให้ถ่ายอีกภาพเป็นข้อความปฏิเสธ (เช่นกล่องเลื่อนเกิน) ไว้ประกอบหัวข้อเหตุที่ไม่หยิบ</div></figure>
+
+<h3>เมื่อไรตัวหยิบจะไม่ยอมหยิบ</h3>
+<p>ตัวหยิบเช็กหลายเงื่อนไขก่อนขยับ ถ้าไม่ผ่านจะขึ้น ✗ พร้อมเหตุผล และแขนไม่ขยับ</p>
+<table>
+<thead><tr><th>เหตุ</th><th>ทำอย่างไร</th></tr></thead>
+<tbody>
+<tr><td>กล่องห่างจากตำแหน่งที่สอนเกิน 8 cm</td><td>วางกล่องใกล้จุดที่สอน</td></tr>
+<tr><td>กล่องหมุนเกิน 4° (วิธีทางลัดชดเชยการหมุนไม่ได้)</td><td>วางกล่องให้ตรง ทำที่กั้นหรือเทปบนโต๊ะช่วย</td></tr>
+<tr><td>ไม่เห็นกล่องนิ่ง หรือกล่องยังไม่นิ่ง</td><td>เช็กว่า <code>arm tray</code> เปิดอยู่ กล้องเห็นป้ายทั้งแผ่น แล้วรอให้นิ่งก่อนกดใหม่</td></tr>
+<tr><td>ข้อมือตอนนี้สูงกว่าที่จับไม่พอ</td><td>ยกแขนให้สูงกว่ากล่องก่อน</td></tr>
+<tr><td>จากที่จับยกขึ้นตรงๆ ได้ไม่ถึง 4 cm</td><td>วางกล่องตำแหน่งอื่นที่ใกล้จุดสอน (ข้อ 5 พับชนลิมิต)</td></tr>
+<tr><td>ตัวเล่นโปรแกรมกำลังเล่นโปรแกรมอยู่</td><td>รอจบหรือ <code>arm stop</code></td></tr>
+<tr><td>ไม่มีตัวคุมมือ หรือมือไม่ตอบรับท่าใน 3 วินาที</td><td>เปิด <code>arm player</code> และเช็กหน้าต่างนั้น</td></tr>
+<tr><td>ยังไม่มีไฟล์ท่าจับ</td><td>สอนก่อนด้วย <code>arm tray-teach</code> (<code>g</code> แล้ว <code>w</code>)</td></tr>
+</tbody>
+</table>
+
+<div class="warn"><b>ระวัง</b> ระหว่างหยิบ แขนไม่ได้เช็กการชน หยุดฉุกเฉินที่เร็วที่สุดคือปิดสวิตช์ไฟแขน แต่เมื่อตัดไฟ ข้อ J1 จะร่วงลง ถ้าถือกล่องอยู่ให้ประคองแขน และ<b>อย่าปิด <code>arm player</code> ขณะถือกล่อง</b> เพราะปิดตัวคุมมือ = ปลดแรงบิดนิ้ว กล่องจะหลุดมือ</div>
+
+<h2>ข้อจำกัดและข้อควรรู้</h2>
+<p>วิธีทางลัดออกแบบมาให้ใช้งานได้เร็ว แลกกับข้อจำกัดบางอย่างที่ผู้ใช้ควรรู้</p>
+<table>
+<thead><tr><th>เรื่อง</th><th>รายละเอียด</th></tr></thead>
+<tbody>
+<tr><td>ชดเชยกล่องหมุนไม่ได้</td><td>วางกล่องให้ตรงทุกครั้ง ทำที่กั้นหรือเทปบนโต๊ะ</td></tr>
+<tr><td>ยกได้ไม่สูง</td><td>ยกขึ้นตรงๆ โดยข้อมือคงมุม ข้อ 5 พับจนชนลิมิต จึงยกได้ราว 9–10 cm</td></tr>
+<tr><td>ความเร็วตั้งไว้ช้า</td><td>แขนรับโหลดหนักตอนยื่นไกล (ข้อ 1 เคยรูด): ข้อต่อ 0.15 rad/s, เส้นตรง 0.06 rad/s, เร่ง 0.08 rad/s²</td></tr>
+<tr><td>ค่ายกจุดจับ</td><td><code>grasp_offset_up</code> ตั้งไว้ 0.5 cm (หยิบจริงครั้งแรกจับต่ำไปนิด) การสอนใหม่ไม่ล้างค่านี้ ปรับด้วย <code>h</code></td></tr>
+<tr><td>ไฟล์ตำแหน่งกล้องเก่า</td><td><code>camera_to_left_arm.yaml</code> บน Pi เป็นผลเก่า (22 ต.ค.) ที่ผิด ตัวหยิบไม่ใช้ แต่ <code>/tray/pose_arm</code> และตำแหน่งกล้องใน RViz ยังใช้ไฟล์นี้ ค่าตำแหน่งกล่องเทียบแขนจาก topic นั้นจึงยังไม่ควรเชื่อ</td></tr>
+<tr><td>แขนขวา</td><td>แฟลชเฟิร์มแวร์และตั้งค่าชดเชยแล้ว แต่ยังไม่ได้สอนท่าจับ</td></tr>
+<tr><td>พาไปวางที่อื่น</td><td>ยังไม่ได้ทำ (พื้นที่จำกัด) ตอนนี้หยิบขึ้นแล้ววางคืนที่เดิมเท่านั้น</td></tr>
+</tbody>
+</table>
+<p>ผลทดสอบ: บน PC กับแขนจำลอง ข้อมือถึงจุดจับที่คำนวณคลาด 0.05 mm และลงเป็นเส้นตรงเบี้ยวไม่ถึง 0.1 mm ส่วนการหยิบจริงครั้งแรกเมื่อ 26 ต.ค. 2026 จับกล่องได้</p>
+
+</section>
+
+<section class="chapter" id="ch-rps">
+<h1>เกมเป่ายิ้งฉุบ</h1>
+
+<p>เกมเป่ายิ้งฉุบเป็นงานโชว์ที่รวมทุกส่วนของหุ่นไว้ด้วยกัน แขนซ้ายที่ติดมือ AmazingHand ทำจังหวะ "เป่า-ยิ้ง-ฉุบ" มือออกท่าที่สุ่มไว้ กล้อง Astra บนเสาอ่านท่ามือของผู้เล่น แล้วหุ่นตัดสินผลและแสดงท่าดีใจหรือเสียใจ ผู้เล่นไม่ต้องกดอะไร แค่ชูนิ้วชี้ค้างไว้เมื่ออยากเล่นตาใหม่ บทนี้อธิบายการเตรียม การเปิดเกม สิ่งที่เกิดขึ้นในหนึ่งตา การปรับจังหวะ และเคล็ดลับเมื่อเล่นต่อหน้าคน</p>
+
+<figure class="ph" data-kind="photo"><img src="img/rps-setup-overview.jpg" alt=""><figcaption>การจัดวางสำหรับเกม: หุ่นในท่าตั้ง rps_ready และตำแหน่งผู้เล่น</figcaption><div class="ph-note">ถ่าย: มุมเฉียงจากด้านข้างหุ่น เห็นแขนซ้ายในท่า rps_ready มือท่า windup อยู่หน้ากล้อง, กล้อง Astra บนเสา, โต๊ะหน้าหุ่น และผู้เล่นยื่นมือเหนือโต๊ะ · ถ้ามีจอ HUD ให้เห็นจอด้วย · ติดป้าย: กล้อง, ท่าตั้ง, จุดยื่นมือของผู้เล่น, สวิตช์ไฟแขน</div></figure>
+
+<h2>หนึ่งตาเล่นเป็นอย่างไร</h2>
+<p>การรู้ลำดับของหนึ่งตาช่วยให้อธิบายผู้เล่นได้ และช่วยให้รู้ว่าเมื่อไรเป็นจังหวะปกติ เมื่อไรผิดปกติ</p>
+<table>
+<thead><tr><th>ช่วง</th><th>หุ่นทำอะไร</th><th>ผู้เล่นทำอะไร</th></tr></thead>
+<tbody>
+<tr><td>เตรียม</td><td>แขนไปท่าตั้ง <code>rps_ready</code> (ถ้าแขนอยู่ห่างท่าตั้งเกิน 5° จะเดินผ่าน <code>move_readyP1</code> → <code>move_readyP2</code> ก่อน) มือกำหลวม นิ้วกาง (ท่า <code>windup</code>) แล้วรอ 1 วินาที</td><td>ยืนหน้าหุ่น ยื่นมือเหนือโต๊ะให้กล้องเห็น</td></tr>
+<tr><td>เป่า-ยิ้ง-ฉุบ</td><td>ข้อ 1 ยกขึ้น-ลง 3 ครั้ง (ราว 8.6 วินาทีที่ค่าเริ่ม) จอ HUD นับ 3-2-1 ตามจังหวะแขนจริง</td><td>เตรียมท่า</td></tr>
+<tr><td>ฉุบ</td><td>มือออกท่าที่สุ่มไว้: ค้อน (กำสุด) / กระดาษ / กรรไกร</td><td>ออกท่า แล้วค้างไว้ราว 2 วินาที</td></tr>
+<tr><td>ตัดสิน</td><td>กล้องนับท่าผู้เล่นช่วง 1.2 วินาทีหลังฉุบ ต้องเห็นมือหลายเฟรม (อย่างน้อย 4)</td><td>ค้างท่า</td></tr>
+<tr><td>โชว์ผล</td><td>แขนไปท่าโชว์ให้ถึงก่อน แล้วมือค่อยทำท่า (ดูหัวข้อท่าโชว์) · เสมอ = เป่าใหม่ (ไม่เกิน 2 ครั้ง)</td><td>ดูผล</td></tr>
+<tr><td>กลับ</td><td>ค้างท่า 3 วินาที แบมือ แล้วแขนกลับท่าตั้งผ่าน <code>move_readyP1</code> → <code>move_readyP2</code> → <code>rps_ready</code></td><td>—</td></tr>
+<tr><td>ตาต่อไป</td><td>รอนิ้วชี้ได้ 60 วินาที</td><td>ชูนิ้วชี้นิ้วเดียวค้างไว้ราว 1 วินาที = เล่นใหม่ (ชูแวบเดียวไม่นับ)</td></tr>
+</tbody>
+</table>
+<p>ที่แขนต้องกลับท่าตั้งแบบเดินผ่านท่ากลาง ไม่เหวี่ยงตรงๆ เพราะข้อ 1 รับน้ำหนักทั้งแขน การเหวี่ยงระยะไกลในทีเดียวหนักเกินไปสำหรับข้อนี้</p>
+
+<figure class="ph" data-kind="diagram"><img src="img/rps-round-flow.jpg" alt=""><figcaption>ลำดับของหนึ่งตาในเกมเป่ายิ้งฉุบ</figcaption><div class="ph-note">วาด: แผนผังวงรอบ: rps_ready (windup) → เป่า-ยิ้ง-ฉุบ (J1 ขึ้นลง 3 ครั้ง) → ฉุบ (มือออกท่า) → กล้องอ่าน 1.2 s → แยก 4 ทาง: ผู้เล่นชนะ (victory_pose + like), ผู้เล่นแพ้ (lose_pose + nonono), เสมอ (วนกลับไปเป่าใหม่ ≤ 2 ครั้ง), ไม่เห็นมือ (nonono) → ค้าง 3 s แบมือ → กลับผ่าน move_readyP1 → move_readyP2 → rps_ready → รอนิ้วชี้ ≤ 60 s → วนรอบใหม่</div></figure>
+
+<h2>เตรียมครั้งแรก</h2>
+<h3>สอนท่าแขน</h3>
+<p>เกมใช้ท่าแขนที่สอนไว้ใน <code>programs.yaml</code> ให้เปิด <code>arm start</code> กับ <code>arm moveit</code> จัดท่าใน RViz แล้วสอนท่าเหล่านี้</p>
+<table>
+<thead><tr><th>ท่า</th><th>จำเป็นไหม</th><th>ใช้ตอน</th></tr></thead>
+<tbody>
+<tr><td><code>rps_ready</code></td><td><b>จำเป็น</b></td><td>ท่าตั้งก่อนเป่า ให้มืออยู่หน้ากล้อง ยื่นไปข้างหน้า</td></tr>
+<tr><td><code>move_readyP1</code>, <code>move_readyP2</code></td><td>ต้องสอนครบ</td><td>ท่าที่เดินผ่านก่อนเข้าท่าตั้ง (<code>return_moves</code>)</td></tr>
+<tr><td><code>victory_pose</code></td><td>ไม่บังคับ</td><td>ท่าแขนตอนผู้เล่นชนะ (มือชูนิ้วโป้ง)</td></tr>
+<tr><td><code>lose_pose</code></td><td>ไม่บังคับ</td><td>ท่าแขนตอนผู้เล่นแพ้ (มือส่ายนิ้ว)</td></tr>
+</tbody>
+</table>
+<pre class="cmd">arm teach left rps_ready</pre>
+<pre class="cmd">arm teach left victory_pose
+# ไม่บังคับ — ไม่มี = แขนค้างที่ท่าตั้ง</pre>
+<pre class="cmd">arm teach left lose_pose
+# ไม่บังคับ</pre>
+<p>ทิศ "ขึ้น" ของข้อ 1 เกมคำนวณเองจากท่าตั้ง เพราะแขนติดข้างเสา แกนข้อ 1 นอนขวาง ทิศขึ้นจึงขึ้นกับท่า ตอนเริ่มเกม log จะบอก เช่น <code>ยกขึ้น = ข้อ 1 +8° (มือขึ้นราว 4.6 ซม.)</code> ถ้ามือขึ้นไม่ถึง 2 ซม. แปลว่ามือเกือบอยู่บนแนวแกนข้อ 1 ให้สอนท่าตั้งใหม่ให้มือยื่นไปข้างหน้ามากขึ้น</p>
+<div class="tip"><b>เคล็ดลับ</b> ครั้งแรกให้ลองด้วยท่าตั้งที่แขนไม่ยื่นไกล สายพานของข้อ J1 แบกน้ำหนักแขนทั้งแขน และเคยรูดตอนแขนยื่นไกลแล้วกระชาก</div>
+
+<h3>เตรียมมือ</h3>
+<p>มือต้องผ่านกฎไฟก่อนทุกครั้ง (ไฟ servo ห้ามเกิน 7.4 V เช็กด้วย <code>arm hand-scan</code>) ตัวคุมมือในเกมเช็กเองก่อนเปิดแรงบิดเหมือนกัน คือต้องครบ ID 1–8 และไฟ 4.8–7.4 V ไม่ผ่าน = ไม่ขยับและบอกเหตุผลใน log ถ้าท่ามือในเกมดูแปลก ให้คาลิเบรตนิ้ว (<code>arm hand-calibrate</code>) หรือสอนท่าชื่อเดิมใหม่ (<code>arm hand-teach</code>) ตามบทมือ AmazingHand ท่าที่สอนด้วยชื่อ <code>rock</code> <code>paper</code> <code>scissors</code> <code>windup</code> <code>like</code> <code>nonono</code> จะถูกใช้ในเกมแทนท่าในตัว</p>
+<p>เกมใช้ไลบรารี <code>rustypot</code> (คุมมือ) และ <code>mediapipe</code> (อ่านมือผู้เล่น) ซึ่งอยู่ใน <code>docker/Dockerfile</code> แล้ว และ container บน Pi ติดตั้งไว้ครบตั้งแต่ 20 ต.ค. ถ้า container ถูกสร้างใหม่จาก image เก่าแล้วไลบรารีหาย ให้สร้าง image ใหม่ด้วย <code>rebuild_image.sh</code> (บท Raspberry Pi และ Docker)</p>
+
+<h2>เปิดเกมและเล่น</h2>
+<p>เกมใช้สามหน้าต่าง และห้ามเปิด <code>arm player</code> พร้อมกับเกม เพราะทั้งสองสั่งแขนตัวเดียวกันและใช้พอร์ตมือเดียวกัน</p>
+<ol class="steps">
+<li>หน้าต่าง 1 — เปิดระบบแขนค้างไว้ (ถ้าใช้แขนซ้ายอย่างเดียว <code>arm start left</code> ก็พอ)
+<pre class="cmd">arm start</pre></li>
+<li>หน้าต่าง 2 — เปิดเกมค้างไว้ คำสั่งนี้เปิดเกม ตัวคุมมือ ตัวอ่านมือผู้เล่น จอ HUD และกล้อง (ถ้ากล้องยังไม่ได้เปิดจากที่อื่น)
+<pre class="cmd">arm rps</pre></li>
+<li>หน้าต่าง 3 — เล่นตาแรก คำสั่งรอจนจบแล้วพิมพ์ผลเป็นภาษาไทย เช่น <code>หุ่น: ค้อน · ผู้เล่น: กรรไกร → ...</code>
+<pre class="cmd">arm rps play</pre></li>
+<li>ตาต่อไปไม่ต้องพิมพ์อะไร ผู้เล่นชูนิ้วชี้ค้างไว้ เกมจะเล่นตาใหม่เอง ผลของตาต่อๆ ไปดูได้ที่จอ HUD และหน้าต่าง <code>arm rps</code> ถ้าเลย 60 วินาทีไม่มีใครชูนิ้วชี้ ต้องสั่ง <code>arm rps play</code> ใหม่</li>
+</ol>
+<p>หยุดเกมกลางคันด้วยคำสั่งด้านล่าง แขนจะหยุดที่ตำแหน่งปัจจุบัน ปิดเกมทั้งหมดให้กด <kbd>Ctrl</kbd>+<kbd>C</kbd> ที่หน้าต่าง <code>arm rps</code> (ตัวคุมมือปลดแรงบิดตอนปิด นิ้วอ่อนลงเป็นกำ) หรือสั่ง <code>arm off</code></p>
+<pre class="cmd">arm rps stop</pre>
+<div class="warn"><b>ระวัง</b> <code>arm rps stop</code> เป็นการหยุดทางซอฟต์แวร์ หยุดฉุกเฉินจริงคือ<b>ปิดสวิตช์ไฟแขน</b> แขนในเกมถูกสั่งตรงเข้า <code>left_arm_controller</code> เหมือน <code>arm run</code> ไม่ผ่าน MoveIt และ<b>ไม่มีการเช็กการชน</b></div>
+
+<figure class="ph" data-kind="screenshot"><img src="img/rps-terminal-windows.jpg" alt=""><figcaption>สามหน้าต่างของเกม: arm start, arm rps และ arm rps play</figcaption><div class="ph-note">จับภาพหน้าจอ: จัด Terminal 3 หน้าต่างเรียงกันบนจอเดียว (ใส่หัวหน้าต่าง 1/2/3) · หน้าต่าง 3 ให้เห็นบรรทัด "เป่า-ยิ้ง-ฉุบ! ..." และบรรทัดผล "หุ่น: … · ผู้เล่น: … → …" · หน้าต่าง 2 ให้เห็น log บรรทัด "ยกขึ้น = ข้อ 1 …"</div></figure>
+
+<h2>ฝั่งผู้เล่น</h2>
+<p>ตัวอ่านมือนับจำนวนนิ้วที่เหยียด จึงต้องเห็นมือชัด ผู้เล่นควรยื่นมือให้กล้องบนเสาเห็น เหนือโต๊ะหน้าหุ่น แล้วออกท่าตอน "ฉุบ" และค้างไว้ราว 2 วินาที</p>
+<table>
+<thead><tr><th>ท่าผู้เล่น</th><th>ทำอย่างไร</th></tr></thead>
+<tbody>
+<tr><td>ค้อน</td><td>กำมือ</td></tr>
+<tr><td>กระดาษ</td><td>แบมือ</td></tr>
+<tr><td>กรรไกร</td><td>ชี้และกลางเหยียด นางและก้อยพับ (นิ้วโป้งไม่นับ)</td></tr>
+<tr><td>เล่นใหม่</td><td>ชูนิ้วชี้นิ้วเดียวค้างไว้ราว 1 วินาที (ภาพใน Foxglove ขึ้น <code>ONE (play again)</code>)</td></tr>
+</tbody>
+</table>
+<p>มือที่หันข้างหรือบังกันเองอาจอ่านผิด เกมโหวตจากหลายเฟรม ถ้าไม่ชัดจะนับเป็น "ไม่เห็นมือ" และหุ่นจะส่ายนิ้ว</p>
+
+<figure class="ph" data-kind="photo"><img src="img/rps-player-gestures.jpg" alt=""><figcaption>ท่ามือผู้เล่นที่กล้องอ่านได้ดี</figcaption><div class="ph-note">ถ่าย: จากมุมของกล้องบนเสา (หรือจับจากภาพ /rps/vision/image/compressed) 4 ภาพเรียงกัน: ค้อน, กระดาษ, กรรไกร (ชี้+กลาง), ชูนิ้วชี้ (เล่นใหม่) · ฝ่ามือหันเข้ากล้อง มือเหนือโต๊ะ · เพิ่มภาพที่ห้าเป็นตัวอย่างผิด: มือหันข้าง (ใส่กากบาท)</div></figure>
+
+<h2>จอ HUD และภาพกล้องใน Foxglove</h2>
+<p><code>arm rps</code> เปิดโหนด <code>rps_hud</code> ซึ่งวาดจอสถานะสำหรับผู้เล่นและผู้ชม เปิดดูใน Foxglove บน PC (ดูการต่อในบท Raspberry Pi และ Docker) โดยเพิ่ม Image panel</p>
+<table>
+<thead><tr><th>topic</th><th>ใช้ทำอะไร</th></tr></thead>
+<tbody>
+<tr><td><code>/rps/hud/image/compressed</code></td><td>จอสำหรับผู้เล่น/คนดู: ROUND BEGIN → นับ 3-2-1 ตามจังหวะแขนจริง (มีแถบเวลา) → SHOOT! พร้อมท่าหุ่น → YOU WIN! / YOU LOSE / DRAW! / NO HAND SEEN → PLAY AGAIN? นับถอยหลังวินาทีที่เหลือ (บอกด้วยถ้าเห็นนิ้วชี้แล้ว) → TIME OUT · คะแนนสะสมมุมขวาบนนับตั้งแต่เปิดเกม</td></tr>
+<tr><td><code>/rps/vision/image/compressed</code></td><td>ภาพที่กล้องเห็น ใช้ดูว่าเกมอ่านมือผู้เล่นถูกไหม</td></tr>
+</tbody>
+</table>
+<p>ตัวหนังสือบนจอ HUD เป็นภาษาอังกฤษ เพราะ container ไม่มีฟอนต์ไทย และจอถูกวาดเฉพาะตอนมีคนเปิดดู แนะนำให้เปิดสอง panel คือ HUD เต็มจอฝั่งผู้เล่น และภาพกล้องไว้ฝั่งผู้ควบคุม</p>
+
+<figure class="ph" data-kind="screenshot"><img src="img/rps-foxglove-hud.jpg" alt=""><figcaption>Foxglove สอง panel: จอ HUD และภาพที่กล้องอ่านมือ</figcaption><div class="ph-note">จับภาพหน้าจอ: Foxglove บน PC แบ่งจอสองส่วน ซ้าย Image panel /rps/hud/image/compressed ขณะขึ้น YOU WIN! หรือนับ 3-2-1, ขวา Image panel /rps/vision/image/compressed เห็นมือผู้เล่น · ให้เห็นชื่อ topic ที่หัว panel และคะแนนสะสมมุมขวาบนของ HUD</div></figure>
+
+<h2>ท่าโชว์</h2>
+<p>หลังตัดสิน แขนจะไปท่าโชว์ให้ถึงก่อน แล้วมือค่อยทำท่า ค้างไว้ 3 วินาที ท่าแขนที่ยังไม่ได้สอนจะถูกข้าม แขนค้างอยู่ที่ท่าตั้งแต่มือยังทำท่าเหมือนเดิม</p>
+<table>
+<thead><tr><th>ผล</th><th>แขนไป</th><th>มือ</th></tr></thead>
+<tbody>
+<tr><td>ผู้เล่นชนะ</td><td><code>victory_pose</code></td><td><code>like</code> ชูนิ้วโป้ง</td></tr>
+<tr><td>ผู้เล่นแพ้ (หุ่นชนะ)</td><td><code>lose_pose</code></td><td><code>nonono</code> ส่ายนิ้ว</td></tr>
+<tr><td>เสมอ</td><td>—</td><td>เป่าใหม่ ไม่เกิน 2 ครั้ง</td></tr>
+<tr><td>ไม่เห็นมือผู้เล่น</td><td>—</td><td><code>nonono</code> ส่ายนิ้ว</td></tr>
+</tbody>
+</table>
+<p><span class="todo">ต้องเช็ก: RPS_GAME.md และ rps_game.py บอกว่าหุ่นชนะ = ส่ายนิ้ว (nonono) แต่ arm help และข้อความผลของ arm rps play บอกว่า "หุ่นชนะ (หุ่นชู 2 นิ้ว)" และ AMAZINGHAND.md บอกว่าท่า victory ใช้ตอนหุ่นชนะ — ดูของจริงว่าหุ่นทำท่าไหน แล้วแก้ข้อความให้ตรงกัน</span></p>
+<p>เส้นทางจากท่าตั้งไปท่าโชว์ (ข้อ 1 หมุนราว 106°) ไปตรงๆ ด้วยโปรไฟล์นุ่ม (0.19 rad/s, 0.08 rad/s²) เหมือน <code>arm run</code> ส่วนขากลับเดินผ่านท่ากลางเสมอ</p>
+
+<figure class="ph" data-kind="photo"><img src="img/rps-show-poses.jpg" alt=""><figcaption>ท่าโชว์: victory_pose กับมือชูนิ้วโป้ง และ lose_pose กับมือส่ายนิ้ว</figcaption><div class="ph-note">ถ่าย: สองภาพคู่ มุมเดียวกัน (หน้าหุ่นเฉียงเล็กน้อย เห็นทั้งแขนซ้าย) ภาพซ้ายแขนใน victory_pose มือท่า like · ภาพขวาแขนใน lose_pose มือท่า nonono (จังหวะนิ้วชี้เอียง) · ใส่ชื่อท่าใต้ภาพ</div></figure>
+
+<h2>ปรับจังหวะ: <code>pump_deg</code> และค่าอื่นตอนเปิดเกม</h2>
+<p>ค่าบางตัวส่งได้ตอนเปิดเกม ในรูป <code>ชื่อ:=ค่า</code> ต่อท้าย <code>arm rps</code> ค่าที่ใช้บ่อยที่สุดคือ <code>pump_deg</code> ซึ่งบอกว่าข้อ 1 ยกกี่องศาในแต่ละจังหวะเป่า ยิ่งน้อย หนึ่งตายิ่งสั้น (มือยกราว 0.6 ซม. ต่อองศา)</p>
+<pre class="cmd">arm rps camera pump_deg:=4</pre>
+<table>
+<thead><tr><th>ค่า</th><th>ค่าเริ่ม</th><th>ความหมาย</th></tr></thead>
+<tbody>
+<tr><td><code>pump_deg</code></td><td>5</td><td>ข้อ 1 ยกกี่องศา: 8° = 11.6 วินาที, 5° = 8.6, 4° = 7.7, 3° = 6.7</td></tr>
+<tr><td><code>pump_count</code></td><td>3</td><td>ขยับขึ้นลงกี่ครั้ง</td></tr>
+<tr><td><code>robot_choice</code></td><td><code>random</code></td><td>บังคับท่าหุ่น <code>rock</code> / <code>paper</code> / <code>scissors</code> ไว้ทดสอบหรือโชว์</td></tr>
+<tr><td><code>replay_timeout</code></td><td>60</td><td>จบเกมแล้วรอนิ้วชี้กี่วินาที · <code>0</code> = รอตลอด</td></tr>
+</tbody>
+</table>
+<p>ความเร็วของการเป่าถูกจำกัดที่เฟิร์มแวร์ของแขน (เร่งได้ 10°/s² ทุกข้อ) ตั้งความเร็วในเกมสูงกว่านี้ก็ไม่ได้เร็วขึ้น แขนแค่ตามหลัง การทำให้เร็วกว่านี้ต้องแก้เฟิร์มแวร์แล้วแฟลชใหม่ และต้องระวังสายพาน J1</p>
+
+<h2>ทดสอบโดยไม่มีกล้องหรือมือ</h2>
+<p>ก่อนให้คนเล่นจริง หรือเมื่อกล้องหรือมือมีปัญหา เปิดเกมแบบทดสอบได้ ทุกแบบยังต้องเปิด <code>arm start</code> ไว้ก่อนเหมือนเดิม และแขนจะขยับจริง</p>
+<table>
+<thead><tr><th>คำสั่ง</th><th>ผล</th></tr></thead>
+<tbody>
+<tr><td><code>arm rps random</code></td><td>สุ่มท่าแทนผู้เล่น (ไม่ใช้กล้อง)</td></tr>
+<tr><td><code>arm rps random nohand</code></td><td>สุ่มแทนผู้เล่น และไม่ต่อมือจริง (log ท่าแทน)</td></tr>
+<tr><td><code>arm rps topic</code></td><td>ไม่เปิดตัวอ่านมือ รอท่าผู้เล่นจาก topic <code>/rps/player_gesture</code></td></tr>
+</tbody>
+</table>
+<p>เมื่อใช้ <code>arm rps topic</code> ส่งท่าผู้เล่นเองจากอีกหน้าต่างใน container</p>
+<pre class="cmd">ros2 topic pub -r 10 /rps/player_gesture std_msgs/msg/String "{data: paper}"
+# ใน container — เปลี่ยน paper เป็น rock / scissors ได้</pre>
+<p>บน PC (WSL) ก็เล่นได้ด้วย <code>arm start sim</code> แล้ว <code>arm rps random</code> หรือ <code>arm rps topic</code> มือจะเป็นแบบจำลองเสมอ เพราะ WSL มองไม่เห็นกล้องและมือที่ต่อฝั่ง Windows</p>
+<p>นอกจาก <code>arm rps play</code> อะไรก็ตามที่ส่งข้อความ <code>std_msgs/msg/Empty</code> ไปที่ <code>/rps/play</code> ได้ ก็เริ่มตาใหม่ได้ เช่น Foxglove Publish panel (topic <code>/rps/play</code> ข้อความ <code>{}</code>) ผลของแต่ละตาออกที่ <code>/rps/result</code> ในรูป <code>"&lt;ท่าหุ่น&gt;:&lt;ท่าผู้เล่น|none&gt;:&lt;ผล&gt;"</code></p>
+
+<h2>เคล็ดลับเมื่อเล่นต่อหน้าคน</h2>
+<p>เกมนี้มักถูกใช้โชว์ต่อหน้าคนที่ไม่เคยเห็นหุ่นมาก่อน ความประทับใจขึ้นกับว่าเกมลื่นไหลแค่ไหน และความปลอดภัยขึ้นกับว่าผู้ควบคุมเตรียมพื้นที่ดีแค่ไหน ให้ทำเช็กลิสต์นี้ก่อนเปิดให้คนเล่น</p>
+<ol class="steps">
+<li><code>arm status</code> — ต้องไม่มี <code>arm player</code> เปิดค้าง</li>
+<li><code>arm hand-scan</code> — ไฟของมือในช่วงปลอดภัย ไม่มี ⚠</li>
+<li>เปิด <code>arm start</code> แล้วลอง <code>arm rps random nohand</code> + <code>arm rps play</code> หนึ่งตา ดูว่าแขนเป่า โชว์ และกลับท่าตั้งเรียบร้อย ไม่ชนอะไร แล้วปิดด้วย <kbd>Ctrl</kbd>+<kbd>C</kbd></li>
+<li>เปิด <code>arm rps</code> ของจริง เล่นเองหนึ่งตา ดูใน <code>/rps/vision/image/compressed</code> ว่าอ่านมือถูก</li>
+<li>เปิดจอ HUD เต็มจอหันเข้าหาผู้เล่น และเก็บภาพกล้องไว้ที่จอของผู้ควบคุม</li>
+<li>กันพื้นที่รอบแขนไม่ให้คนเข้าใกล้เกินระยะเอื้อม และให้ผู้ควบคุมอยู่ใกล้สวิตช์ไฟแขนตลอด</li>
+</ol>
+<p>ระหว่างโชว์ บอกผู้เล่นสั้นๆ ก่อนเริ่ม: ยื่นมือเหนือโต๊ะให้ฝ่ามือหันเข้ากล้อง ออกท่าตอน "ฉุบ" แล้วค้างไว้ 2 วินาที กรรไกรใช้นิ้วชี้กับกลาง และถ้าอยากเล่นอีกให้ชูนิ้วชี้ค้างไว้ ถ้ามีคนต่อแถวยาว เปิดเกมด้วย <code>replay_timeout:=0</code> เพื่อให้รอนิ้วชี้ไปเรื่อยๆ ไม่ต้องสั่ง <code>arm rps play</code> ใหม่ และถ้าอยากให้แต่ละตาสั้นลง ใช้ <code>pump_deg:=4</code> (ราว 7.7 วินาที)</p>
+<pre class="cmd">arm rps camera replay_timeout:=0 pump_deg:=4</pre>
+<div class="tip"><b>เคล็ดลับ</b> ถ้าต้องการโชว์ท่าใดท่าหนึ่งของหุ่นแน่นอน (เช่นถ่ายวิดีโอ) เปิดเกมด้วย <code>robot_choice:=rock</code> (หรือ <code>paper</code> / <code>scissors</code>) หุ่นจะออกท่านั้นทุกตา</div>
+<div class="note"><b>หมายเหตุ</b> ถ้าเกมขึ้น "ไม่เห็นมือผู้เล่น" บ่อย มักเป็นเพราะมืออยู่นอกภาพ หันข้าง หรือออกท่าช้ากว่าจังหวะ ให้ผู้ควบคุมดูภาพ <code>/rps/vision/image/compressed</code> แล้วบอกผู้เล่นให้ขยับมือเข้ามาในภาพ</div>
+
+</section>
+
+<!-- TROUBLE -->
+<tr><td>คำสั่ง <code>arm</code> ทุกตัวขึ้น <code>✗ container humanoi_ros ไม่ได้เปิดอยู่</code></td><td>container ถูกปิดหรือยังไม่ขึ้นหลังบูต</td><td>บน Pi สั่ง <code>cd ~/Humanoi &amp;&amp; docker compose up -d</code></td></tr>
+<tr><td>การ์ดของ Pi เต็มเร็วผิดปกติ</td><td>เปิด guvcview กับกล้อง Orbbec แล้วกล้องหลุด จนไฟล์ <code>~/.xsession-errors</code> โต (เคยถึง 6 GB)</td><td>ปิด guvcview แล้ว <code>truncate -s 0 ~/.xsession-errors</code> · ดูที่ว่างด้วย <code>rebuild_image.sh check</code></td></tr>
+<tr><td>ท่าที่สอนไว้บน Pi หายหลังส่งโค้ดจาก PC</td><td><code>sync_to_pi.sh</code> เขียนทับ <code>programs.yaml</code> ด้วยของ PC</td><td>คืนจาก <code>programs.yaml.bak</code> ทันที (ก่อน sync รอบถัดไป) · ครั้งต่อไปดึงไฟล์กลับ PC ก่อน sync</td></tr>
+<tr><td>ไลบรารี (<code>rustypot</code>, <code>mediapipe</code>, <code>teensy_loader_cli</code>) หายหลัง container ถูกสร้างใหม่</td><td>เคยติดตั้งเข้า container ตอนรัน ไม่ได้อยู่ใน image</td><td><code>rebuild_image.sh check</code> → <code>build</code> → <code>arm off</code> → <code>switch</code></td></tr>
+<tr><td><code>arm hand-scan</code> ขึ้น <code>✗ ไม่มีเซอร์โวตอบ</code></td><td>ไฟมือปิด สาย servo ไม่ได้ต่อ (ช่อง D V G) หรือ jumper ไม่อยู่ที่ B</td><td>เปิดไฟ 6 V ต่อสาย servo ตั้ง jumper ที่ B แล้วสแกนใหม่</td></tr>
+<tr><td>ค่าไฟใน <code>arm hand-scan</code> มี ⚠ หรือมือไม่ขยับและ log ขึ้น error</td><td>ไฟ servo นอกช่วง 4.8–7.4 V หรือ servo ตอบไม่ครบ 8 ตัว</td><td>ห้ามสั่งขยับ · เช็กแหล่งจ่าย 6 V ≥3 A วัดที่ V–G ของบอร์ด (ห้ามเกิน 7.4 V)</td></tr>
+<tr><td><code>✗ มีโปรแกรมใช้พอร์ตมืออยู่</code></td><td>พอร์ตมือเปิดได้ทีละโปรแกรม</td><td>ปิด <code>arm player</code> / <code>arm rps</code> / <code>arm hand-teach</code> / <code>arm hand-calibrate</code> ที่เปิดค้างก่อน</td></tr>
+<tr><td><code>arm hand</code> ขึ้น <code>✗ ไม่มีตัวคุมมือบนแขน...</code></td><td>ยังไม่ได้เปิดตัวคุมมือ</td><td>เปิด <code>arm player</code> ในอีกหน้าต่างแล้วสั่งใหม่</td></tr>
+<tr><td>นิ้วหนึ่งอ่อนไปทุกท่าหลังสอนท่ามือ</td><td>ดันนิ้วเลยที่ไปได้ servo โหลดเกิน 80% นานจนตัดแรงบิดตัวเอง</td><td>เมื่อเห็น <code>! นิ้วไปต่อไม่ได้</code> อย่ากดต่อ · แก้ท่าที่ดันเกินด้วย <code>load</code> → ปรับ → <code>save</code> ชื่อเดิม</td></tr>
+<tr><td><code>arm tray</code> ขึ้น <code>✗ กล้องถูกเปิดอยู่โดยโปรแกรมอื่น</code></td><td>กล้องเปิดได้ทีละโปรแกรม (hand-eye, yolo หรือ <code>arm rps</code> ใช้อยู่)</td><td>ปิดหน้าต่างนั้นก่อน หรือ <code>arm tray camera:=false</code></td></tr>
+<tr><td><code>arm tray-pick</code> ไม่ยอมหยิบ บอกว่ากล่องเลื่อนหรือหมุนเกิน</td><td>กล่องห่างท่าที่สอนเกิน 8 cm หรือหมุนเกิน 4° (วิธีทางลัดชดเชยการหมุนไม่ได้)</td><td>วางกล่องใกล้จุดที่สอนและให้ตรง ใช้ที่กั้นหรือเทปบนโต๊ะ</td></tr>
+<tr><td>เกมเป่ายิ้งฉุบขึ้นผล "ไม่เห็นมือผู้เล่น"</td><td>มืออยู่นอกภาพกล้อง หันข้าง หรือออกท่าไม่ทันช่วง 1.2 วินาทีหลังฉุบ</td><td>ยื่นมือเหนือโต๊ะให้ฝ่ามือหันเข้ากล้อง ออกท่าตอนฉุบแล้วค้าง 2 วินาที · ดูภาพ <code>/rps/vision/image/compressed</code></td></tr>

@@ -1,0 +1,169 @@
+<section class="chapter" id="ch-overview"><h1>ภาพรวมระบบ</h1>
+
+<p>Humanoi คือหุ่นยนต์ครึ่งตัวบนฐานล้อ ประกอบด้วยฐานล้อ mecanum ที่วิ่งได้ทุกทิศ (เดินหน้า ถอย สไลด์ข้าง หมุนตัว)
+แขนกล AR4 สองแขน และมือ AmazingHand สองมือ ทุกส่วนคุมจาก Raspberry Pi 5 ตัวเดียวที่รัน ROS 2 Jazzy อยู่ใน Docker
+คนคุมสั่งงานผ่านคำสั่งสั้นๆ ชื่อ <code>arm</code> ในหน้าต่าง terminal ของ Pi และถือรีโมท FlySky ไว้ขับฐานกับหยุดฉุกเฉิน</p>
+
+<p>เป้าหมายของงานจัดแสดงคือ <b>หุ่นหยิบกล่องที่จุด A แล้วนำไปวางที่จุด B</b> — กล้องหาตำแหน่งกล่อง แขนหยิบ พับแขน
+ฐานวิ่งไป B โดยมี lidar คอยกันชน แล้ววางกล่อง ทุกช่วงที่ฐานจะวิ่งต้องมีคนยืนยันจากรีโมทก่อน</p>
+
+<figure class="ph" data-kind="photo"><img src="img/overview-robot-front.jpg" alt=""><figcaption>หุ่น Humanoi ทั้งตัว</figcaption><div class="ph-note">ถ่าย: หุ่นทั้งตัวจากด้านหน้าเฉียง 45° เห็นฐาน แขนสองข้าง มือ และ lidar · ติดป้ายชี้ส่วนประกอบหลัก</div></figure>
+
+<h2>ส่วนประกอบ</h2>
+<table><thead><tr><th>ส่วน</th><th>อุปกรณ์</th><th>ต่อกับ</th><th>เปิดด้วย</th></tr></thead><tbody>
+<tr><td>สมอง</td><td>Raspberry Pi 5 + Hailo-10H AI HAT</td><td>—</td><td>container <code>humanoi_ros</code> (ขึ้นเองตอนเปิดเครื่อง)</td></tr>
+<tr><td>แขน</td><td>AR4 สองแขน บอร์ด Teensy 4.1 แขนละตัว</td><td>USB → Pi</td><td><code>arm start</code></td></tr>
+<tr><td>มือ</td><td>AmazingHand สองมือ (เซอร์โว 8 ตัวต่อมือ)</td><td>บอร์ดคุมเซอร์โว USB → Pi</td><td><code>arm player</code></td></tr>
+<tr><td>ฐานล้อ</td><td>mecanum 4 ล้อ มอเตอร์ 24V · relay 8 ตัว · ลูกบิดความเร็ว HW-687 ล้อละตัว</td><td>Arduino Mega USB → Pi</td><td><code>arm base</code></td></tr>
+<tr><td>encoder</td><td>YT3806 360 P/R ล้อละตัว ผ่านบอร์ด opto PC817</td><td>→ Mega</td><td>(มากับ <code>arm base</code>)</td></tr>
+<tr><td>รีโมท</td><td>FlySky FS-ST8 + ตัวรับ FS-SR8</td><td>→ Mega</td><td>เปิดรีโมทไว้ตลอด</td></tr>
+<tr><td>lidar</td><td>LDROBOT STL-19P (USB ชิป CP2102)</td><td>USB → Pi</td><td><code>arm lidar</code></td></tr>
+<tr><td>กล้อง</td><td>กล้องบนหุ่น (หาตำแหน่งกล่อง / ดูมือผู้เล่นเกม)</td><td>USB → Pi</td><td><code>arm tray</code> · <code>arm rps</code></td></tr>
+</tbody></table>
+
+<figure class="ph" data-kind="diagram">
+<svg viewBox="0 0 680 410" class="dg" role="img" aria-label="แผนผังการต่ออุปกรณ์">
+<defs><marker id="ar1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#4b5563" stroke-width="1.5"/></marker></defs>
+<rect x="250" y="16" width="180" height="40" rx="6" class="b-gray"/><text x="340" y="41" class="tc">PC (ssh · Foxglove · ซิม)</text>
+<line x1="340" y1="56" x2="340" y2="118" class="ln" stroke-dasharray="5 4"/><text x="348" y="92" class="ts">Wi-Fi / LAN</text>
+<rect x="235" y="120" width="210" height="96" rx="8" class="b-blue"/>
+<text x="340" y="148" class="th tc">Raspberry Pi 5</text><text x="340" y="170" class="tc ts">Docker: humanoi_ros</text><text x="340" y="188" class="tc ts">ROS 2 Jazzy · Hailo-10H</text>
+<rect x="20" y="80" width="175" height="40" rx="6" class="b-teal"/><text x="107" y="105" class="tc">แขน AR4 ซ้าย (Teensy)</text>
+<rect x="20" y="132" width="175" height="40" rx="6" class="b-teal"/><text x="107" y="157" class="tc">แขน AR4 ขวา (Teensy)</text>
+<rect x="20" y="184" width="175" height="40" rx="6" class="b-teal"/><text x="107" y="209" class="tc">มือ AmazingHand ×2</text>
+<rect x="20" y="236" width="175" height="40" rx="6" class="b-teal"/><text x="107" y="261" class="tc">กล้อง</text>
+<path d="M195 100 H215 V150 H235" class="ln"/><path d="M195 152 H235" class="ln"/><path d="M195 204 H215 V190 H235" class="ln"/><path d="M195 256 H222 V205 H235" class="ln"/>
+<rect x="485" y="80" width="175" height="40" rx="6" class="b-teal"/><text x="572" y="105" class="tc">lidar STL-19P</text>
+<path d="M485 100 H465 V150 H445" class="ln"/>
+<rect x="485" y="160" width="175" height="50" rx="6" class="b-amber"/><text x="572" y="182" class="th tc">Arduino Mega</text><text x="572" y="200" class="tc ts">relay · encoder · รีโมท</text>
+<path d="M485 185 H445" class="ln"/>
+<rect x="485" y="250" width="175" height="40" rx="6" class="b-gray"/><text x="572" y="275" class="tc">relay → HW-687 → มอเตอร์ ×4</text>
+<line x1="572" y1="210" x2="572" y2="248" class="ln" marker-end="url(#ar1)"/>
+<rect x="485" y="305" width="175" height="40" rx="6" class="b-gray"/><text x="572" y="330" class="tc">encoder ×4 → opto PC817</text>
+<path d="M485 325 H470 V200 H483" class="ln" marker-end="url(#ar1)"/>
+<rect x="485" y="360" width="175" height="40" rx="6" class="b-gray"/><text x="572" y="385" class="tc">รีโมท FS-ST8 → ตัวรับ</text>
+<path d="M660 380 H672 V190 H662" class="ln" marker-end="url(#ar1)"/>
+<text x="340" y="250" class="tc ts">ทุกเส้นที่เข้า Pi = USB</text>
+</svg>
+<figcaption>อุปกรณ์ทั้งหมดต่อเข้า Pi ทาง USB · Mega คุมฐานและอ่านรีโมทเอง</figcaption></figure>
+
+<h2>โปรแกรมทำงานอยู่ที่ไหน</h2>
+<p>งานจริงทั้งหมดรันบน Pi ใน container ชื่อ <code>humanoi_ros</code> ส่วน PC ใช้เขียนโค้ด รันซิม (Gazebo) และดูภาพ/แผนที่ผ่าน
+Foxglove คำสั่ง <code>arm</code> รันบน Pi <b>นอก container</b> แล้วสั่งงานเข้าไปใน container ให้เอง จึงไม่ต้องจำคำสั่ง ROS ยาวๆ</p>
+<p>Arduino Mega เป็นสมองชั้นล่างของฐานล้อ อ่านรีโมทและคุม relay เอง แม้ Pi ค้าง Mega ก็ยังหยุดล้อได้
+ส่วน Pi ส่งคำสั่งให้ Mega ทาง USB เมื่อ ROS เป็นคนขับ (เช่น <code>arm drive</code> หรือภารกิจ)</p>
+
+<h2>อ่านคู่มือนี้ยังไง</h2>
+<table><thead><tr><th>เห็นแบบนี้</th><th>หมายความว่า</th></tr></thead><tbody>
+<tr><td><pre class="cmd">arm status</pre></td><td>พิมพ์คำสั่งนี้ใน terminal ของ Pi (ssh เข้าไป หรือหน้าจอ Pi)</td></tr>
+<tr><td>(เปิดค้าง)</td><td>คำสั่งที่ทำงานค้างไว้จนกด <kbd>Ctrl</kbd>+<kbd>C</kbd> — ใช้หน้าต่าง terminal ของมันเอง หนึ่งหน้าต่างต่อหนึ่งคำสั่ง</td></tr>
+<tr><td><code>left</code> / <code>right</code></td><td>ซ้าย/ขวา <b>เมื่อมองจากตัวหุ่น</b> (left = แขน 1, right = แขน 2)</td></tr>
+<tr><td>ช่องรูปเส้นประ</td><td>รูปที่ยังไม่ได้ใส่ — รายการรูปทั้งหมดอยู่ในภาคผนวกท้ายเล่ม</td></tr>
+</tbody></table>
+<div class="tip"><b>เคล็ดลับ</b> ลืมคำสั่ง พิมพ์ <code>arm help</code> (ทั้งหมด) หรือ <code>arm help base</code> (ทีละหมวด) พิมพ์คำสั่งผิด ระบบจะเสนอคำสั่งที่ชื่อคล้ายกันให้</div>
+</section>
+
+
+<section class="chapter" id="ch-safety"><h1>ความปลอดภัย</h1>
+
+<p>หุ่นตัวนี้หนักและมีแขนที่แรงพอจะทำให้คนเจ็บได้ งานจัดแสดงมีคนเยอะ อ่านบทนี้ก่อนเปิดหุ่นทุกครั้งที่มีคนแปลกหน้าอยู่รอบๆ</p>
+
+<h2>กฎที่ห้ามละเลย</h2>
+<div class="warn"><b>ระวัง</b> <b>ห้ามถอดหรือเสียบสาย USB ของแขนตอนไฟแขนเปิดอยู่</b> — ปิดไฟแขนก่อนเสมอ Pi 5 เคยเสียมาแล้วจากเรื่องนี้</div>
+<div class="warn"><b>ระวัง</b> <b>ตัดไฟแขนแล้วข้อ J1 ร่วงลง</b> — ประคองแขนก่อนปิดไฟ หรือพาแขนไปท่าพักที่วางบนอะไรได้</div>
+<div class="warn"><b>ระวัง</b> <b>ไฟเซอร์โวมือห้ามเกิน 7.4V</b> — เช็กด้วย <code>arm hand-scan</code> ก่อนสั่งมือขยับทุกครั้งที่ต่อไฟใหม่</div>
+<div class="warn"><b>ระวัง</b> <code>arm run</code> / <code>arm goto</code> <b>ไม่เช็กการชน</b> (รวมสองแขนชนกันเอง) — โปรแกรมใหม่ลองด้วยความเร็วต่ำก่อนเสมอ</div>
+<div class="warn"><b>ระวัง</b> <b>เปิดรีโมทไว้ตลอดเวลาที่ฐานอาจวิ่ง</b> รีโมทคือสวิตช์ฉุกเฉินของฐาน ปิดรีโมทหรือสัญญาณหลุด = ฐานหยุด</div>
+<div class="warn"><b>ระวัง</b> แฟลชเฟิร์มแวร์ Mega <b>ปิดไฟมอเตอร์ 24V ก่อน</b> — ตอนรีเซ็ต relay อาจกระตุก</div>
+<div class="warn"><b>ระวัง</b> ยังไม่มีปุ่ม E-stop ที่ตัดไฟมอเตอร์ — ระหว่างงานต้องมีคนถือรีโมทและเอื้อมถึงสวิตช์ไฟได้ตลอด</div>
+
+<h2>หยุดหุ่นฉุกเฉิน</h2>
+<table><thead><tr><th>ทำอะไร</th><th>หยุดอะไร</th><th>หมายเหตุ</th></tr></thead><tbody>
+<tr><td><b>โยก SWA ขึ้น</b></td><td>ฐานล้อหยุดทันที</td><td>ทำงานที่ Mega เอง ไม่ต้องพึ่ง Pi · ไม่หยุดแขน</td></tr>
+<tr><td>ปิดรีโมท</td><td>ฐานล้อหยุด</td><td>ตัวรับส่งค่า failsafe → Mega ถือว่าไม่มีสัญญาณ</td></tr>
+<tr><td><b>โยก SWD ลง</b></td><td>แขนหยุด (ค้างท่า)</td><td>ได้เฉพาะตอนเปิด <code>arm remote</code> หรือภารกิจอยู่</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd> ที่หน้าต่างภารกิจ</td><td>ฐาน + แขน + จบภารกิจ</td><td>แขนค้างท่า ไม่ตัดไฟ</td></tr>
+<tr><td><code>arm stop</code></td><td>โปรแกรมแขนทุกแขน</td><td>สั่งจากหน้าต่างไหนก็ได้</td></tr>
+<tr><td>ตัดไฟ 24V มอเตอร์ฐาน</td><td>ฐานไม่มีแรง</td><td>ทางสุดท้ายของฐาน</td></tr>
+<tr><td>ตัดไฟแขน</td><td>แขนไม่มีแรง</td><td><b>J1 ร่วง</b> — ใช้เมื่อไม่มีทางอื่นเท่านั้น</td></tr>
+</tbody></table>
+
+<h2>ชั้นความปลอดภัยของฐานล้อ</h2>
+<p>ฐานหยุดเองได้หลายชั้น ชั้นล่างสุด (Mega) ทำงานแม้ Pi ค้าง รายละเอียดของกันชน lidar อยู่ในบท <a href="#ch-guard">ระบบกันชน</a></p>
+<table><thead><tr><th>ชั้น</th><th>ทำงานเมื่อไร</th><th>หยุดเมื่อ</th></tr></thead><tbody>
+<tr><td>Mega</td><td>ตลอด</td><td>SWA ขึ้น · รีโมทดับ/หลุด · ROS เงียบเกิน 0.5 วิ</td></tr>
+<tr><td>Mega + กันชน lidar</td><td><code>arm base</code></td><td>คำสั่ง (รีโมทหรือ ROS) ที่พาไปทิศที่มีของใกล้กว่า 30 cm · Pi เงียบเกิน 0.5 วิ</td></tr>
+<tr><td>relay_bridge</td><td><code>arm base</code></td><td>ไม่มีคำสั่ง 0.5 วิ · ไม่มี lidar = ห้ามทุกทิศ</td></tr>
+<tr><td>base_motion</td><td><code>arm drive</code> / ภารกิจ</td><td>ของในทาง 35 cm = หยุดรอ (โล่ง 1 วิไปต่อ, รอเกิน 15 วิ = เลิก)</td></tr>
+<tr><td>ภารกิจ</td><td><code>arm mission</code></td><td>ฐานวิ่งเฉพาะตอนแขนพับ · ต้องโยก SWB ยืนยันก่อนทุกช่วงที่ฐานวิ่ง</td></tr>
+</tbody></table>
+
+<h2>ก่อนเปิดให้คนดู</h2>
+<ol class="steps">
+<li>กั้นพื้นที่ที่ฐานวิ่ง ให้คนดูอยู่นอกเส้น อย่างน้อย 1 m จากทางวิ่ง</li>
+<li>มีคนคุมหนึ่งคนถือรีโมท ไม่ทำอย่างอื่นพร้อมกัน</li>
+<li>เปิด <code>arm lidar</code> + <code>arm base</code> แล้วทดสอบกันชนวันนั้น: คนยืนหน้าหุ่น ขับรีโมทเข้าหาช้าๆ ต้องหยุดเอง (บท <a href="#ch-guard">ระบบกันชน</a>)</li>
+<li>เช็กพื้นทางวิ่ง: ไม่มีสาย กล่อง หรือของเตี้ยกว่า 23.5 cm — lidar มองไม่เห็นของเตี้ย</li>
+<li>เช็กไฟ: รีโมทแบตเต็ม ไฟเซอร์โวมือไม่เกิน 7.4V</li>
+<li>ซ้อมภารกิจทั้งรอบก่อนเปิดงานหนึ่งครั้ง</li>
+</ol>
+<figure class="ph" data-kind="photo"><img src="img/safety-exhibition-area.jpg" alt=""><figcaption>การกั้นพื้นที่ในงานจัดแสดง</figcaption><div class="ph-note">ถ่าย: พื้นที่งานจริงที่กั้นเส้นแล้ว เห็นจุด A จุด B ทางวิ่ง และตำแหน่งคนคุมรีโมท</div></figure>
+</section>
+
+
+<section class="chapter" id="ch-startup"><h1>เปิด–ปิดหุ่น และรีโมท</h1>
+
+<h2>ลำดับเปิดเครื่อง</h2>
+<ol class="steps">
+<li><b>เช็กสายก่อนเปิดไฟใดๆ</b> — USB ของแขน มือ Mega และ lidar เสียบที่ Pi ครบ (ย้ายสายแขนตอนไฟแขนเปิดไม่ได้)</li>
+<li><b>เปิด Pi</b> รอราว 1 นาที container <code>humanoi_ros</code> ขึ้นเอง เช็กด้วย
+<pre class="cmd">arm status</pre></li>
+<li><b>เปิดรีโมท</b> แล้วโยก <b>SWA ขึ้นหนึ่งครั้งแล้วลง</b> (Mega ยอม ARM ต่อเมื่อเห็น SWA ขึ้นก่อน) ไฟ LED บน Mega ต้องเลิกกะพริบเร็ว</li>
+<li><b>เปิดไฟแขน</b> แล้ว calibrate และเปิดระบบแขน (บท <a href="#ch-arm">แขนกล AR4</a>)</li>
+<li>เปิดส่วนที่งานนั้นต้องใช้ หน้าต่างละคำสั่ง ตามตารางข้างล่าง</li>
+</ol>
+
+<h2>หน้าต่างที่ต้องเปิดค้าง</h2>
+<p>คำสั่งพวกนี้ทำงานค้างไว้ ปิดด้วย <kbd>Ctrl</kbd>+<kbd>C</kbd> เปิดแต่ละตัวใน terminal ของมันเอง (ssh หลายหน้าต่าง หรือแท็บ)</p>
+<table><thead><tr><th>คำสั่ง</th><th>ทำอะไร</th><th>ต้องใช้กับ</th></tr></thead><tbody>
+<tr><td><code>arm start</code></td><td>ระบบแขนสองแขน</td><td>ทุกงานที่ขยับแขน</td></tr>
+<tr><td><code>arm player</code></td><td>ตัวเล่นโปรแกรม + มือ</td><td><code>arm run</code> · ภารกิจ · หยิบกล่อง</td></tr>
+<tr><td><code>arm tray</code></td><td>กล้องหาตำแหน่งกล่อง</td><td>หยิบกล่อง · ภารกิจ</td></tr>
+<tr><td><code>arm lidar</code></td><td>lidar</td><td>กันชน · <code>arm drive</code> · ภารกิจ</td></tr>
+<tr><td><code>arm base</code></td><td>ฐานล้อ + กันชน</td><td>ROS ขับฐาน · กันชนตอนขับรีโมท</td></tr>
+<tr><td><code>arm mission &lt;ชื่อ&gt;</code></td><td>เล่นภารกิจ</td><td>งาน A → B</td></tr>
+<tr><td><code>arm rps …</code></td><td>เกมเป่ายิ้งฉุบ (แทน <code>arm player</code>)</td><td>เกม</td></tr>
+</tbody></table>
+<figure class="ph" data-kind="screenshot"><img src="img/startup-terminal-windows.jpg" alt=""><figcaption>ตัวอย่างการจัดหน้าต่าง terminal ตอนเล่นภารกิจ</figcaption><div class="ph-note">จับภาพหน้าจอ: หน้าต่าง terminal 6 ช่องที่เปิด arm start / player / tray / lidar / base / mission พร้อมกัน แต่ละช่องเห็นชื่อคำสั่งชัด</div></figure>
+
+<h2>ลำดับปิดเครื่อง</h2>
+<ol class="steps">
+<li>หยุดงานที่ทำอยู่: <code>arm stop</code> หรือ <kbd>Ctrl</kbd>+<kbd>C</kbd> ที่หน้าต่างภารกิจ/เกม</li>
+<li>พาแขนไปท่าพัก แล้วปิดระบบแขน <pre class="cmd">arm off</pre></li>
+<li><kbd>Ctrl</kbd>+<kbd>C</kbd> หน้าต่าง <code>arm base</code> และ <code>arm lidar</code> (หลังปิด <code>arm base</code> รีโมทจะขับฐานไม่ได้จนกว่าจะโยก SWA ขึ้น-ลง — ตั้งใจให้เป็นแบบนั้น)</li>
+<li><b>ประคองแขน</b> แล้วปิดไฟแขน (J1 ร่วง)</li>
+<li>ปิดไฟมอเตอร์ฐาน ปิด Pi (<code>sudo shutdown now</code> รอจนไฟบน Pi หยุดกะพริบก่อนถอดปลั๊ก) ปิดรีโมทเป็นอย่างสุดท้าย</li>
+</ol>
+
+<h2>รีโมท FlySky FS-ST8</h2>
+<p>รีโมทมีสองหน้าที่ ขับฐานล้อด้วยมือ และเป็นสวิตช์ฉุกเฉิน ตัวรับ FS-SR8 ต่อเข้า Mega ตรงๆ จึงทำงานแม้ Pi ไม่ได้เปิดโปรแกรมอะไร</p>
+<figure class="ph" data-kind="photo"><img src="img/startup-remote-layout.jpg" alt=""><figcaption>ปุ่มและคันโยกของรีโมทที่ใช้</figcaption><div class="ph-note">ถ่าย: รีโมท FS-ST8 จากด้านหน้า ติดป้าย: คันโยกขวา (เดินหน้า/ถอย, สไลด์), คันโยกซ้าย (หมุน), SWA, SWB, SWD</div></figure>
+<table><thead><tr><th>ช่อง</th><th>บนรีโมท</th><th>ทำอะไร</th><th>ขา Mega</th></tr></thead><tbody>
+<tr><td>CH2</td><td>คันโยกขวา ขึ้น/ลง</td><td>เดินหน้า / ถอยหลัง</td><td>3</td></tr>
+<tr><td>CH1</td><td>คันโยกขวา ซ้าย/ขวา</td><td>สไลด์ข้าง</td><td>2</td></tr>
+<tr><td>CH4</td><td>คันโยกซ้าย ซ้าย/ขวา</td><td>หมุนตัว</td><td>5</td></tr>
+<tr><td>CH5</td><td><b>SWA</b></td><td>ลง = ARM (ขับได้) · ขึ้น = หยุดทุกล้อ</td><td>6</td></tr>
+<tr><td>CH6</td><td><b>SWB</b> <span class="todo">ต้องเช็ก: AR4_ARM_COMMANDS.md บอกว่า CH6 ตั้งเป็น SWC (สวิตช์ 3 ตำแหน่ง) — ดูที่รีโมทจริงว่าช่อง 6 เป็นสวิตช์ไหน</span></td><td>โยกลง = เล่นโปรแกรม / ยืนยันขั้นในภารกิจ</td><td>7</td></tr>
+<tr><td>CH8</td><td><b>SWD</b></td><td>โยกลง = หยุดแขน / หยุดภารกิจ</td><td>9</td></tr>
+</tbody></table>
+
+<h3>ใครคุมล้อ — ดูจากไฟ LED บน Mega</h3>
+<table><thead><tr><th>สถานะ</th><th>เกิดเมื่อ</th><th>LED (ขา 13)</th></tr></thead><tbody>
+<tr><td>NO SIGNAL</td><td>รีโมทปิด / หลุด / ตัวรับส่งค่า failsafe — ล้อหยุด</td><td>กะพริบเร็ว</td></tr>
+<tr><td>DISARMED</td><td>SWA ขึ้น หรือยังไม่เคยเห็น SWA ขึ้นหลังเปิดเครื่อง — ล้อหยุด</td><td>กะพริบช้า</td></tr>
+<tr><td>RC</td><td>SWA ลง + ขยับคันโยก — รีโมทขับ (ROS ถูกเมิน)</td><td>ติดค้าง</td></tr>
+<tr><td>ROS</td><td>SWA ลง + ปล่อยคันโยกนิ่ง 0.7 วิ — Pi ขับได้</td><td>ติด ดับแวบทุก 1 วิ</td></tr>
+</tbody></table>
+<div class="note"><b>หมายเหตุ</b> ตัวรับ FS-SR8 ไม่หยุดส่งสัญญาณตอนรีโมทดับ แต่ส่งค่ากลาง (~1500) ทุกช่อง Mega จึงดูที่ SWA ถ้า SWA ไม่ใกล้ 1000 หรือ 2000 ถือว่าไม่มีสัญญาณ ถ้ารีโมทเปิดอยู่แต่ล้อไม่ตอบ ให้เช็กว่ารีโมทกับตัวรับ bind กันอยู่ (ไฟตัวรับติดค้าง) แล้วโยก SWA ขึ้น-ลงใหม่</div>
+<div class="tip"><b>เคล็ดลับ</b> ขยับคันโยกเมื่อไร รีโมทแย่งคุมจาก ROS ทันที ใช้เป็นการหยุดฉุกเฉินระหว่าง <code>arm drive</code> หรือภารกิจได้ด้วย</div>
+</section>

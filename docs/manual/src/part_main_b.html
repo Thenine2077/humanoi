@@ -1,0 +1,327 @@
+<section class="chapter" id="ch-base"><h1>ฐานล้อ</h1>
+
+<p>ฐานเป็นล้อ mecanum สี่ล้อ แต่ละล้อมีมอเตอร์ 24V ของตัวเอง ทิศของแต่ละล้อสั่งด้วย relay สองตัว (เดินหน้า/ถอย)
+ส่วน<b>ความเร็วตั้งด้วยลูกบิด HW-687 ของแต่ละล้อ</b> — โปรแกรมคุมได้แค่ทิศ เดินหน้า ถอย หรือหยุด จึงต้องจูนลูกบิดให้สี่ล้อหมุนเท่ากัน
+ฐานถึงจะวิ่งตรง ที่ความเร็วปัจจุบัน (~50 รอบ/นาที) ฐานวิ่งราว 0.38 m/s ช้ากว่าคนเดินประมาณ 3 เท่า</p>
+
+<h2>ขนาด</h2>
+<figure class="ph" data-kind="diagram">
+<svg viewBox="0 0 680 400" class="dg" role="img" aria-label="ขนาดฐานล้อ มองจากด้านบน">
+<defs><marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#4b5563" stroke-width="1.5"/></marker></defs>
+<text x="230" y="28" class="tc ts">▲ ด้านหน้า</text>
+<rect x="153.75" y="115" width="152.5" height="200" rx="4" class="b-gray"/>
+<rect x="123.75" y="82.5" width="20" height="72.5" rx="3" class="wheel"/><rect x="316.25" y="82.5" width="20" height="72.5" rx="3" class="wheel"/>
+<rect x="123.75" y="275" width="20" height="72.5" rx="3" class="wheel"/><rect x="316.25" y="275" width="20" height="72.5" rx="3" class="wheel"/>
+<circle cx="230" cy="127.5" r="9" class="b-teal"/><circle cx="230" cy="197.5" r="8" class="pole"/>
+<line x1="123.75" y1="60" x2="336.25" y2="60" class="dim" marker-start="url(#ar2)" marker-end="url(#ar2)"/><text x="230" y="52" class="tc ts">42.5 cm (ขอบนอกล้อ)</text>
+<line x1="95" y1="82.5" x2="95" y2="347.5" class="dim" marker-start="url(#ar2)" marker-end="url(#ar2)"/><text x="88" y="219" class="te ts">53 cm</text>
+<line x1="360" y1="115" x2="360" y2="315" class="dim" marker-start="url(#ar2)" marker-end="url(#ar2)"/><text x="368" y="219" class="ts">แผ่นฐาน 40 cm</text>
+<line x1="153.75" y1="372" x2="306.25" y2="372" class="dim" marker-start="url(#ar2)" marker-end="url(#ar2)"/><text x="230" y="392" class="tc ts">แผ่นฐาน 30.5 cm</text>
+<line x1="133.75" y1="250" x2="326.25" y2="250" class="dim" stroke-dasharray="4 3" marker-start="url(#ar2)" marker-end="url(#ar2)"/><text x="230" y="242" class="tc ts">กลางล้อ ซ้าย–ขวา 38.5 cm</text>
+<line x1="337" y1="96" x2="450" y2="92" class="lead"/><text x="456" y="96" class="ts">ล้อ Ø14.5 cm หนา 4 cm</text>
+<line x1="240" y1="127.5" x2="450" y2="127.5" class="lead"/><text x="456" y="123" class="ts">lidar: หน้ากลางฐาน 17.5 cm</text><text x="456" y="139" class="ts">ห่างขอบแผ่นหน้า 2.5 cm · สูง 23.5 cm</text>
+<line x1="239" y1="197.5" x2="450" y2="197.5" class="lead"/><text x="456" y="201" class="ts">เสาลำตัว (หลัง lidar ~10–18 cm)</text>
+</svg>
+<figcaption>ขนาดฐาน มองจากด้านบน (วัด 28–29 ต.ค.)</figcaption></figure>
+<table><thead><tr><th>ค่า</th><th>ขนาด</th><th>ใช้ที่ไหน</th></tr></thead><tbody>
+<tr><td>ยาว × กว้างรวม (ขอบนอกล้อ)</td><td>53 × 42.5 cm</td><td>กรอบตัวหุ่นของกันชน (<code>footprint</code>)</td></tr>
+<tr><td>ล้อ</td><td>Ø14.5 cm หนา 4 cm</td><td><code>wheel_radius</code> 0.0725 m</td></tr>
+<tr><td>ระยะกลางล้อ ซ้าย–ขวา / หน้า–หลัง</td><td>38.5 / 38.5 cm</td><td><code>track</code> / <code>wheelbase</code></td></tr>
+<tr><td>แผ่นฐาน</td><td>40 × 30.5 cm</td><td>(อ้างอิงตอนวัดตำแหน่ง lidar)</td></tr>
+</tbody></table>
+
+<h2>การต่อสาย</h2>
+<p>Arduino Mega คือศูนย์กลางของฐาน: อ่านรีโมท สั่ง relay และนับ encoder แล้วส่งค่าให้ Pi ทาง USB ทุก 50 ms</p>
+<table><thead><tr><th>ล้อ</th><th>relay เดินหน้า</th><th>relay ถอย</th><th>encoder</th><th>ขา encoder</th></tr></thead><tbody>
+<tr><td>FL หน้าซ้าย</td><td>22</td><td>23</td><td>E4</td><td>A14</td></tr>
+<tr><td>FR หน้าขวา</td><td>24</td><td>25</td><td>E2</td><td>A10</td></tr>
+<tr><td>RL หลังซ้าย</td><td>26</td><td>27</td><td>E3</td><td>A12</td></tr>
+<tr><td>RR หลังขวา</td><td>28</td><td>29</td><td>E1</td><td>A8</td></tr>
+</tbody></table>
+<div class="note"><b>หมายเหตุ</b> สาย encoder ของล้อหน้าซ้ายกับหลังขวาสลับกันจากที่ตั้งใจ (E1 ควรเป็นหน้าซ้าย) ไม่ต้องย้ายสาย — ค่า <code>encoder_map: [3, 1, 2, 0]</code> ใน <code>base.yaml</code> จับคู่ให้แล้ว (ได้จาก <code>arm wheel-check</code>)</div>
+<ul>
+<li><b>relay</b>: โมดูลแบบ LOW = ทำงาน · ทุกล้อต้องหยุดค้าง 0.5 วิ ก่อนกลับทิศ (เฟิร์มแวร์ทำให้)</li>
+<li><b>encoder</b> YT3806 360 P/R ไฟ 12V จากตัวลดไฟ XL4016 · สายเขียว (A) เข้า IN ของบอร์ด opto PC817 4 ช่อง สายดำเข้า G ·
+ฝั่งออก V1–V4 เข้าขา A8 A10 A12 A14 ของ Mega, G เข้า GND ของ Mega (ใช้ pull-up ใน Mega) — ต่อแค่สาย A จึงนับได้ 720 ต่อรอบ และใช้ทิศตามคำสั่ง relay</li>
+<li><b>รีโมท</b>: ตัวรับ CH1 CH2 CH4 CH5 CH6 CH8 → ขา 2 3 5 6 7 9</li>
+<li><b>ไฟ</b>: มอเตอร์ 24V (ตอนนี้ใช้ power supply 24V 6.5A ร่วมกับมอเตอร์ทั้ง 4 — ออกตัวพร้อมกันกินไฟเกือบเต็ม)</li>
+</ul>
+<figure class="ph" data-kind="photo"><img src="img/base-mega-wiring.jpg" alt=""><figcaption>Arduino Mega และสายที่ต่อ</figcaption><div class="ph-note">ถ่าย: Mega จากด้านบน เห็นสาย relay (22–29), สายรีโมท (2–9) และสาย encoder (A8–A14) ติดป้ายกลุ่มสาย</div></figure>
+<figure class="ph" data-kind="photo"><img src="img/base-relay-hw687.jpg" alt=""><figcaption>บอร์ด relay และลูกบิดความเร็ว HW-687 ของแต่ละล้อ</figcaption><div class="ph-note">ถ่าย: บอร์ด relay 8 ช่อง + HW-687 สี่ตัว ติดป้ายว่าลูกบิดไหนคือล้อ FL FR RL RR</div></figure>
+<figure class="ph" data-kind="photo"><img src="img/base-opto-board.jpg" alt=""><figcaption>บอร์ด opto PC817 ที่แปลงสัญญาณ encoder ให้ Mega</figcaption><div class="ph-note">ถ่าย: บอร์ด opto ใกล้ๆ เห็นขา IN/G ฝั่ง encoder และ V/G ฝั่ง Mega ติดป้ายช่อง 1–4</div></figure>
+
+<h2>เฟิร์มแวร์ Mega</h2>
+<p>โค้ดอยู่ที่ <code>firmware/humanoi_base_mega/</code> (ไฟล์ <code>.ino</code> และ <code>guard.h</code> ต้องอยู่โฟลเดอร์เดียวกัน)
+แฟลชจาก PC ด้วย Arduino IDE (บอร์ด Arduino Mega 2560) — <b>ปิดไฟมอเตอร์ก่อน</b> ย้าย USB ของ Mega มาที่ PC แฟลช แล้วเสียบกลับ Pi
+เปิด Serial Monitor 115200 ต้องเห็นบรรทัดแรก <code>READY humanoi_base_mega enc=a2</code></p>
+<div class="note"><b>หมายเหตุ</b> เฟิร์มแวร์และ <code>relay_bridge</code> บน Pi ต้องอัปเดตคู่กันเสมอ ทดสอบเฟิร์มแวร์ก่อนแฟลชได้โดยไม่ต้องมีฮาร์ดแวร์: <code>bash tools/mega_sim/run_tests.sh</code> (บท <a href="#ch-guard">ระบบกันชน</a>)</div>
+
+<h2>เปิดฐาน</h2>
+<pre class="cmd">arm base</pre>
+<p>เปิด <code>relay_bridge</code> ที่คุยกับ Mega (เปิดค้าง) พร้อมกันชน lidar — ต้องเปิด <code>arm lidar</code> อีกหน้าต่างด้วย ไม่งั้นล้อจะไม่หมุนทุกทิศ
+ตอนยกล้อลอยเพื่อจูน ไม่ต้องใช้ lidar ให้เปิดแบบไม่กัน:</p>
+<pre class="cmd">arm base noguard</pre>
+<p>ROS ขับล้อได้เมื่อรีโมทเปิด SWA ลง และปล่อยคันโยก ขยับคันโยกเมื่อไร รีโมทแย่งคุมทันที</p>
+
+<h2>เช็ก encoder (ครั้งแรก / หลังต่อสายใหม่)</h2>
+<ol class="steps">
+<li>ยกฐานให้ล้อลอยพ้นพื้น · หน้าต่าง 1: <code>arm base noguard</code></li>
+<li>รีโมทเปิด SWA ลง ปล่อยคันโยก</li>
+<li>หน้าต่าง 2: <pre class="cmd">arm wheel-check</pre> ล้อหมุนทีละล้อ FL → FR → RL → RR ล้อละ 2 วิ แล้วถามว่าล้อหมุนไปทางเดินหน้าไหม (ดูด้วยตา ตอบ y/n)</li>
+<li>ได้ <code>encoder_map</code> / <code>encoder_signs</code> → ตอบ y บันทึกลง <code>base.yaml</code> → ปิด/เปิด <code>arm base</code> ใหม่</li>
+</ol>
+<div class="tip"><b>เคล็ดลับ</b> ดูค่า encoder สดๆ จาก PC ได้โดยไม่ต้องใช้ ROS: เสียบ Mega เข้า PC แล้ว <code>python tools\enc_live.py COM8</code> — หมุนล้อด้วยมือ 1 รอบ ค่าต้องเพิ่มราว 720</div>
+
+<h2>จูนความเร็วล้อ</h2>
+<p>ลูกบิด HW-687 ตั้งความเร็วของแต่ละล้อ สี่ล้อต้องหมุนเท่ากันฐานถึงจะวิ่งตรง <code>arm wheel-tune</code> หมุนทุกล้อค้างไว้
+แล้วแสดงรอบต่อนาทีทุกวินาที พร้อมบอกว่าลูกบิดล้อไหนต้อง <b>เพิ่ม</b> หรือ <b>ลด</b> หมุนลูกบิดทีละนิดจนทุกล้อขึ้น ✓ (ต่างไม่เกิน ±1.5%)</p>
+<pre class="cmd">arm wheel-tune
+# ยกล้อลอย หมุนค้างจนกด Ctrl+C · ใส่ตัวเลขได้ เช่น arm wheel-tune 50 = เทียบกับ 50 rpm</pre>
+<figure class="ph" data-kind="screenshot"><img src="img/base-wheel-tune-output.jpg" alt=""><figcaption>หน้าจอ wheel-tune ระหว่างจูน</figcaption><div class="ph-note">จับภาพหน้าจอ: arm wheel-tune ที่มีล้อขึ้น ✓ บางล้อ และ เพิ่ม/ลด บางล้อ</div></figure>
+<h3>เดินหน้ากับถอยหลังเร็วไม่เท่ากัน</h3>
+<p>มอเตอร์แปรงถ่านมักหมุนสองทิศเร็วไม่เท่ากัน แต่ลูกบิดตัวเดียวคุมทั้งสองทิศ สิ่งที่สำคัญคือ<b>สี่ล้อในทิศเดียวกันเร็วเท่ากัน</b>
+(ฐานถอยช้ากว่าเดินหน้าได้ ขอแค่ถอยตรง) <code>arm wheel-tune both</code> วัดเดินหน้าและถอยหลังครั้งเดียว แล้วบอกว่าแต่ละล้อต้องตั้งเดินหน้าเท่าไร
+ให้ทิศถอยสมดุลไปด้วย จากนั้นหมุนเดินหน้าค้างให้จูนตามเป้าแยกล้อ ถ้าทุกล้อต่างพอๆ กันจะขึ้น "ไม่ต้องปรับลูกบิด"</p>
+<pre class="cmd">arm wheel-tune both</pre>
+<p>บนพื้น (ล้อรับน้ำหนัก ความเร็วเปลี่ยนเล็กน้อย) ใช้แบบจำกัดเวลา ไม่งั้นฐานจะวิ่งไปจนกด <kbd>Ctrl</kbd>+<kbd>C</kbd>:</p>
+<pre class="cmd">arm wheel-tune 3s
+# เดินหน้า 3 วิแล้วหยุดเอง (~1 m) · arm wheel-tune both 3s = ไป 3 วิ กลับ 3 วิ</pre>
+<div class="note"><b>หมายเหตุ</b> สถานะ 29 ต.ค.: จูนทิศเดินหน้าสมดุลแล้ว ทิศถอยยังต่างกันมาก — วางเส้นทางให้ฐานเดินหน้าเป็นหลัก</div>
+
+<h2>สั่งฐานวิ่งตามระยะ</h2>
+<p><code>arm drive</code> สั่งฐานวิ่งเป็นระยะหรือหมุนเป็นมุม แล้วหยุดเองโดยวัดจาก encoder ระหว่างทางมี lidar กันชน (ต้องเปิด <code>arm base</code> และ <code>arm lidar</code>)</p>
+<pre class="cmd">arm drive forward 1.0
+# forward / back / left / right เป็นเมตร · turn 90 เป็นองศา (บวก = หมุนซ้าย)</pre>
+<p>จบแล้วบอกผล เช่น <code>เดินหน้า 0.512 m จาก 0.500 m (เลย 1.2 cm) · เบี้ยวข้าง +0.8 cm · หัวหมุน +0.4°</code>
+ถ้าเลยเป้าทุกครั้ง (ล้อไหลหลังตัด relay) ให้เพิ่ม <code>base.stop_early</code> ถ้าเบี้ยวมาก ให้จูนลูกบิดก่อน</p>
+<div class="warn"><b>ระวัง</b> ระหว่าง <code>arm drive</code> ขยับคันโยก / โยก SWA ขึ้น / <kbd>Ctrl</kbd>+<kbd>C</kbd> = หยุดทันที ของขวางทาง = หยุดรอจนโล่ง (ไม่อ้อม)</div>
+
+<h2>ค่าตั้ง <code>base.yaml</code></h2>
+<p>ไฟล์ <code>ros2_ws/src/humanoi_base/config/base.yaml</code> — แก้แล้วปิด/เปิด <code>arm base</code> ใหม่</p>
+<table><thead><tr><th>ค่า</th><th>ตอนนี้</th><th>ความหมาย</th></tr></thead><tbody>
+<tr><td><code>wheel_radius</code></td><td>0.0725</td><td>รัศมีล้อ (m)</td></tr>
+<tr><td><code>track</code> / <code>wheelbase</code></td><td>0.385 / 0.385</td><td>ระยะกลางล้อ (m)</td></tr>
+<tr><td><code>counts_per_rev</code></td><td>720</td><td>ค่านับ encoder ต่อรอบล้อ (เฟิร์มแวร์ enc=a2)</td></tr>
+<tr><td><code>encoder_map</code> / <code>encoder_signs</code></td><td>[3,1,2,0] / [1,1,1,1]</td><td>ล้อไหนใช้ encoder ตัวไหน / ทิศ — <code>arm wheel-check</code> ตั้งให้</td></tr>
+<tr><td><code>guard.stop_dist</code></td><td>0.30</td><td>กันชน: ของใกล้กว่านี้ = ห้ามไปทางนั้น (m)</td></tr>
+<tr><td><code>guard.footprint</code></td><td>[0.265, 0.265, 0.2125, 0.2125]</td><td>กลางฐานถึงขอบ หน้า หลัง ซ้าย ขวา (m)</td></tr>
+</tbody></table>
+</section>
+
+
+<section class="chapter" id="ch-lidar"><h1>Lidar และแผนที่</h1>
+
+<p>lidar LDROBOT STL-19P กวาดแสงรอบตัว 360° 10 รอบต่อวินาที (501 จุดต่อรอบ วัดได้ 3 cm – 12 m) ใช้สองงาน:
+กันชนของฐาน และทำแผนที่ lidar มองเห็นแค่<b>ระนาบเดียวที่ความสูง 23.5 cm จากพื้น</b></p>
+
+<h2>ตำแหน่งที่ติดตั้ง</h2>
+<p>กันชนคิดระยะจากขอบฐาน โดยใช้ตำแหน่งของ lidar บนฐาน ค่าทั้งหมดเก็บที่ไฟล์เดียว
+<code>ros2_ws/src/humanoi_base/config/lidar_mount.yaml</code> — แก้แล้วปิด/เปิด <code>arm lidar</code> ใหม่</p>
+<table><thead><tr><th>ค่า</th><th>ตอนนี้</th><th>วัดยังไง</th></tr></thead><tbody>
+<tr><td><code>x</code></td><td>0.175 m</td><td>ตลับเมตร: กลางหัว lidar ถึงขอบแผ่นฐานหน้า (2.5) และหลัง (37.5) → (หลัง − หน้า) ÷ 2</td></tr>
+<tr><td><code>y</code></td><td>0</td><td>ถึงขอบซ้าย (15.5) ขวา (15) → เยื้อง 2.5 mm ไม่ใส่</td></tr>
+<tr><td><code>z</code></td><td>0.235 m</td><td>สูงจากพื้น</td></tr>
+<tr><td><code>yaw_deg</code></td><td>0.0</td><td><code>arm lidar-check</code> วัดและบันทึกให้</td></tr>
+</tbody></table>
+<figure class="ph" data-kind="photo"><img src="img/lidar-mount.jpg" alt=""><figcaption>lidar บนแผ่นฐานและเสาที่อยู่ข้างหลัง</figcaption><div class="ph-note">ถ่าย: lidar จากด้านข้างและด้านบน เห็นระยะถึงขอบแผ่นหน้า และเสาลำตัวที่อยู่ข้างหลัง</div></figure>
+
+<h2>เปิด lidar</h2>
+<pre class="cmd">arm lidar</pre>
+<p>เปิดค้างไว้ ข้อมูลออกที่ <code>/scan_raw</code> แล้วผ่านตัวกรอง <code>scan_mask</code> ที่ตัดจุดที่ตกบนตัวหุ่นเอง (เช่นเสา) ออก ส่งต่อเป็น <code>/scan</code> ให้กันชนและแผนที่</p>
+
+<h2>เช็กการติดตั้ง (<code>arm lidar-check</code>)</h2>
+<p>ทำครั้งแรก และทุกครั้งที่ถอดหรือขยับ lidar โปรแกรมเช็กสองเรื่อง: lidar หันตรงหน้าฐานหรือเบี้ยว และข้อมูลซ้าย/ขวาถูกด้านไหม
+(ถ้ากลับด้าน กันชนจะห้ามผิดข้าง)</p>
+<ol class="steps">
+<li>เปิด <code>arm lidar</code> ไว้ แล้วอีกหน้าต่าง <pre class="cmd">arm lidar-check</pre></li>
+<li>วางของแคบๆ ตั้งตรง (ขวด กระป๋อง ขาเก้าอี้ กว้าง 3–10 cm) หน้าหุ่น ห่างราว 1 m <b>ตรงแนวกลาง</b> — วัดจากมุมหน้าซ้ายและมุมหน้าขวาของแผ่นฐานถึงของ ได้เท่ากัน รอบของโล่ง 40 cm</li>
+<li>กด <kbd>Enter</kbd> แล้ว<b>เดินออกห่างหุ่นเกิน 1.5 m</b> ภายใน 5 วิ (ขาคนจะถูกนับเป็นของ) → โปรแกรมบอกมุมเบี้ยว และถามระยะจากตลับเมตรไว้เทียบ (ข้ามได้)</li>
+<li>ย้ายของไปวางข้าง<b>ซ้าย</b>ของหุ่น (ฝั่งแขนซ้าย) ห่างข้างฐาน 30–50 cm กด <kbd>Enter</kbd> แล้วเดินออก → ต้องขึ้น "ซ้าย/ขวาถูกด้าน"</li>
+<li>ตอบ y บันทึกมุม → ปิด/เปิด <code>arm lidar</code></li>
+</ol>
+<figure class="ph" data-kind="diagram"><img src="img/lidar-check-bottle.jpg" alt=""><figcaption>วางขวดสำหรับ lidar-check</figcaption><div class="ph-note">วาด: ภาพมองจากบน ขวดอยู่หน้าหุ่น 1 m ตรงแนวกลาง (ตลับเมตรจากมุมหน้าซ้าย/ขวาเท่ากัน) และตำแหน่งที่สองข้างซ้ายของหุ่น</div></figure>
+<div class="warn"><b>ระวัง</b> ถ้าขึ้น "ข้อมูล lidar กลับด้าน" ห้ามใช้กันชนจนกว่าจะแก้ <code>laser_scan_dir</code> ใน <code>humanoi_description/launch/lidar.launch.py</code> แล้วเช็กใหม่</div>
+
+<h2>ทำแผนที่</h2>
+<p><code>arm map</code> ทำแผนที่จาก lidar อย่างเดียว (เดาการเคลื่อนที่จากการเลื่อนของภาพสแกน ไม่ต้องใช้ encoder) คนคุมขับฐานด้วยรีโมท
+คำสั่งนี้เปิด lidar ให้เอง — ปิด <code>arm lidar</code> ก่อน</p>
+<ol class="steps">
+<li><pre class="cmd">arm map</pre></li>
+<li>บน PC เปิด Foxglove ต่อ <code>ws://192.168.1.74:8765</code> (หรือ IP ที่หน้าต่างบอก) · panel 3D · Display frame = <code>map</code> · เปิด <code>/map</code> และ <code>/scan</code></li>
+<li>ขับช้าๆ ให้ทั่วพื้นที่: วิ่งตรงเป็นช่วงๆ <b>สไลด์แทนการหมุน</b> หมุนทีละน้อย (หมุนเร็ว = แผนที่เละ) เลียบผนัง แล้ววนกลับจุดเริ่มให้แผนที่ปิดวง</li>
+<li>ทำตอนคนน้อย (คนเดินผ่าน = จุดเปื้อน)</li>
+<li>เสร็จแล้วอีกหน้าต่าง <pre class="cmd">arm map-save office</pre> ได้ไฟล์ <code>humanoi_nav/maps/office.pgm</code> + <code>.yaml</code> แล้วค่อย <kbd>Ctrl</kbd>+<kbd>C</kbd> หน้าต่าง map</li>
+</ol>
+<figure class="ph" data-kind="screenshot"><img src="img/lidar-foxglove-map.jpg" alt=""><figcaption>แผนที่ระหว่างทำใน Foxglove</figcaption><div class="ph-note">จับภาพหน้าจอ: Foxglove panel 3D เห็น /map สีเทา จุด /scan และตำแหน่งหุ่น</div></figure>
+<div class="tip"><b>เคล็ดลับ</b> ไปงานจัดแสดงต้องทำแผนที่ใหม่ที่หน้างาน เผื่อเวลาไว้ ทำซ้ำได้ถ้าแผนที่เละ</div>
+</section>
+
+
+<section class="chapter" id="ch-guard"><h1>ระบบกันชน</h1>
+
+<p>กันชน lidar ทำให้ฐาน<b>ไม่ขับเข้าหาของ ไม่ว่าคำสั่งจะมาจากรีโมทหรือจาก ROS</b> การตัดสินใจขั้นสุดท้ายอยู่ที่ Mega
+ซึ่งทำงานแม้ Pi ค้าง ส่วน Pi เป็นคนดู lidar แล้วบอก Mega ว่าทิศไหนมีของ</p>
+
+<h2>ทำงานยังไง</h2>
+<ol class="steps">
+<li><code>relay_bridge</code> (เปิดด้วย <code>arm base</code>) อ่าน <code>/scan</code> แล้วดูทุกทิศว่ามีจุดอยู่ในกรอบทางที่จะไปไหม
+— เดินหน้า/ถอย/สไลด์: กรอบกว้างกว่าตัวหุ่นข้างละ 5 cm ยื่นออกไป 30 cm จากขอบตัว · หมุน: วงที่มุมตัวหุ่นกวาด + 5 cm</li>
+<li>ส่งให้ Mega ทุก 50 ms ว่าทิศไหนห้าม</li>
+<li>Mega ดูว่าคำสั่งล้อตอนนั้นพาตัวหุ่นไปทิศไหน — ไปทิศที่ห้าม = <b>หยุดทุกล้อทันที</b> ถอยหนีหรือสไลด์หนีของยังทำได้เสมอ</li>
+<li>ของต้องออกไปไกลเกิน 35 cm ต่อเนื่อง 0.5 วิ ถึงปลด (กัน relay กระพริบตอนของอยู่ตรงขอบ)</li>
+</ol>
+<figure class="ph" data-kind="diagram">
+<svg viewBox="0 0 680 410" class="dg" role="img" aria-label="กรอบหยุดของกันชน มองจากด้านบน">
+<text x="190" y="60" class="tc ts">ด้านหน้า</text>
+<rect x="132.25" y="74.7" width="115.5" height="77" rx="4" class="zone"/>
+<circle cx="190" cy="210" r="96.8" fill="none" stroke="#BA7517" stroke-width="1.2" stroke-dasharray="5 4"/>
+<polygon points="184.5,205.6 195.5,205.6 226.5,390 153.5,390" fill="#888780" opacity="0.28"/>
+<rect x="143.25" y="151.7" width="93.5" height="116.6" rx="4" class="b-gray"/>
+<rect x="143.25" y="151.7" width="8.8" height="31.9" rx="2" class="wheel"/><rect x="227.95" y="151.7" width="8.8" height="31.9" rx="2" class="wheel"/>
+<rect x="143.25" y="236.4" width="8.8" height="31.9" rx="2" class="wheel"/><rect x="227.95" y="236.4" width="8.8" height="31.9" rx="2" class="wheel"/>
+<circle cx="190" cy="171.5" r="6" class="b-teal"/><circle cx="190" cy="205.6" r="5.5" class="pole"/>
+<line x1="247.75" y1="100" x2="410" y2="100" class="lead"/><text x="416" y="96" class="th">กรอบห้าม 30 cm</text><text x="416" y="114" class="ts">ดูเฉพาะทางที่กำลังจะไป</text>
+<line x1="197" y1="171" x2="410" y2="165" class="lead"/><text x="416" y="161" class="th">lidar</text><text x="416" y="179" class="ts">ระนาบเดียว สูง 23.5 cm</text>
+<line x1="286.8" y1="210" x2="410" y2="230" class="lead"/><text x="416" y="226" class="th">วงหมุน + 5 cm</text><text x="416" y="244" class="ts">หมุนตัว: ของในวงนี้ = ห้ามหมุน</text>
+<line x1="215" y1="350" x2="410" y2="344" class="lead"/><text x="416" y="340" class="th">เงาเสาด้านหลัง</text><text x="416" y="358" class="ts">มุมนี้ lidar มองไม่เห็น</text>
+</svg>
+<figcaption>กรอบห้ามของกันชน มองจากด้านบน (ตัวอย่างทิศเดินหน้า — ทุกทิศใช้กรอบแบบเดียวกัน)</figcaption></figure>
+
+<h2>เกิดอะไรขึ้นในแต่ละกรณี</h2>
+<table><thead><tr><th>สถานการณ์</th><th>Mega ทำอะไร</th></tr></thead><tbody>
+<tr><td>Mega เพิ่งบูต ยังไม่ได้ยิน Pi</td><td>ไม่กัน — ขับด้วยรีโมทอย่างเดียวได้เหมือนเดิม</td></tr>
+<tr><td>เปิด <code>arm base</code> แต่ไม่ได้เปิด <code>arm lidar</code></td><td><b>ห้ามทุกทิศ</b> (ล้อไม่หมุนเลย)</td></tr>
+<tr><td>lidar หลุดกลางทาง</td><td>ห้ามทุกทิศภายใน ~0.5 วิ</td></tr>
+<tr><td>Pi ค้าง / relay_bridge ตาย / สาย USB ของ Mega หลุด / ปิด <code>arm base</code></td><td>ห้ามทุกทิศเองใน 0.5 วิ (<code>GUARD:LOST</code>)</td></tr>
+<tr><td>อยากขับต่อตอน LOST (ไม่มี lidar)</td><td><b>โยก SWA ขึ้นแล้วลงหนึ่งครั้ง</b> → ขับได้โดยไม่มีกันชน จนกว่า Pi จะกลับมาส่ง</td></tr>
+<tr><td><code>arm base noguard</code></td><td>ไม่กัน — ใช้ตอนยกล้อจูน/ทดสอบเท่านั้น</td></tr>
+</tbody></table>
+<p>ดูสถานะ: หน้าต่าง <code>arm base</code> บอก <code>กันชน: ห้าม F---T</code> ทุกครั้งที่เปลี่ยน (F หน้า B หลัง L ซ้าย R ขวา T หมุน)
+Mega รายงาน <code>GUARD:ON …</code> / <code>GUARD:HOLD …</code> (กำลังหยุดล้อไว้) / <code>GUARD:FREE</code> / <code>GUARD:LOST</code> / <code>GUARD:OFF</code></p>
+
+<h2>ทดสอบบนหุ่นจริง</h2>
+<ol class="steps">
+<li>ยกล้อ: <code>arm base noguard</code> → <code>arm wheel-check</code> ยังผ่านเหมือนเดิม</li>
+<li><code>arm base</code> (ไม่เปิด lidar) → ดันคันโยก ล้อต้องไม่หมุน · หน้าต่าง base ขึ้น "ไม่มีค่า lidar"</li>
+<li>วางพื้น เปิด <code>arm lidar</code> + <code>arm base</code> → คนยืนห่าง 1.5 m ขับรีโมทเข้าหาช้าๆ → ต้องหยุดเอง <b>วัดระยะที่เหลือจริง</b> แล้วปรับ <code>guard.stop_dist</code></li>
+<li>ตอนหยุดอยู่ ดึงคันโยกถอย → ต้องถอยได้</li>
+<li>คนเดินตัดหน้าตอนวิ่ง → หยุด · คนเดินพ้น → ปล่อยคันโยกแล้วดันใหม่ วิ่งต่อได้</li>
+<li>ถอด USB lidar ตอนวิ่ง → หยุดใน ~0.5 วิ · <kbd>Ctrl</kbd>+<kbd>C</kbd> <code>arm base</code> → รีโมทขับไม่ได้ → โยก SWA ขึ้น-ลง → ขับได้</li>
+</ol>
+<figure class="ph" data-kind="photo"><img src="img/guard-stop-test.jpg" alt=""><figcaption>ทดสอบกันชน: คนยืนหน้าหุ่น</figcaption><div class="ph-note">ถ่าย: หุ่นหยุดหน้าคน เห็นตลับเมตรวัดระยะจากขอบหน้าฐานถึงหน้าแข้งและปลายเท้า</div></figure>
+
+<h2>ทดสอบโดยไม่ใช้ฮาร์ดแวร์</h2>
+<p>ก่อนแฟลช Mega ทุกครั้งที่แก้เฟิร์มแวร์หรือ relay_bridge ให้รันชุดทดสอบ — มันคอมไพล์เฟิร์มแวร์ Mega ตัวจริงเป็นโปรแกรม Linux
+ต่อกับ relay_bridge ตัวจริงผ่านพอร์ตจำลอง ใส่ lidar และรีโมทปลอม แล้วเล่นทุกกรณีในตารางข้างบน (ต้องมี g++ และ ROS 2 Jazzy)</p>
+<pre class="cmd">bash tools/mega_sim/run_tests.sh
+# ผลที่ถูก: 37/37 ผ่าน</pre>
+
+<h2>ข้อจำกัด</h2>
+<ul>
+<li><b>lidar เห็นระนาบเดียว สูง 23.5 cm</b> — เห็นหน้าแข้งคน ขาโต๊ะ ผนัง แต่<b>ไม่เห็น</b>ของเตี้ยกว่า (กล่อง/สายบนพื้น เด็กนั่งพื้น) และขอบโต๊ะ/ป้ายที่ยื่นเหนือระนาบ</li>
+<li>คนยืน: lidar เห็นหน้าแข้ง แต่ปลายเท้ายื่นมาหาหุ่นอีก ~15–20 cm หยุดที่ 30 cm จากหน้าแข้ง = เหลือ ~10 cm ถึงปลายเท้า ระยะไหลหลังตัด relay ต้องน้อยกว่านั้น</li>
+<li>โต๊ะที่จุดวางกล่อง: กันชนไม่ให้ฐานเข้าใกล้ขาโต๊ะเกิน 30 cm — ระยะจอดที่จุด B ต้องเผื่อ</li>
+<li>ด้านหลังมีมุมเงาเสา — ถอยหลังในมุมนั้นไม่ถูกกัน</li>
+<li>กรอบคิดจากขนาดฐาน 53 × 42.5 cm — ถ้าแขนพับแล้วยื่นเลยฐาน ต้องขยาย <code>guard.footprint</code> <span class="todo">ต้องเช็ก: แขนพับแล้วยื่นเลยขอบฐานไหม</span></li>
+<li>ยังไม่มีปุ่ม E-stop ตัดไฟมอเตอร์</li>
+</ul>
+</section>
+
+
+<section class="chapter" id="ch-mission"><h1>ภารกิจ A → B</h1>
+
+<p>ภารกิจคือลำดับขั้นที่หุ่นทำต่อกันเอง เขียนไว้ในไฟล์ <code>ros2_ws/src/humanoi_mission/config/missions.yaml</code>
+ภารกิจหลักของงานจัดแสดงชื่อ <code>demo_ab</code>: หยิบกล่องที่ A ด้วยกล้อง พับแขน <b>รอคนยืนยันจากรีโมท</b> ฐานวิ่งไป B วาง แล้วกลับ
+คนคุมถือรีโมทตลอด หยุดได้ทุกเมื่อ</p>
+
+<figure class="ph" data-kind="diagram">
+<svg viewBox="0 0 680 200" class="dg" role="img" aria-label="ลำดับขั้นของภารกิจ demo_ab">
+<defs><marker id="ar3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#4b5563" stroke-width="1.5"/></marker></defs>
+<rect x="20" y="20" width="140" height="50" rx="6" class="b-amber"/><text x="90" y="41" class="tc th">ยืนยัน</text><text x="90" y="59" class="tc ts">โยก SWB</text>
+<rect x="190" y="20" width="140" height="50" rx="6" class="b-teal"/><text x="260" y="41" class="tc th">หยิบกล่อง</text><text x="260" y="59" class="tc ts">กล้อง + แขนซ้าย</text>
+<rect x="360" y="20" width="140" height="50" rx="6" class="b-teal"/><text x="430" y="41" class="tc th">พับแขน</text><text x="430" y="59" class="tc ts">ถือกล่อง (carry_L)</text>
+<rect x="530" y="20" width="130" height="50" rx="6" class="b-amber"/><text x="595" y="41" class="tc th">ยืนยัน</text><text x="595" y="59" class="tc ts">ทางไป B โล่ง</text>
+<line x1="160" y1="45" x2="188" y2="45" class="ln" marker-end="url(#ar3)"/><line x1="330" y1="45" x2="358" y2="45" class="ln" marker-end="url(#ar3)"/><line x1="500" y1="45" x2="528" y2="45" class="ln" marker-end="url(#ar3)"/>
+<path d="M595 70 V95 H90 V118" class="ln" marker-end="url(#ar3)"/>
+<rect x="20" y="120" width="140" height="50" rx="6" class="b-blue"/><text x="90" y="141" class="tc th">ฐานวิ่งไป B</text><text x="90" y="159" class="tc ts">lidar กันชน</text>
+<rect x="190" y="120" width="140" height="50" rx="6" class="b-teal"/><text x="260" y="141" class="tc th">วางกล่อง</text><text x="260" y="159" class="tc ts">place_B + ปล่อยมือ</text>
+<rect x="360" y="120" width="140" height="50" rx="6" class="b-amber"/><text x="430" y="141" class="tc th">พับแขน + ยืนยัน</text><text x="430" y="159" class="tc ts">ทางกลับ A โล่ง</text>
+<rect x="530" y="120" width="130" height="50" rx="6" class="b-blue"/><text x="595" y="141" class="tc th">ฐานกลับ A</text><text x="595" y="159" class="tc ts">จบภารกิจ</text>
+<line x1="160" y1="145" x2="188" y2="145" class="ln" marker-end="url(#ar3)"/><line x1="330" y1="145" x2="358" y2="145" class="ln" marker-end="url(#ar3)"/><line x1="500" y1="145" x2="528" y2="145" class="ln" marker-end="url(#ar3)"/>
+<text x="340" y="193" class="tc ts">สีส้ม = รอคน · สีเขียว = แขน/มือ · สีฟ้า = ฐานวิ่ง</text>
+</svg>
+<figcaption>ลำดับขั้นของภารกิจ demo_ab</figcaption></figure>
+
+<h2>เปิดอะไรบ้าง</h2>
+<p>หน้าต่างละคำสั่ง: <code>arm start</code> · <code>arm player</code> · <code>arm tray</code> (แขน มือ กล้อง) · <code>arm lidar</code> · <code>arm base</code> แล้วหน้าต่างสุดท้าย:</p>
+<pre class="cmd">arm mission demo_ab</pre>
+<p>ก่อนเริ่ม ภารกิจเช็กทุกอย่าง (ชื่อท่า โปรแกรม ท่ามือ ไฟล์ท่าจับ และโปรแกรมที่ต้องเปิด) ขาดสักอย่าง = ไม่เริ่มเลย และบอกว่าต้องทำอะไร
+ดูรายชื่อภารกิจทั้งหมดด้วย <code>arm mission</code></p>
+
+<h2>ความปลอดภัยในภารกิจ</h2>
+<table><thead><tr><th>ชั้น</th><th>ทำงานยังไง</th></tr></thead><tbody>
+<tr><td>รอยืนยันก่อนฐานวิ่ง</td><td>ขั้น <code>confirm</code> = รอคนคุม<b>โยก SWB</b> (หรือ <kbd>Enter</kbd> ที่หน้าต่างภารกิจ) — ใส่ไว้ก่อนทุกช่วงที่ฐานวิ่ง</td></tr>
+<tr><td>แขนพับก่อนฐานวิ่ง</td><td>ฐานไม่ยอมวิ่งถ้าแขนไม่อยู่ท่าในรายการ <code>stow</code> (ห่างไม่เกิน 5° ทุกข้อ)</td></tr>
+<tr><td>กันชน</td><td>ของในทางใกล้กว่า 35 cm = หยุดรอ · เกิน 15 วิ = เลิกภารกิจ · Mega กันซ้ำที่ 30 cm</td></tr>
+<tr><td>หยุดฉุกเฉิน</td><td><b>โยก SWD</b> หรือ <kbd>Ctrl</kbd>+<kbd>C</kbd> = หยุดฐาน + หยุดแขน (ค้างท่า) + จบภารกิจ</td></tr>
+<tr><td>รีโมทแย่งคุม</td><td>ขยับคันโยก / ปลด SWA / รีโมทดับ = Mega ตัดฐานเอง ภารกิจหยุดตาม</td></tr>
+</tbody></table>
+
+<h2>เตรียมครั้งแรก</h2>
+<ol class="steps">
+<li><b>สอนท่าแขน</b> ที่ภารกิจใช้ (เปลี่ยนชื่อในไฟล์ได้):
+<pre class="cmd">arm teach left carry_L
+# แขนซ้ายพับเข้าหาตัว ถือกล่อง — ศูนย์ถ่วงต่ำ ไม่ยื่นนอกฐาน</pre>
+<pre class="cmd">arm teach left stow_L
+# แขนซ้ายพับ มือว่าง</pre>
+<pre class="cmd">arm teach right stow_R
+# แขนขวาพับ</pre>
+<pre class="cmd">arm teach left place_B
+# แขนซ้ายวางกล่องบนโต๊ะ B (จอดฐานที่ B ก่อนแล้วจัดท่า)</pre></li>
+<li><b>ลองฐานวิ่งตามระยะ</b> ทีละคำสั่ง ดูว่าไปได้จริงเท่าไร (บท <a href="#ch-base">ฐานล้อ</a>)</li>
+<li><b>วัดเส้นทางจริง</b> A → B ในงาน แล้วแก้ระยะ/มุมในขั้น <code>move</code> ของ <code>demo_ab</code> — วางเส้นทางให้ฐาน<b>เดินหน้าเป็นหลัก</b> (ทิศถอยยังจูนไม่สมดุล) <span class="todo">ต้องเช็ก: ขากลับของ demo_ab ตอนนี้ยังใช้ back</span></li>
+<li>ซ้อมทีละส่วน: <code>arm mission test_pick</code> (หยิบ-วางคืน ไม่ใช้ฐาน) และ <code>arm mission test_drive</code> (ฐานไป-กลับ 0.5 m)</li>
+</ol>
+<div class="note"><b>หมายเหตุ</b> ไฟล์ภารกิจอ่านใหม่ทุกครั้งที่สั่ง แก้แล้วเล่นได้เลย ไม่ต้อง build</div>
+
+<h2>ขั้นที่ใช้ได้ในไฟล์ภารกิจ</h2>
+<table><thead><tr><th>ขั้น</th><th>ตัวอย่าง</th><th>ทำอะไร</th></tr></thead><tbody>
+<tr><td><code>confirm</code></td><td><code>confirm: "ทางไป B โล่งแล้ว"</code></td><td>รอโยก SWB / <kbd>Enter</kbd></td></tr>
+<tr><td><code>program</code></td><td><code>program: ready_pose</code> · <code>program: "@left:carry_L"</code></td><td>เล่นโปรแกรมแขน / พาแขนไปท่าเดียว</td></tr>
+<tr><td><code>hand</code></td><td><code>hand: {left: tray_grip0}</code></td><td>ท่ามือ</td></tr>
+<tr><td><code>pick</code></td><td><code>pick: left</code></td><td>หยิบกล่องตามกล้อง (ท่าจับจาก <code>arm tray-teach</code>)</td></tr>
+<tr><td><code>place_back</code></td><td><code>place_back: left</code></td><td>วางคืนที่หยิบมา</td></tr>
+<tr><td><code>move</code></td><td><code>move: {forward: 1.5}</code> · <code>move: {turn: -90}</code></td><td>ฐาน forward back left right (m) · turn (องศา บวก = ซ้าย)</td></tr>
+<tr><td><code>wait</code></td><td><code>wait: 2</code></td><td>รอ (วินาที)</td></tr>
+</tbody></table>
+<pre class="code">demo_ab:
+  - confirm: "วางกล่องที่ A ให้กล้องเห็นป้าย แล้วเริ่ม"
+  - pick: left
+  - program: "@left:carry_L"
+  - confirm: "ทางไป B โล่งแล้ว ให้ฐานวิ่ง"
+  - move: {forward: 1.0}
+  - move: {turn: 90}
+  - move: {forward: 0.5}
+  - program: "@left:place_B"
+  - hand: {left: tray_grip0}
+  - program: "@left:stow_L"
+  - confirm: "ทางกลับ A โล่งแล้ว ให้ฐานวิ่ง"
+  ...</pre>
+<figure class="ph" data-kind="photo"><img src="img/mission-demo-run.jpg" alt=""><figcaption>ภารกิจ demo_ab ระหว่างฐานวิ่งไป B</figcaption><div class="ph-note">ถ่าย: หุ่นถือกล่องแขนพับ กำลังวิ่งจาก A ไป B เห็นป้าย A และ B บนพื้น</div></figure>
+<div class="note"><b>หมายเหตุ</b> สถานะ 29 ต.ค.: ภารกิจทดสอบในซิม Gazebo ผ่านแล้ว (วิ่ง/สไลด์/หมุนตามสั่ง เจอกล่องขวางหยุด แขนไม่พับฐานไม่วิ่ง SWB ยืนยันได้ SWD หยุดได้) ยังไม่ได้ทดสอบกับฐานจริง</div>
+</section>
+
+<!-- TROUBLE -->
+<tr><td>รีโมทดันคันโยกแล้วล้อไม่หมุน</td><td>รีโมทกับตัวรับไม่ได้ link (ตัวรับส่งค่า failsafe) · ยังไม่ ARM · กันชนห้ามอยู่</td><td>ดู LED บน Mega: กะพริบเร็ว = ไม่มีสัญญาณ เช็ก bind · กะพริบช้า = โยก SWA ขึ้นแล้วลง · ถ้าเปิด <code>arm base</code> อยู่ ต้องเปิด <code>arm lidar</code> ด้วย</td></tr>
+<tr><td>หน้าต่าง base ขึ้น "ไม่มีค่า lidar — Mega ห้ามล้อทุกทิศ"</td><td>เปิด <code>arm base</code> แต่ไม่ได้เปิด lidar</td><td>เปิด <code>arm lidar</code> · ยกล้อจูนใช้ <code>arm base noguard</code></td></tr>
+<tr><td>ปิด <code>arm base</code> แล้วรีโมทขับฐานไม่ได้</td><td>Mega เข้าสถานะ <code>GUARD:LOST</code> (ตั้งใจ)</td><td>โยก SWA ขึ้นแล้วลงหนึ่งครั้ง</td></tr>
+<tr><td><code>arm wheel-check</code> ขึ้น "ไม่มี encoder ไหนนับ"</td><td>ล้อไม่หมุน (relay/มอเตอร์/ลูกบิด) หรือ encoder ไม่มีไฟ/สายหลุด</td><td>ดูว่าล้อหมุนไหม · เช็กไฟ 12V ของ encoder และสายเขียว/ดำที่บอร์ด opto</td></tr>
+<tr><td>encoder ล้อเดียวอ่านค่าต่ำหรือแกว่ง</td><td>คัปปลิ้ง encoder ลื่น · สายหลวม · ช่อง opto · ตัวขับมอเตอร์ล้อนั้น</td><td>หมุนล้อด้วยมือ 1 รอบต้องได้ ~720 · ขยับสายดูค่าสะดุดไหม · สลับช่อง opto ดูว่าอาการตามไปไหม</td></tr>
+<tr><td><code>arm wheel-check</code>/<code>wheel-tune</code> ไม่ยอมรัน "กันชน lidar เปิดอยู่แต่ไม่มี lidar"</td><td>เปิด <code>arm base</code> แบบมีกันชนแต่ไม่มี lidar</td><td>ยกล้อ: ปิดแล้วเปิด <code>arm base noguard</code> · บนพื้น: เปิด <code>arm lidar</code></td></tr>
+<tr><td><code>arm drive</code> ขึ้น "ไม่มี odometry" / "ไม่มี lidar"</td><td>ไม่ได้เปิด <code>arm base</code> / <code>arm lidar</code></td><td>เปิดให้ครบ (ฐานไม่วิ่งถ้าไม่มีตัวกันชน)</td></tr>
+<tr><td><code>arm drive</code> เลยเป้าทุกครั้ง</td><td>ล้อไหลต่อหลังตัด relay</td><td>เพิ่ม <code>base.stop_early</code> / <code>stop_early_deg</code></td></tr>
+<tr><td>ฐานวิ่งเบี้ยว</td><td>ลูกบิดสี่ล้อไม่เท่ากัน · ทิศถอยไม่สมดุล</td><td><code>arm wheel-tune</code> / <code>wheel-tune both</code> · เส้นทางเดินหน้าเป็นหลัก</td></tr>
+<tr><td>"ไม่เจอ Mega" / "ไม่เจอ lidar (CP2102)"</td><td>สาย USB ไม่ได้เสียบที่ Pi</td><td>เสียบ USB · Mega ย้ายไป PC เพื่อแฟลชแล้วลืมย้ายกลับ</td></tr>
+<tr><td>แผนที่เละตอนหมุน</td><td>ทำแผนที่จาก lidar อย่างเดียว หมุนเร็วแล้วหลงทิศ</td><td>หมุนช้าและทีละน้อย ใช้สไลด์แทน ทำใหม่</td></tr>
+<tr><td><code>arm lidar-check</code> ขึ้น "ข้อมูล lidar กลับด้าน"</td><td>ทิศการกวาดของไดรเวอร์ไม่ตรง</td><td>แก้ <code>laser_scan_dir</code> ใน lidar.launch.py แล้วเช็กใหม่ — ห้ามใช้กันชนก่อนแก้</td></tr>
+<tr><td>relay_bridge เตือน "Mega นับ encoder แบบ enc=… แต่ counts_per_rev = …"</td><td>เฟิร์มแวร์กับค่าใน <code>base.yaml</code> ไม่ตรงกัน</td><td>enc=a2 → <code>counts_per_rev: 720</code> · enc=x4 → 1440</td></tr>
