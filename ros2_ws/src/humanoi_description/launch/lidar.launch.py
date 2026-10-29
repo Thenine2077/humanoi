@@ -88,8 +88,9 @@ def generate_launch_description():
         DeclareLaunchArgument("angle_crop_max", default_value="225.0"),
         DeclareLaunchArgument("mask", default_value="true", choices=["true", "false"],
                               description="ตัดจุดที่ตกบนตัวหุ่นเอง (humanoi_base scan_mask)"),
-        DeclareLaunchArgument("lidar_x", default_value="0.16",
-                              description="m กลางฐาน -> กลาง lidar (ยังเป็นค่าเดา — วัดแล้วแก้)"),
+        DeclareLaunchArgument("lidar_x", default_value="0.175",
+                              description="m กลางฐาน -> กลาง lidar (วัด 29 ต.ค. — เท่า LIDAR_X ใน "
+                                          "humanoi_base/base_motion.py)"),
         OpaqueFunction(function=driver_and_mask),
         standalone_tf,
     ])

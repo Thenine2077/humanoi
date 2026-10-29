@@ -25,11 +25,11 @@ from std_msgs.msg import UInt8
 HERE = os.path.dirname(os.path.abspath(__file__))
 PKG = os.path.join(HERE, "..", "..", "ros2_ws", "src", "humanoi_base")
 sys.path.insert(0, PKG)
+from humanoi_base.base_motion import LIDAR_X  # noqa: E402  ไม่มี TF -> relay_bridge ถือว่า lidar อยู่ตรงนี้
 from humanoi_base.guard import ALL, BACK, FWD, LEFT, RIGHT, TURN, GuardLogic  # noqa: E402
 from humanoi_base.relay_bridge import RelayBridge  # noqa: E402
 
 FRONT, SIDE = 0.265, 0.2125   # footprint ใน base.yaml
-LIDAR_X = 0.16                # ไม่มี TF -> relay_bridge ถือว่า lidar อยู่ตรงนี้
 RC_CENTER, SWA_UP, SWA_DOWN = 1500, 2000, 1000
 
 results = []

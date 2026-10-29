@@ -29,7 +29,7 @@
 
   <!-- ไลดาร์ LDROBOT STL-19P: สูงจากพื้น 23.5 cm (วัดหุ่นจริง 29 ต.ค.) วางบนแผ่นฐาน -->
   <xacro:property name="lidar_z" value="0.235"/>
-  <xacro:property name="lidar_x" value="0.16"/>     <!-- หน้าเสา ค่อนไปขอบหน้า — ยังไม่ได้วัด -->
+  <xacro:property name="lidar_x" value="0.175"/>    <!-- กลาง lidar ถึงขอบแผ่นฐานหน้า 2.5 หลัง 37.5 cm (วัด 29 ต.ค.) -->
   <!-- ======================================================= -->
 
   <material name="hull">   <color rgba="0.90 0.50 0.10 1"/></material>

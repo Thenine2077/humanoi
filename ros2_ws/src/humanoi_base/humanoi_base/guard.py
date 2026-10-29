@@ -14,7 +14,7 @@ from rclpy.time import Time
 from sensor_msgs.msg import LaserScan
 from tf2_ros import Buffer, TransformException, TransformListener
 
-from humanoi_base.base_motion import obstacle_gap, scan_to_points, yaw_of
+from humanoi_base.base_motion import LIDAR_X, obstacle_gap, scan_to_points, yaw_of
 
 FWD, BACK, LEFT, RIGHT, TURN = 1, 2, 4, 8, 16
 ALL = FWD | BACK | LEFT | RIGHT | TURN
@@ -30,7 +30,7 @@ DEFAULTS = {
     "release_margin": 0.05,          # m ต้องห่างเกิน stop_dist + เท่านี้ถึงปลด
     "clear_time": 0.5,               # s ต้องโล่งต่อเนื่องเท่านี้ถึงปลด
     "scan_timeout": 0.5,             # s /scan เงียบเกินนี้ = ห้ามทุกทิศ
-    "lidar_x": 0.16,                 # m ตำแหน่ง lidar ถ้าไม่มี TF (เท่า lidar.launch.py)
+    "lidar_x": LIDAR_X,              # m ตำแหน่ง lidar ถ้าไม่มี TF (เท่า lidar.launch.py)
 }
 
 
