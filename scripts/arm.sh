@@ -116,7 +116,7 @@ rps_result() {  # อ่าน "<หุ่น>:<ผู้เล่น>:<ผล>"
   declare -A th=([rock]=ค้อน [paper]=กระดาษ [scissors]=กรรไกร [none]="ไม่เห็นมือ")
   case "$result" in
     player_win) result="ผู้เล่นชนะ (หุ่นชูนิ้วโป้ง)" ;;
-    robot_win) result="หุ่นชนะ (หุ่นชู 2 นิ้ว)" ;;
+    robot_win) result="หุ่นชนะ (หุ่นส่ายนิ้ว)" ;;
     draw) result="เสมอ (เป่าใหม่ครบแล้ว)" ;;
     no_player) result="ไม่เห็นมือผู้เล่น — ยื่นมือให้กล้องเห็นตอน ฉุบ" ;;
     stopped) result="หยุดกลางคัน" ;;
@@ -218,7 +218,7 @@ help_text() {
 ## rps เกม game | เกมเป่ายิ้งฉุบ (docs/RPS_GAME.md — สอนท่าตั้งก่อน: arm teach left rps_ready)
    arm rps [camera|random] [nohand]  เปิดเกม (เปิดค้าง แทน arm player) ดูมือผู้เล่นจากกล้อง / สุ่ม
                                      ปรับระยะง้าง: arm rps camera pump_deg:=4 (ค่าเริ่ม 5°)
-   arm rps play                      เล่นตาแรก: J1 ขึ้นลง 3 ครั้ง → มือออกท่า → แขนไปท่าโชว์ → แพ้ชูโป้ง ชนะชู 2 นิ้ว
+   arm rps play                      เล่นตาแรก: J1 ขึ้นลง 3 ครั้ง → มือออกท่า → แขนไปท่าโชว์ → แพ้ชูโป้ง ชนะส่ายนิ้ว
                                      ตาต่อไป: ผู้เล่นชูนิ้วชี้ค้างไว้ = เล่นใหม่ (วนได้เรื่อยๆ)
                                      ท่าโชว์ (ไม่บังคับ): arm teach left victory_pose / arm teach left lose_pose
    arm rps stop                      หยุดเกมกลางคัน

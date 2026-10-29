@@ -130,7 +130,7 @@ rps_result() {  # อ่าน "<หุ่น>:<ผู้เล่น>:<ผล>"
   declare -A th=([rock]=ค้อน [paper]=กระดาษ [scissors]=กรรไกร [none]="ไม่เห็นมือ")
   case "$result" in
     player_win) result="ผู้เล่นชนะ (หุ่นชูนิ้วโป้ง)" ;;
-    robot_win) result="หุ่นชนะ (หุ่นชู 2 นิ้ว)" ;;
+    robot_win) result="หุ่นชนะ (หุ่นส่ายนิ้ว)" ;;
     draw) result="เสมอ (เป่าใหม่ครบแล้ว)" ;;
     no_player) result="ไม่เห็นมือผู้เล่น" ;;
     stopped) result="หยุดกลางคัน" ;;
