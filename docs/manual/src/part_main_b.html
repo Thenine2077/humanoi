@@ -279,7 +279,7 @@ Mega รายงาน <code>GUARD:ON …</code> / <code>GUARD:HOLD …</code> 
 <pre class="cmd">arm teach left place_B
 # แขนซ้ายวางกล่องบนโต๊ะ B (จอดฐานที่ B ก่อนแล้วจัดท่า)</pre></li>
 <li><b>ลองฐานวิ่งตามระยะ</b> ทีละคำสั่ง ดูว่าไปได้จริงเท่าไร (บท <a href="#ch-base">ฐานล้อ</a>)</li>
-<li><b>วัดเส้นทางจริง</b> A → B ในงาน แล้วแก้ระยะ/มุมในขั้น <code>move</code> ของ <code>demo_ab</code> — วางเส้นทางให้ฐาน<b>เดินหน้าเป็นหลัก</b> (ทิศถอยยังจูนไม่สมดุล) <span class="todo">ต้องเช็ก: ขากลับของ demo_ab ตอนนี้ยังใช้ back</span></li>
+<li><b>วัดเส้นทางจริง</b> A → B ในงาน แล้วแก้ระยะ/มุมในขั้น <code>move</code> ของ <code>demo_ab</code> — วางเส้นทางให้ฐาน<b>เดินหน้าเป็นหลัก</b> (ทิศถอยยังจูนไม่สมดุล) ในไฟล์ตัวอย่างตอนนี้ ขากลับยังเป็นการถอย (<code>back: 0.5</code> → <code>turn: -90</code> → <code>back: 1.0</code>) ถ้าลองแล้วถอยเบี้ยว ให้เปลี่ยนขากลับเป็นหมุนกลับหัวแล้วเดินหน้าแทน</li>
 <li>ซ้อมทีละส่วน: <code>arm mission test_pick</code> (หยิบ-วางคืน ไม่ใช้ฐาน) และ <code>arm mission test_drive</code> (ฐานไป-กลับ 0.5 m)</li>
 </ol>
 <div class="note"><b>หมายเหตุ</b> ไฟล์ภารกิจอ่านใหม่ทุกครั้งที่สั่ง แก้แล้วเล่นได้เลย ไม่ต้อง build</div>
@@ -287,7 +287,7 @@ Mega รายงาน <code>GUARD:ON …</code> / <code>GUARD:HOLD …</code> 
 <h2>ขั้นที่ใช้ได้ในไฟล์ภารกิจ</h2>
 <table><thead><tr><th>ขั้น</th><th>ตัวอย่าง</th><th>ทำอะไร</th></tr></thead><tbody>
 <tr><td><code>confirm</code></td><td><code>confirm: "ทางไป B โล่งแล้ว"</code></td><td>รอโยก SWB / <kbd>Enter</kbd></td></tr>
-<tr><td><code>program</code></td><td><code>program: ready_pose</code> · <code>program: "@left:carry_L"</code></td><td>เล่นโปรแกรมแขน / พาแขนไปท่าเดียว</td></tr>
+<tr><td><code>program</code></td><td><code>program: hello_pose</code> · <code>program: "@left:carry_L"</code></td><td>เล่นโปรแกรมแขน / พาแขนไปท่าเดียว</td></tr>
 <tr><td><code>hand</code></td><td><code>hand: {left: tray_grip0}</code></td><td>ท่ามือ</td></tr>
 <tr><td><code>pick</code></td><td><code>pick: left</code></td><td>หยิบกล่องตามกล้อง (ท่าจับจาก <code>arm tray-teach</code>)</td></tr>
 <tr><td><code>place_back</code></td><td><code>place_back: left</code></td><td>วางคืนที่หยิบมา</td></tr>

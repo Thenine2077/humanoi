@@ -14,3 +14,7 @@ __pycache__/
 *.bak
 *.bak-*
 *.tmp
+
+# manual: original full-size photos and the draft PDF (not committed)
+docs/manual/img/_originals/
+docs/manual/HUMANOI_MANUAL_draft.pdf

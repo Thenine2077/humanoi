@@ -144,6 +144,10 @@ for n, sec in enumerate(body_chapters, 1):
             figs.append((f"{n}.{k}", src.group(1), m.group(1), re.sub("<[^>]+>", "", cap.group(1)) if cap else "",
                          re.sub("<[^>]+>", "", note.group(1)) if note else "", title))
 
+# รูปปก (ไม่อยู่ในบทไหน) ขึ้นเป็นแถวแรก — ทุกรูปของคู่มืออยู่ใน docs/manual/img/ ที่เดียว
+figs.insert(0, ("ปก", "img/cover.jpg", "photo", "หน้าปก",
+                "รูปหุ่นสวยๆ เต็มตัวหรือกำลังทำงาน ภาพแนวตั้งจะพอดีหน้าปกที่สุด", ""))
+
 KIND = {"photo": "รูปถ่าย", "screenshot": "ภาพหน้าจอ", "diagram": "แผนผัง"}
 fig_rows = "".join(
     f"<tr><td>{num}</td><td><code>{html.escape(src)}</code></td><td>{KIND.get(kind, kind)}</td>"
@@ -321,7 +325,7 @@ cover = f"""<section class="page cover">
 <div><div class="eyebrow">HUMANOI · คู่มือการใช้งาน</div>
 <h1>คู่มือหุ่นยนต์ Humanoi</h1>
 <div class="sub">ฐานล้อ mecanum · แขนกล AR4 สองแขน · มือ AmazingHand<br>ROS 2 Jazzy บน Raspberry Pi 5</div></div>
-<figure class="ph" data-kind="photo"><img src="../images/dual_arms_tray.jpg" alt=""><figcaption>Humanoi</figcaption></figure>
+<figure class="ph" data-kind="photo"><img src="img/cover.jpg" alt=""><figcaption>Humanoi</figcaption></figure>
 <div class="meta">{VERSION} · ใช้กับคำสั่ง <code>arm</code> และเฟิร์มแวร์ฐานรุ่นที่มีกันชน lidar<br>
 เอกสารต้นทางอยู่ใน <code>docs/</code> ของโปรเจ็กต์ · ช่องรูปเส้นประ = รูปที่ยังไม่ได้ใส่ (ภาคผนวก C)</div>
 </section>"""
