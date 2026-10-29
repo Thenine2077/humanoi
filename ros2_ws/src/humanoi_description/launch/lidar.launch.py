@@ -62,14 +62,12 @@ def driver_and_mask(context):
 
 def generate_launch_description():
     # ใช้เฉพาะตอนทดสอบลิดาร์เดี่ยวๆ ที่ไม่มี robot_state_publisher
-    # ค่า xyz คำนวณจาก mecanum_base.urdf.xacro ให้ตรงกัน:
-    #   base_footprint -> chassis_link = wheel_radius + clearance = 0.075 + 0.04 = 0.115
-    #   chassis_link   -> laser_link   = (wheelbase_half, 0, base_z/2 + 0.04) = (0.16, 0, 0.10)
+    # z = lidar สูงจากพื้น 23.5 cm (วัดหุ่นจริง 29 ต.ค. — ตรงกับ lidar_z ใน mecanum_base.urdf.xacro)
     standalone_tf = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
         name="base_footprint_to_laser_link",
-        arguments=["--x", LaunchConfiguration("lidar_x"), "--y", "0", "--z", "0.215",
+        arguments=["--x", LaunchConfiguration("lidar_x"), "--y", "0", "--z", "0.235",
                    "--frame-id", "base_footprint", "--child-frame-id", "laser_link"],
         condition=IfCondition(LaunchConfiguration("standalone")),
     )

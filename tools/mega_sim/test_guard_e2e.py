@@ -173,7 +173,8 @@ def e2e(mega_sim):
     rig = Rig()
     ex = SingleThreadedExecutor()
     ex.add_node(rig)
-    threading.Thread(target=ex.spin, daemon=True).start()
+    spinner = threading.Thread(target=ex.spin, daemon=True)
+    spinner.start()
     procs = [mega, bridge]
     try:
         m = log.mark()
@@ -296,6 +297,7 @@ def e2e(mega_sim):
             if p.poll() is None:
                 p.kill()
         ex.shutdown()
+        spinner.join(timeout=2.0)  # ปิด ROS ตอนเธรด spin ยังวิ่ง = โปรแกรมล้มตอนออก (terminate called ...)
         rig.destroy_node()
         rclpy.try_shutdown()
 

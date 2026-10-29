@@ -27,8 +27,8 @@
   <!-- แกนล้อ -> กึ่งกลางแผ่นฐาน (คำนวณจาก C, B, D) -->
   <xacro:property name="clearance" value="${plate_bottom + base_z / 2 - wheel_radius}"/>
 
-  <!-- ไลดาร์ LDROBOT STL-19P: สูงจากพื้นถึงกลางตัว 22.25 cm (F) วางบนแผ่นฐาน -->
-  <xacro:property name="lidar_z" value="0.2225"/>
+  <!-- ไลดาร์ LDROBOT STL-19P: สูงจากพื้น 23.5 cm (วัดหุ่นจริง 29 ต.ค.) วางบนแผ่นฐาน -->
+  <xacro:property name="lidar_z" value="0.235"/>
   <xacro:property name="lidar_x" value="0.16"/>     <!-- หน้าเสา ค่อนไปขอบหน้า — ยังไม่ได้วัด -->
   <!-- ======================================================= -->
 
