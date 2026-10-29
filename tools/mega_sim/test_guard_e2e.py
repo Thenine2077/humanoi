@@ -25,11 +25,12 @@ from std_msgs.msg import UInt8
 HERE = os.path.dirname(os.path.abspath(__file__))
 PKG = os.path.join(HERE, "..", "..", "ros2_ws", "src", "humanoi_base")
 sys.path.insert(0, PKG)
-from humanoi_base.base_motion import LIDAR_X  # noqa: E402  ไม่มี TF -> relay_bridge ถือว่า lidar อยู่ตรงนี้
+from humanoi_base import lidar_mount  # noqa: E402
 from humanoi_base.guard import ALL, BACK, FWD, LEFT, RIGHT, TURN, GuardLogic  # noqa: E402
 from humanoi_base.relay_bridge import RelayBridge  # noqa: E402
 
 FRONT, SIDE = 0.265, 0.2125   # footprint ใน base.yaml
+MOUNT = lidar_mount.load()    # ไม่มี TF -> relay_bridge ถือว่า lidar อยู่ตามไฟล์นี้
 RC_CENTER, SWA_UP, SWA_DOWN = 1500, 2000, 1000
 
 results = []
@@ -93,7 +94,9 @@ class Rig(Node):
             msg.range_min, msg.range_max = 0.03, 12.0
             ranges = [float("inf")] * n
             if self.obstacle:
-                lx, ly = self.obstacle[0] - LIDAR_X, self.obstacle[1]
+                dx, dy = self.obstacle[0] - MOUNT["x"], self.obstacle[1] - MOUNT["y"]
+                c, s = math.cos(MOUNT["yaw"]), math.sin(MOUNT["yaw"])
+                lx, ly = c * dx + s * dy, -s * dx + c * dy  # เฟรมฐาน -> เฟรม lidar
                 i = round((math.atan2(ly, lx) - msg.angle_min) / msg.angle_increment) % n
                 ranges[i] = math.hypot(lx, ly)
             msg.ranges = ranges

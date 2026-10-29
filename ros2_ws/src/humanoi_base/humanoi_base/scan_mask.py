@@ -17,7 +17,8 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 
-from humanoi_base.base_motion import DEFAULTS, LIDAR_X
+from humanoi_base import lidar_mount
+from humanoi_base.base_motion import DEFAULTS
 
 
 class ScanMask(Node):
@@ -25,9 +26,10 @@ class ScanMask(Node):
         super().__init__("scan_mask")
         self.declare_parameter("footprint", DEFAULTS["footprint"])
         self.declare_parameter("margin", 0.03)
-        self.declare_parameter("lidar_x", LIDAR_X)
-        self.declare_parameter("lidar_y", 0.0)
-        self.declare_parameter("lidar_yaw", 0.0)
+        mount = lidar_mount.load()
+        self.declare_parameter("lidar_x", mount["x"])
+        self.declare_parameter("lidar_y", mount["y"])
+        self.declare_parameter("lidar_yaw", mount["yaw"])
         self.f, self.b, self.l, self.r = [float(v) for v in self.get_parameter("footprint").value]
         self.m = float(self.get_parameter("margin").value)
         self.lx = float(self.get_parameter("lidar_x").value)

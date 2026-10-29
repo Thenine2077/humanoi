@@ -380,6 +380,12 @@ EOF
     ros_tty ros2 launch humanoi_description lidar.launch.py standalone:=true port:="/dev/serial/by-id/$port"
     ;;
 
+  lidar-check)  # lidar หันตรงไหม + ซ้าย/ขวาถูกด้านไหม -> มุมเบี้ยวลง humanoi_base/config/lidar_mount.yaml
+    is_running "ldlidar" || { echo "✗ เปิด lidar ก่อน: arm lidar (อีกหน้าต่าง)"; exit 1; }
+    ros_tty ros2 run humanoi_base lidar_check
+    ros chown 1000:1000 /humanoi_ws/src/humanoi_base/config/lidar_mount.yaml 2>/dev/null || true
+    ;;
+
   map)  # ทำแผนที่: lidar -> scan_mask -> rf2o (เดาการเคลื่อนที่จาก lidar ไม่ต้องมี encoder) + slam_toolbox
     if is_running "ldlidar"; then echo "✗ lidar เปิดอยู่แล้ว (arm lidar / arm map) — ปิดหน้าต่างนั้นก่อน"; exit 1; fi
     port=$(ros sh -c 'ls /dev/serial/by-id/ 2>/dev/null | grep -i cp210 | head -1')
@@ -427,6 +433,7 @@ EOF
     fi
     if [ "$cmd" = wheel-check ]; then
       ros_tty ros2 run humanoi_base wheel_tune check
+      ros chown 1000:1000 /humanoi_ws/src/humanoi_base/config/base.yaml 2>/dev/null || true  # บันทึกจาก container = root
     else
       extra=()
       for a in "$@"; do
@@ -684,6 +691,8 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm wheel-tune both [rpm] [3s]    วัดเดินหน้า+ถอยครั้งเดียว แล้วหมุนเดินหน้าค้าง จูนตามเป้าแยกล้อที่ชดเชยทิศถอย
                                      (both 3s = วัดอย่างเดียว ไป 3 วิ กลับ 3 วิ แล้วหยุด ใช้บนพื้น)
    arm lidar                   เปิด lidar (/scan) — ฐานไม่วิ่งอัตโนมัติถ้าไม่มี lidar กันชน (เปิดค้าง)
+   arm lidar-check             lidar หันตรงไหม + ซ้าย/ขวาถูกด้านไหม (วางขวดหน้าหุ่น 1 m) -> บันทึกมุมเบี้ยว
+                               ตำแหน่ง lidar ทั้งหมด: humanoi_base/config/lidar_mount.yaml · แก้แล้วเปิด arm lidar ใหม่
    arm map                     ทำแผนที่ (lidar อย่างเดียว ไม่ต้องมี encoder) ขับด้วยรีโมท ดูใน Foxglove (เปิดค้าง)
    arm map-save <ชื่อ>          บันทึกแผนที่ที่ทำอยู่ -> humanoi_nav/maps/<ชื่อ>.pgm/.yaml
    arm drive forward 1.0       ฐานวิ่งตามระยะแล้วหยุด: forward back left right (m) · turn 90 (องศา บวก = ซ้าย)

@@ -31,6 +31,7 @@ setup(
             "wheel_tune = humanoi_base.wheel_tune:main",
             "base_move = humanoi_base.base_move:main",
             "scan_mask = humanoi_base.scan_mask:main",
+            "lidar_check = humanoi_base.lidar_check:main",
         ],
     },
 )

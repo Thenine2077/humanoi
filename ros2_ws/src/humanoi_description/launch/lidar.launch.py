@@ -23,6 +23,13 @@ from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+# ตำแหน่ง lidar บนฐานจริง: humanoi_base/config/lidar_mount.yaml (arm lidar-check บันทึกมุมให้)
+try:
+    from humanoi_base import lidar_mount
+    MOUNT = lidar_mount.load()
+except ImportError:  # ยังไม่ได้ build humanoi_base
+    MOUNT = {"x": 0.175, "y": 0.0, "z": 0.235, "yaw": 0.0}
+
 
 def driver_and_mask(context):
     """mask:=true -> ไดรเวอร์ส่ง <scan_topic>_raw แล้ว scan_mask (humanoi_base) ตัดจุดบนตัวหุ่นออก ส่งต่อเป็น <scan_topic>"""
@@ -57,17 +64,18 @@ def driver_and_mask(context):
     # เสา/ของบนแผ่นฐานอยู่ในระนาบ lidar ห่าง 10-18 cm — จุดพวกนี้ไม่ขยับตามหุ่น ทำให้ rf2o คิดว่าหุ่นอยู่นิ่ง
     return [lidar, Node(package="humanoi_base", executable="scan_mask", name="scan_mask", output="screen",
                         remappings=[("scan_raw", raw), ("scan", scan)],
-                        parameters=[{"lidar_x": float(LaunchConfiguration("lidar_x").perform(context))}])]
+                        parameters=[{k: float(LaunchConfiguration(k).perform(context))
+                                     for k in ("lidar_x", "lidar_y", "lidar_yaw")}])]
 
 
 def generate_launch_description():
-    # ใช้เฉพาะตอนทดสอบลิดาร์เดี่ยวๆ ที่ไม่มี robot_state_publisher
-    # z = lidar สูงจากพื้น 23.5 cm (วัดหุ่นจริง 29 ต.ค. — ตรงกับ lidar_z ใน mecanum_base.urdf.xacro)
+    # หุ่นจริง (โมเดลแขนไม่มีฐาน) / ทดสอบลิดาร์เดี่ยวๆ ที่ไม่มี robot_state_publisher
     standalone_tf = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
         name="base_footprint_to_laser_link",
-        arguments=["--x", LaunchConfiguration("lidar_x"), "--y", "0", "--z", "0.235",
+        arguments=["--x", LaunchConfiguration("lidar_x"), "--y", LaunchConfiguration("lidar_y"),
+                   "--z", LaunchConfiguration("lidar_z"), "--yaw", LaunchConfiguration("lidar_yaw"),
                    "--frame-id", "base_footprint", "--child-frame-id", "laser_link"],
         condition=IfCondition(LaunchConfiguration("standalone")),
     )
@@ -88,9 +96,12 @@ def generate_launch_description():
         DeclareLaunchArgument("angle_crop_max", default_value="225.0"),
         DeclareLaunchArgument("mask", default_value="true", choices=["true", "false"],
                               description="ตัดจุดที่ตกบนตัวหุ่นเอง (humanoi_base scan_mask)"),
-        DeclareLaunchArgument("lidar_x", default_value="0.175",
-                              description="m กลางฐาน -> กลาง lidar (วัด 29 ต.ค. — เท่า LIDAR_X ใน "
-                                          "humanoi_base/base_motion.py)"),
+        DeclareLaunchArgument("lidar_x", default_value=str(MOUNT["x"]),
+                              description="m กลางฐาน -> กลาง lidar (ค่าเริ่ม = humanoi_base/config/lidar_mount.yaml)"),
+        DeclareLaunchArgument("lidar_y", default_value=str(MOUNT["y"]), description="m ไปซ้าย"),
+        DeclareLaunchArgument("lidar_z", default_value=str(MOUNT["z"]), description="m สูงจากพื้น"),
+        DeclareLaunchArgument("lidar_yaw", default_value=str(MOUNT["yaw"]),
+                              description="rad lidar หันเบี้ยว ทวนเข็ม = บวก (arm lidar-check)"),
         OpaqueFunction(function=driver_and_mask),
         standalone_tf,
     ])

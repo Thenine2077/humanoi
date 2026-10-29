@@ -16,13 +16,11 @@ from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 from tf2_ros import Buffer, TransformException, TransformListener
 
+from humanoi_base import lidar_mount
+
 # ทิศ -> (vx, vy, wz) หน่วย · turn = องศา บวก = หมุนซ้าย (ทวนเข็ม)
 KINDS = {"forward": (1, 0, 0), "back": (-1, 0, 0), "left": (0, 1, 0), "right": (0, -1, 0), "turn": (0, 0, 1)}
 TH = {"forward": "เดินหน้า", "back": "ถอยหลัง", "left": "สไลด์ซ้าย", "right": "สไลด์ขวา", "turn": "หมุน"}
-
-# lidar อยู่หน้ากลางฐาน (m) — วัดหุ่นจริง 29 ต.ค.: กลาง lidar ถึงขอบแผ่นฐานหน้า 2.5 หลัง 37.5 cm
-# ใช้ตอนไม่มี TF · ต้องตรงกับ lidar_x ใน humanoi_description (lidar.launch.py, mecanum_base.urdf.xacro)
-LIDAR_X = 0.175
 
 DEFAULTS = {
     "odom_topic": "/wheel_odom",   # ซิมใช้ /odom
@@ -125,6 +123,7 @@ class BaseMotion:
             self.tf = Buffer()
             self.tf_listener = TransformListener(self.tf, node)
         self._tf_warned = False
+        self.mount = lidar_mount.load()  # ใช้ตอนไม่มี TF ของ lidar
 
     # ---------- รับข้อมูล ----------
     def _on_odom(self, msg):
@@ -158,8 +157,9 @@ class BaseMotion:
             if not self._tf_warned:
                 self._tf_warned = True
                 self.node.get_logger().warn(f"ไม่มี TF {self.cfg['base_frame']} -> {msg.header.frame_id} "
-                                            f"— ถือว่า lidar อยู่หน้ากลางฐาน {LIDAR_X:.3f} m หันหน้าตรง")
-            tx, ty, tyaw = LIDAR_X, 0.0, 0.0
+                                            f"— ใช้ตำแหน่งใน lidar_mount.yaml (หน้ากลางฐาน {self.mount['x']:.3f} m "
+                                            f"หัน {self.mount['yaw_deg']:+.1f}°)")
+            tx, ty, tyaw = self.mount["x"], self.mount["y"], self.mount["yaw"]
         return scan_to_points(msg, tx, ty, tyaw)
 
     def gap(self, kind):
