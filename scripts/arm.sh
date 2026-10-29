@@ -126,7 +126,7 @@ rps_result() {  # อ่าน "<หุ่น>:<ผู้เล่น>:<ผล>"
 
 # ---------- arm help ----------
 # บรรทัด "## <หมวด> <ชื่อเรียกอื่น...> | <หัวข้อ>" = หัวหมวด · "   arm ..." = คำสั่ง · "   ! ..." = คำเตือน
-HELP_TOPICS="setup arm teach play hand tray base lidar mission rps"
+HELP_TOPICS="setup arm teach play log hand tray base lidar mission rps"
 help_text() {
   cat <<'EOF'
 ## setup ตั้งค่า | ตั้งค่าบอร์ดแขน (ครั้งแรก / หลังเปลี่ยนบอร์ด — หาพอร์ตจากชื่อในบอร์ด ย้ายสาย USB ได้)
@@ -159,6 +159,8 @@ help_text() {
    arm list                          ดูท่าทุกแขนและโปรแกรมทั้งหมด
    arm delete <left|right> <ท่า>      ลบท่า (ต้องไม่มีโปรแกรมไหนใช้อยู่)
    arm delete-program <ชื่อ>           ลบโปรแกรม (ท่าในโปรแกรมยังอยู่)
+   arm j1-load [left|right]          ภาระน้ำหนักที่ J1 ของทุกท่า (เกิน 100% ของตอน calibrate = เสี่ยงรูด)
+   ! teach บอกภาระ J1 ทุกครั้งที่บันทึก — แขนยื่นห่างแกน J1 มาก สายพาน J1 รูดง่าย
 
 ## play เล่น | เล่นโปรแกรม
    arm run <โปรแกรม>                 เล่นโปรแกรม รอจนจบแล้วบอกผล (ทุกขั้น แขนที่มีท่าเริ่มและถึงพร้อมกัน)
@@ -166,6 +168,15 @@ help_text() {
    arm stop                          หยุดโปรแกรมกลางคัน (ทุกแขน)
    arm remote [โปรแกรม] [noguard]    สั่งจากรีโมท (เปิดค้าง): SWB โยกลง = เล่นโปรแกรม (ค่าเริ่ม 1) · SWD โยกลง = หยุด
    ! ไม่มีการเช็กการชนตอน run / goto (รวมสองแขนชนกันเอง) — โปรแกรมใหม่ลองด้วย speed ต่ำก่อนเสมอ
+
+## log บันทึก debug | บันทึกเหตุการณ์ (แขนรูด / ชน) — ไว้หาว่าท่าไหนมีปัญหา
+   arm broke <อาการ> [left|right] [j1..j6] [ข้อความ]
+                                     จดว่าเกิดอะไร + ท่าก่อนหน้า/ท่าที่กำลังไป (เลือกจากรายการ Enter = ล่าสุด)
+                                     อาการ: slipped รูด · hit ชน · stuck ค้าง · dropped ตก · noise เสียง/สั่น · other
+   arm broke list                    ดูเหตุการณ์ที่จดไว้
+   arm broke report                  สรุป: ท่า/ทางไหนเกิดเรื่องบ่อย ภาระ J1 ตอนนั้น ควรแก้ท่าไหน
+   ! ทุกการขยับถูกจดเองตั้งแต่ arm start (motion_log) — ไฟล์ ~/Humanoi/ros2_ws/arm_logs/
+   ! หลังรูด ตัวเลขข้อนั้นในระบบผิดแล้ว (มอเตอร์ไม่มี encoder) — arm recal <แขน> <ข้อ> ก่อนใช้ต่อ
 
 ## hand มือ | มือ AmazingHand
    arm hand <ท่า> [left|right]        ลองท่ามือตรงๆ (ต้องเปิด arm player อยู่) เช่น arm hand rock
@@ -259,6 +270,7 @@ case "$cmd" in
     show "__node:=left_controller_manager" "  ตัวคุมแขนซ้าย   (arm recal/reconnect left)"
     show "__node:=right_controller_manager" "  ตัวคุมแขนขวา    (arm recal/reconnect right)"
     show "ar_hardware_interface ar_hardware.launch" "ระบบแขนเดี่ยวแบบเก่า (ควรปิด: arm off)"
+    show "lib/ar_program/motion_log" "  บันทึกการขยับ    (arm broke)"
     show "lib/ar_program/arm_program" "ตัวเล่นโปรแกรม     (arm player)"
     show move_group "MoveIt + RViz      (arm moveit)"
     show "lib/humanoi_base/rc_arm_trigger" "สวิตช์รีโมท        (arm remote)"
@@ -385,6 +397,7 @@ EOF
     echo "เปิดระบบแขน (ซ้าย=$left_hw ${LEFT_TEENSY:+@ $LEFT_TEENSY} · ขวา=$right_hw ${RIGHT_TEENSY:+@ $RIGHT_TEENSY})"
     echo "ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C · แขนต้อง calibrate แล้ว ไม่งั้นตำแหน่งที่ระบบเห็นจะผิด"
     echo "แขนเดียวรูด/หลุด: arm recal <แขน> (คาลิเบรตใหม่) หรือ arm reconnect <แขน> — อีกแขนทำงานต่อ"
+    echo "เกิดเรื่อง (รูด/ชน) พิมพ์ arm broke slipped ทันที — จดท่าก่อนหน้า/ท่าที่ไปไว้วิเคราะห์"
     ros_tty ros2 launch ar_dual dual_hardware.launch.py left_port:="${LEFT_TEENSY:-none}" \
       right_port:="${RIGHT_TEENSY:-none}" left_hw:=$left_hw right_hw:=$right_hw
     ;;
@@ -755,6 +768,17 @@ EOF
     ros ros2 run ar_program teach --delete-program "$1"
     ;;
 
+  j1-load)  # ภาระน้ำหนักแขนที่ J1 ของทุกท่า เทียบตอน calibrate — ar_program/j1_load.py
+    arm=$(arm_name "${1:-}")
+    ros ros2 run ar_program teach --j1-load ${arm:+--arm "$arm"}
+    ;;
+
+  broke)  # จดเหตุการณ์ (รูด/ชน/...) + การขยับที่เกี่ยวข้องจาก motion_log — ar_program/broke.py
+    [ $# -ge 1 ] || { ros ros2 run ar_program broke --help; exit 1; }
+    if [ -t 0 ]; then ros_tty ros2 run ar_program broke "$@"; else ros ros2 run ar_program broke "$@"; fi
+    docker exec "$C" chown -R 1000:1000 /humanoi_ws/arm_logs 2>/dev/null  # ไฟล์จาก container เป็นของ root
+    ;;
+
   off)
     echo "ปิดทุกอย่างของแขน (แขนค้างที่ท่าปัจจุบัน)..."
     for p in "ros2 launch ar_program" "ros2 launch ar_dual" "ros2 launch ar_gz_bringup" \
@@ -767,7 +791,8 @@ EOF
         || is_running "lib/humanoi_games" || break
       sleep 1
     done
-    for p in ros2_control_node move_group lib/ar_program/arm_program spawner rviz2 lib/humanoi_games \
+    for p in ros2_control_node move_group lib/ar_program/arm_program lib/ar_program/motion_log spawner rviz2 \
+             lib/humanoi_games \
              "__node:=left_description_publisher" "__node:=right_description_publisher" \
              lib/joint_state_publisher/joint_state_publisher; do
       docker exec "$C" pkill -9 -f "$p" 2>/dev/null

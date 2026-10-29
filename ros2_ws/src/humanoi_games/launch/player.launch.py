@@ -25,7 +25,7 @@ def hand_nodes(context):
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument("speed", default_value="0.19", description="ความเร็วแขน rad/s (เพดาน 0.22)"),
+        DeclareLaunchArgument("speed", default_value="0.19", description="ความเร็วแขน rad/s (เพดาน 0.19)"),
         DeclareLaunchArgument("hand", default_value="true", description="false = ไม่ต่อมือจริง"),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(

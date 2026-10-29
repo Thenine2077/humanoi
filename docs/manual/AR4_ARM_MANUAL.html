@@ -248,7 +248,7 @@
 <ol class="steps">
   <li>แผง MotionPlanning → ช่อง <b>Planning Group</b> เลือก <code>left_arm</code>, <code>right_arm</code> หรือ <code>both_arms</code></li>
   <li>แท็บ <b>Joints</b> เลื่อนมุมทีละแกน (หรือลากลูกบอลที่ปลายแขน) แขนสีส้มโปร่งขยับให้ดูก่อน <b>แขนจริงยังไม่ขยับ</b></li>
-  <li>แท็บ <b>Planning</b> → Velocity Scaling ตั้งไว้ <b>0.3</b> (อย่าเกิน) → กด <b>Plan &amp; Execute</b> → <b>แขนจริงขยับ</b> · ตอน Plan, MoveIt เช็กการชนแขนกับแขน และแขนกับเสา/หัว/กล้องให้ ถ้าชนจะ Plan ไม่ผ่าน</li>
+  <li>แท็บ <b>Planning</b> → Velocity Scaling ตั้งไว้ <b>1.0</b> (เพดานจริงอยู่ใน joint_limits.yaml) → กด <b>Plan &amp; Execute</b> → <b>แขนจริงขยับ</b> · ตอน Plan, MoveIt เช็กการชนแขนกับแขน และแขนกับเสา/หัว/กล้องให้ ถ้าชนจะ Plan ไม่ผ่าน</li>
   <li>แขนถึงท่าแล้ว ในอีกหน้าต่างพิมพ์ <code>arm teach left ชื่อท่า</code> (หรือ <code>right</code>)</li>
   <li>ทำซ้ำทุกท่า → <code>arm program ...</code> → ทดสอบ <code>arm run ชื่อโปรแกรม</code></li>
 </ol>
@@ -338,8 +338,8 @@
 <h2><span class="num">10</span>ค่าที่ตั้งไว้และความปลอดภัย</h2>
 <table>
   <tr><th style="width:230px">รายการ</th><th>ค่า / หมายเหตุ</th></tr>
-  <tr><td>ความเร็วตัวเล่นโปรแกรม</td><td><b>0.19 rad/s</b> (ฐานหมุน ~11°/วินาที) เพดาน 0.22 สั่งเกินจะถูกลดลงเอง เร่งและเบรก 4.6°/วินาที² · สองแขนในขั้นเดียวกันถูกยืดเวลาให้ถึงพร้อมกัน</td></tr>
-  <tr><td>ความเร็ว MoveIt</td><td>Velocity Scaling <b>0.3</b> (อย่าตั้งเกิน)</td></tr>
+  <tr><td>ความเร็วตัวเล่นโปรแกรม</td><td><b>0.19 rad/s</b> (ฐานหมุน ~11°/วินาที) เป็นเพดานด้วย สั่งเกินจะถูกลดลงเอง เร่งและเบรก 4.6°/วินาที² · สองแขนในขั้นเดียวกันถูกยืดเวลาให้ถึงพร้อมกัน</td></tr>
+  <tr><td>ความเร็ว MoveIt</td><td>Velocity Scaling <b>1.0</b> (J1 ไม่เกิน 0.19 rad/s)</td></tr>
   <tr><td>การเช็กการชน</td><td>มีเฉพาะตอน Plan ใน MoveIt (แขนกับแขน, แขนกับเสา/หัว/กล้อง) · <code>arm run</code> / <code>arm goto</code> ไม่เช็ก</td></tr>
   <tr><td>สายพาน J1</td><td>เคยรูดตอนแขนยื่นไกลแล้วหมุนฐานเร็ว ท่าที่ยื่นแขนสุดและหมุนฐานไกล (เช่น <code>home</code>, <code>pick_frot</code>) ให้ทดสอบช้าๆ และให้ช่างตรวจความตึงสม่ำเสมอ</td></tr>
   <tr><td>ท่าพัก (<code>rest</code>)</td><td>J2 = −5.8°, J5 = −52.2° แกนอื่น 0° (แขนอยู่ท่านี้หลัง calibrate)</td></tr>
@@ -364,7 +364,7 @@
   <tr><td>calibrate ขึ้น <code>✗ J... FAIL</code></td><td>มอเตอร์ข้อนั้นหมุนกลับด้าน หรือสวิตช์/สายหลุด</td><td><code>arm dir แขน 6หลัก</code> → calibrate ข้อนั้นใหม่</td></tr>
   <tr><td>calibrate แล้วมือชน</td><td>หลายข้อหมุนพร้อมกัน</td><td>calibrate ทีละข้อ หาลำดับที่ไม่ชน แล้วตั้ง <code>LEFT_CAL_ORDER</code> / <code>RIGHT_CAL_ORDER</code></td></tr>
   <tr><td>แขนจริงหมุนกลับทิศกับโมเดลใน RViz</td><td>ทิศข้อนั้นในบอร์ดกับในโมเดลไม่ตรงกัน</td><td>ตรวจข้อนั้นด้วย calibrate ก่อน แล้วแจ้งให้แก้ (อย่าแก้ไฟล์โมเดลเอง)</td></tr>
-  <tr><td><code>path tolerance violation</code></td><td>สั่งเร็วเกิน มอเตอร์ตามไม่ทัน</td><td>ใช้ความเร็วปกติ (0.19) ห้ามเกิน 0.22</td></tr>
+  <tr><td><code>path tolerance violation</code></td><td>สั่งเร็วเกิน มอเตอร์ตามไม่ทัน</td><td>ใช้ความเร็วปกติ 0.19 (เพดาน)</td></tr>
   <tr><td>สายพานรูด / ท่าเพี้ยน</td><td>แขนยื่นไกลแล้วเร่ง-หยุดแรง หรือสายพานหย่อน</td><td>ให้ช่างตั้งความตึง → calibrate ใหม่</td></tr>
   <tr><td><code>แขนขวาไม่มีท่า '...'</code></td><td>ท่านั้นยังไม่ได้ teach ให้แขนนั้น (ท่าแยกตามแขน)</td><td><code>arm list</code> ดูชื่อท่าของแต่ละแขน → <code>arm teach แขน ท่า</code></td></tr>
   <tr><td>โยกสวิตช์รีโมทแล้วแขนไม่ขยับ</td><td>ยังไม่ได้ดันสวิตช์ขึ้นก่อน / SWD ลงอยู่ / ตัวเล่นโปรแกรมไม่เปิด</td><td>ดูหน้าต่าง <code>arm remote</code> · ดัน SWC และ SWD ขึ้นแล้วโยก SWC ลงใหม่</td></tr>
