@@ -124,9 +124,128 @@ rps_result() {  # อ่าน "<หุ่น>:<ผู้เล่น>:<ผล>"
   echo "  หุ่น: ${th[$robot]:-$robot} · ผู้เล่น: ${th[$player]:-$player} → $result"
 }
 
+# ---------- arm help ----------
+# บรรทัด "## <หมวด> <ชื่อเรียกอื่น...> | <หัวข้อ>" = หัวหมวด · "   arm ..." = คำสั่ง · "   ! ..." = คำเตือน
+HELP_TOPICS="setup arm teach play hand tray base lidar mission rps"
+help_text() {
+  cat <<'EOF'
+## setup ตั้งค่า | ตั้งค่าบอร์ดแขน (ครั้งแรก / หลังเปลี่ยนบอร์ด — หาพอร์ตจากชื่อในบอร์ด ย้ายสาย USB ได้)
+   arm ports                         ดูบอร์ด Teensy ทุกตัว: พอร์ต ชื่อแขน ข้อที่ตั้งกลับทิศ
+   arm identify                      ตั้งชื่อบอร์ด: ข้อ 6 หมุนไป-กลับ 10° ทีละบอร์ด ดูว่าแขนไหนขยับ ตอบ l / r
+   arm identify <left|right>         หมุนข้อ 6 ของแขนชื่อนั้น เช็กว่าชื่อตรงกับแขนจริง
+   arm name <พอร์ต> <left|right>      ตั้งชื่อแขนให้บอร์ดตรงๆ (ถ้ารู้พอร์ตอยู่แล้ว)
+   arm dir <left|right> <J1..J6>     ตั้งข้อที่มอเตอร์หมุนกลับด้าน เช่น arm dir right 000010
+   arm zero <left|right>             เขียนค่าชดเชยศูนย์ข้อต่อ (ar_dual/config/zero_trims.yaml) ลงบอร์ด
+   ! ห้ามถอด/เสียบ USB ของแขนขณะไฟแขนเปิด — ปิดไฟแขนก่อนเสมอ (Pi 5 เคยเสียจากเรื่องนี้)
+
+## arm แขน | เปิดใช้งานแขน
+   arm status                        ดูว่าอะไรเปิดอยู่บ้าง
+   arm calibrate <left|right> [ข้อ...]  calibrate ทีละข้อตามลำดับ เช่น 6 5 4 1 2 3 (all = พร้อมกัน)
+                                     ต้องทำหลังปิดไฟแขน / ถอด USB / แขนชน / สายพานรูด
+   arm start [left|right]            เปิดระบบแขน (เปิดค้าง) ไม่ใส่ = สองแขน
+   arm player [speed] [nohand]       ตัวเล่นโปรแกรม + ตัวคุมมือ (เปิดค้าง) ค่าเริ่ม 0.19 · nohand = ไม่ต่อมือจริง
+   arm recal <left|right> [ข้อ...]    แขนเดียวรูด: ปิดตัวคุมแขนนั้น -> calibrate -> เปิดใหม่ (อีกแขนทำงานต่อ)
+   arm reconnect <left|right>        เปิดตัวคุมแขนเดียวใหม่ (ไม่ calibrate) — ตัวคุมหลุดไปแขนเดียว
+   arm moveit                        MoveIt + RViz บนจอ Pi — Planning Group: left_arm / right_arm / both_arms
+   arm off                           ปิดทุกอย่างของแขน (รวมเกม)
+   ! ตัดไฟแขน = ข้อ J1 ร่วงลง ประคองแขนก่อนปิดไฟ
+
+## teach สอน | สอนท่า / สร้างโปรแกรม (หน้าต่างไหนก็ได้)
+   arm teach <left|right> <ท่า>       บันทึกท่าปัจจุบันของแขนนั้น (ชื่อท่าซ้ำกันข้ามแขนได้)
+   arm program <ชื่อ> <ขั้น...>          แต่ละขั้น <แขนซ้าย>/<แขนขวา>[/<มือซ้าย>[/<มือขวา>]] - = ไม่ขยับ, wait=วินาที
+                                     เช่น arm program pick2 act1/act1 act2/- act3/act2 -/act3
+                                     ท่ามือ: rock paper scissors point like windup victory nonono relax
+   arm show <ชื่อ>                     ดูโปรแกรมเป็นตาราง ขั้น | แขนซ้าย | แขนขวา
+   arm list                          ดูท่าทุกแขนและโปรแกรมทั้งหมด
+   arm delete <left|right> <ท่า>      ลบท่า (ต้องไม่มีโปรแกรมไหนใช้อยู่)
+   arm delete-program <ชื่อ>           ลบโปรแกรม (ท่าในโปรแกรมยังอยู่)
+
+## play เล่น | เล่นโปรแกรม
+   arm run <โปรแกรม>                 เล่นโปรแกรม รอจนจบแล้วบอกผล (ทุกขั้น แขนที่มีท่าเริ่มและถึงพร้อมกัน)
+   arm goto <left|right> <ท่า>        พาแขนเดียวไปท่าเดียว (แก้ท่า: goto -> ปรับใน MoveIt -> teach ชื่อเดิม)
+   arm stop                          หยุดโปรแกรมกลางคัน (ทุกแขน)
+   arm remote [โปรแกรม] [noguard]    สั่งจากรีโมท (เปิดค้าง): SWB โยกลง = เล่นโปรแกรม (ค่าเริ่ม 1) · SWD โยกลง = หยุด
+   ! ไม่มีการเช็กการชนตอน run / goto (รวมสองแขนชนกันเอง) — โปรแกรมใหม่ลองด้วย speed ต่ำก่อนเสมอ
+
+## hand มือ | มือ AmazingHand
+   arm hand <ท่า> [left|right]        ลองท่ามือตรงๆ (ต้องเปิด arm player อยู่) เช่น arm hand rock
+   arm hand-scan                     เช็กบอร์ดมือ: เซอร์โวตอบไหม baud ไหน ไฟเท่าไหร่ (ไม่ขยับ)
+   arm hand-side [left|right]        มือ/บอร์ดไหนอยู่แขนไหน (hand_boards.yaml) · มือข้างเดียว: ตั้งชุดมือ
+   arm hand-teach [left|right]       จัดท่ามือเอง (1-4 เลือกนิ้ว +/- กำแบ l/r เอียง free ดัดด้วยมือ) save <ชื่อ>
+                                     ชื่อซ้ำท่าในตัว (rock paper scissors ...) = ใช้แทน · ปิด arm player ก่อน
+   arm hand-calibrate [left|right]   ตั้งค่ากลางนิ้วทีละนิ้ว (ปิดเกม/player ก่อน) — ใช้ค่าใหม่ตอนเปิดครั้งถัดไป
+   ! ไฟเซอร์โวมือห้ามเกิน 7.4V — เช็กด้วย arm hand-scan ก่อนสั่งขยับ
+
+## tray กล่อง | หยิบกล่องด้วยกล้อง
+   arm tray [marker_size:=0.12]      กล้อง + หาตำแหน่งกล่อง (ป้าย id 1 บนพื้นกล่อง) ดูภาพ /tray/image/compressed
+   arm tray-teach [left|right]       สอนหยิบ: แตะ 4-6 ครั้งข้อมือมุมเดิม + จับจริง g (เปิด arm start + arm tray ก่อน)
+   arm tray-pick [left|right]        หยิบตามกล้อง (Enter ดูแผน -> y หยิบ · r วางคืน) เปิด start + player + tray ก่อน
+
+## base ฐาน ล้อ | ฐานล้อ (Mega: relay 8 ตัว + encoder 4 ล้อ — docs/wiring_encoders.md)
+   arm base [noguard]                เปิดฐานล้อ relay_bridge (เปิดค้าง) + กันชน lidar — ต้องเปิด arm lidar ด้วย
+                                     noguard = ไม่กัน ใช้ตอนยกล้อจูน/ทดสอบเท่านั้น
+   arm wheel-check                   หมุนทีละล้อ เช็ก encoder ต่อถูกล้อ/นับถูกทิศ แล้วบันทึก (ยกล้อลอยก่อน)
+   arm wheel-tune [back] [rpm] [3s]  หมุน 4 ล้อ แสดง rpm บอกลูกบิดไหนเพิ่ม/ลด (Ctrl+C หยุด · 3s = หยุดเอง ใช้บนพื้น)
+   arm wheel-tune both [rpm] [3s]    วัดเดินหน้า+ถอย แล้วจูนเดินหน้าตามเป้าแยกล้อ (both 3s = วัดอย่างเดียว ไป-กลับ)
+   arm drive <ทิศ> <ระยะ>             วิ่งตามระยะแล้วหยุด: forward back left right (m) · turn 90 (องศา บวก = ซ้าย)
+                                     ของขวาง = หยุดรอ · ขยับคันโยก / ปลด SWA / Ctrl+C = หยุดทันที
+   ! กันชน: ทิศที่มีของใกล้กว่า 30 cm Mega ไม่ขับ ทั้งรีโมทและ ROS · lidar/Pi ดับ = ห้ามทุกทิศ จนโยก SWA ขึ้น-ลง
+   ! รายละเอียด + ขั้นทดสอบ: docs/BASE_SAFETY.md
+
+## lidar แผนที่ map | lidar / แผนที่
+   arm lidar                         เปิด lidar (/scan) เปิดค้าง — กันชนและ arm drive ต้องใช้
+   arm lidar-check                   lidar หันตรงไหม + ซ้าย/ขวาถูกด้าน (วางขวดหน้าหุ่น 1 m) -> บันทึกมุมเบี้ยว
+                                     ตำแหน่ง lidar: humanoi_base/config/lidar_mount.yaml · แก้แล้วเปิด arm lidar ใหม่
+   arm map                           ทำแผนที่ (เปิดค้าง เปิด lidar ให้เอง) ขับด้วยรีโมท ดูใน Foxglove
+   arm map-save <ชื่อ>                 บันทึกแผนที่ -> humanoi_nav/maps/<ชื่อ>.pgm/.yaml
+
+## mission ภารกิจ | ภารกิจ (หยิบ -> พับแขน -> รอยืนยัน -> ฐานวิ่ง -> วาง) — humanoi_mission/config/missions.yaml
+   arm mission                       ดูรายชื่อภารกิจ
+   arm mission <ชื่อ>                  เล่น (เปิดค้าง) · เช็กท่า/โปรแกรมก่อนเริ่ม · ฐานวิ่งเฉพาะตอนแขนพับ
+                                     รอยืนยัน = โยก SWB · SWD / Ctrl+C = หยุดฐาน + แขน + จบภารกิจ
+
+## rps เกม game | เกมเป่ายิ้งฉุบ (docs/RPS_GAME.md — สอนท่าตั้งก่อน: arm teach left rps_ready)
+   arm rps [camera|random] [nohand]  เปิดเกม (เปิดค้าง แทน arm player) ดูมือผู้เล่นจากกล้อง / สุ่ม
+                                     ปรับระยะง้าง: arm rps camera pump_deg:=4 (ค่าเริ่ม 5°)
+   arm rps play                      เล่นตาแรก: J1 ขึ้นลง 3 ครั้ง → มือออกท่า → แขนไปท่าโชว์ → แพ้ชูโป้ง ชนะชู 2 นิ้ว
+                                     ตาต่อไป: ผู้เล่นชูนิ้วชี้ค้างไว้ = เล่นใหม่ (วนได้เรื่อยๆ)
+                                     ท่าโชว์ (ไม่บังคับ): arm teach left victory_pose / arm teach left lose_pose
+   arm rps stop                      หยุดเกมกลางคัน
+EOF
+}
+
+show_help() {  # $1 = หมวด (ว่าง = ทั้งหมด) — สีเฉพาะตอนแสดงบนจอ (ส่งต่อ pipe/ไฟล์ = ไม่มีสี)
+  local H="" G="" Y="" D="" N=""
+  if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    H=$'\e[1;36m' G=$'\e[1;32m' Y=$'\e[1;33m' D=$'\e[2m' N=$'\e[0m'
+  fi
+  if [ -z "${1:-}" ]; then
+    echo "${H}arm${N} — คำสั่งลัดคุมหุ่น Humanoi บน Pi (รันนอก container) · left = แขน 1 (ซ้ายเมื่อมองจากตัวหุ่น), right = แขน 2"
+    echo "${D}ดูทีละหมวด: arm help <หมวด>   ($HELP_TOPICS) · คำสั่งที่ \"เปิดค้าง\" ใช้หน้าต่างละคำสั่ง${N}"
+  fi
+  help_text | awk -v topic="${1:-}" -v H="$H" -v G="$G" -v Y="$Y" -v D="$D" -v N="$N" '
+    /^## / {
+      split(substr($0, 4), part, / \| /)
+      nk = split(part[1], key, " ")
+      show = (topic == "")
+      for (i = 1; i <= nk; i++) if (key[i] == topic) show = 1
+      if (show) { found = 1; printf "\n%s■ %s%s  %s(arm help %s)%s\n", H, part[2], N, D, key[1], N }
+      next
+    }
+    !show || /^$/ { next }
+    /^   ! / { print Y $0 N; next }
+    /^   arm / { match($0, /^   arm [^ ]+/); print "   " G substr($0, 4, RLENGTH - 3) N substr($0, RLENGTH + 1); next }
+    { print }
+    END { if (!found) exit 3 }'
+  if [ "${PIPESTATUS[1]}" = 3 ]; then
+    echo "✗ ไม่มีหมวด '$1' — มี: $HELP_TOPICS (หรือชื่อไทย เช่น ฐาน แขน มือ)"
+    return 1
+  fi
+}
+
 cmd="${1:-help}"
 shift || true
-need_container
+case "$cmd" in help|-h|--help) ;; *) need_container ;; esac  # help ไม่ต้องมี container
 
 case "$cmd" in
   status)
@@ -656,89 +775,17 @@ EOF
     bash "$0" status
     ;;
 
-  help|*)
-    cat <<'EOF'
-arm — คำสั่งลัดแขน AR4 สองตัว (รันบน Pi นอก container) · left = แขน 1 (ซ้ายเมื่อมองจากตัวหุ่น), right = แขน 2
+  help|-h|--help)
+    show_help "${1:-}"
+    ;;
 
- บอร์ดแขน (หาพอร์ตเองจากชื่อที่เก็บในบอร์ด — ย้ายสาย USB ได้)
-   arm ports                   ดูบอร์ด Teensy ทุกตัว: พอร์ต ชื่อแขน ข้อที่ตั้งกลับทิศ
-   arm identify                ตั้งชื่อบอร์ด (ครั้งแรก / หลังเปลี่ยนบอร์ด): ข้อ 6 หมุนไป-กลับ 10° ทีละบอร์ด
-                               ดูว่าแขนไหนขยับแล้วตอบ l = ซ้าย / r = ขวา — ไม่ต้องถอดสาย
-   arm identify <left|right>   หมุนข้อ 6 ของแขนชื่อนั้น เช็กว่าชื่อตรงกับแขนจริง
-   arm name <พอร์ต> <left|right>  ตั้งชื่อแขนให้บอร์ดตรงๆ (ถ้ารู้พอร์ตอยู่แล้ว)
-   arm dir <left|right> <J1..J6>   ตั้งข้อที่มอเตอร์หมุนกลับด้าน เช่น arm dir right 000010
-   arm zero <left|right>           เขียนค่าชดเชยศูนย์ข้อต่อ (ar_dual/config/zero_trims.yaml) ลงบอร์ด
-   ห้ามถอด/เสียบ USB ของแขนขณะไฟแขนเปิด — ปิดไฟแขนก่อนเสมอ (Pi 5 เคยเสียจากเรื่องนี้)
-
- เริ่มใช้งาน (คำสั่งที่เปิดค้าง ให้ใช้หน้าต่างละคำสั่ง)
-   arm status                  ดูว่าอะไรเปิดอยู่บ้าง
-   arm calibrate <left|right> [ข้อ...]  calibrate ทีละแขน ทีละข้อตามลำดับ เช่น 6 5 4 1 2 3 (หรือ all = พร้อมกัน)
-                               ต้องทำหลังปิดไฟแขน/ถอด USB/แขนชน/สายพานรูด
-   arm start [left|right]      เปิดระบบแขน (หน้าต่าง 1 — เปิดค้าง) ไม่ใส่ = สองแขน
-   arm recal <left|right> [ข้อ...]  แขนเดียวรูด: ปิดตัวคุมแขนนั้น -> calibrate -> เปิดใหม่ (อีกแขนทำงานต่อ)
-   arm reconnect <left|right>  เปิดตัวคุมแขนเดียวใหม่ (ไม่ calibrate) — ตัวคุมหลุด/ปิดไปแขนเดียว
-   arm player [speed] [nohand] เปิดตัวเล่นโปรแกรม + ตัวคุมมือ (หน้าต่าง 2 — เปิดค้าง) ค่าเริ่ม 0.19
-                               nohand = ไม่ต่อมือจริง · ห้ามเปิดพร้อม arm rps
-   arm moveit                  MoveIt + RViz สองแขน บนจอ Pi — Planning Group เลือก left_arm/right_arm/both_arms
-   arm remote [โปรแกรม] [noguard]  สั่งจากรีโมท: SWB โยกลง = เล่นโปรแกรม (ค่าเริ่ม 1), SWD โยกลง = หยุด (เปิดค้าง)
-
- ฐานล้อ (Mega: relay 8 ตัว + encoder 4 ล้อ — ต่อสาย/ขั้นตอน: docs/wiring_encoders.md)
-   arm base [noguard]          เปิดฐานล้อ relay_bridge (เปิดค้าง) — /cmd_vel, /wheel_states, /wheel_odom
-                               + กันชน lidar: Mega ไม่ขับเข้าหาของ ทั้งรีโมทและ ROS (ต้องเปิด arm lidar)
-                               noguard = ไม่กัน (ยกล้อจูน/ทดสอบ) · lidar/Pi ดับกลางทาง = ห้ามทุกทิศ จนโยก SWA ขึ้น-ลง
-   arm wheel-check             หมุนทีละล้อ เช็กว่า encoder ต่อถูกล้อ/นับถูกทิศ แล้วบันทึกค่า (ยกล้อลอยก่อน)
-   arm wheel-tune [back] [rpm] [3s]  หมุน 4 ล้อ แสดง rpm ทุกล้อ บอกลูกบิดไหนต้องเพิ่ม/ลด (Ctrl+C หยุด · 3s = หยุดเองใน 3 วิ ใช้บนพื้น)
-   arm wheel-tune both [rpm] [3s]    วัดเดินหน้า+ถอยครั้งเดียว แล้วหมุนเดินหน้าค้าง จูนตามเป้าแยกล้อที่ชดเชยทิศถอย
-                                     (both 3s = วัดอย่างเดียว ไป 3 วิ กลับ 3 วิ แล้วหยุด ใช้บนพื้น)
-   arm lidar                   เปิด lidar (/scan) — ฐานไม่วิ่งอัตโนมัติถ้าไม่มี lidar กันชน (เปิดค้าง)
-   arm lidar-check             lidar หันตรงไหม + ซ้าย/ขวาถูกด้านไหม (วางขวดหน้าหุ่น 1 m) -> บันทึกมุมเบี้ยว
-                               ตำแหน่ง lidar ทั้งหมด: humanoi_base/config/lidar_mount.yaml · แก้แล้วเปิด arm lidar ใหม่
-   arm map                     ทำแผนที่ (lidar อย่างเดียว ไม่ต้องมี encoder) ขับด้วยรีโมท ดูใน Foxglove (เปิดค้าง)
-   arm map-save <ชื่อ>          บันทึกแผนที่ที่ทำอยู่ -> humanoi_nav/maps/<ชื่อ>.pgm/.yaml
-   arm drive forward 1.0       ฐานวิ่งตามระยะแล้วหยุด: forward back left right (m) · turn 90 (องศา บวก = ซ้าย)
-                               ของขวางทาง = หยุดรอ · ขยับคันโยก / ปลด SWA / Ctrl+C = หยุดทันที
-
- ภารกิจ (หยิบ -> พับแขน -> รอยืนยัน -> ฐานวิ่ง -> วาง) — ไฟล์ humanoi_mission/config/missions.yaml
-   arm mission                 ดูรายชื่อภารกิจ
-   arm mission <ชื่อ>           เล่น (เปิดค้าง) · เช็กชื่อท่า/โปรแกรมที่ต้องเปิดก่อนเริ่ม · ฐานวิ่งเฉพาะตอนแขนพับ
-                               รอยืนยัน = โยก SWB · SWD / Ctrl+C = หยุดฐาน + แขน + จบภารกิจ
-
- สอนท่า / สร้างโปรแกรม (หน้าต่างไหนก็ได้)
-   arm teach <left|right> <ท่า>       บันทึกท่าปัจจุบันของแขนนั้น (ชื่อท่าซ้ำกันข้ามแขนได้)
-   arm program <ชื่อ> <ขั้น...>        แต่ละขั้น <แขนซ้าย>/<แขนขวา>[/<มือซ้าย>[/<มือขวา>]] - = ไม่ขยับ, wait=วินาที
-                                      ท่ามือ: rock paper scissors point like windup victory nonono relax
-                                      เช่น arm program pick2 act1/act1 act2/- act3/act2 -/act3
-   arm show <ชื่อ>                    ดูโปรแกรมเป็นตาราง ขั้น | แขนซ้าย | แขนขวา
-   arm list                           ดูท่าทุกแขนและโปรแกรมทั้งหมด
-   arm delete <left|right> <ท่า>      ลบท่า (ต้องไม่มีโปรแกรมไหนใช้อยู่)
-   arm delete-program <ชื่อ>           ลบโปรแกรม (ท่าในโปรแกรมยังอยู่)
-
- เล่น
-   arm run <โปรแกรม>                  เล่นโปรแกรม รอจนจบแล้วบอกผล (ทุกขั้น แขนที่มีท่าเริ่มและถึงพร้อมกัน)
-   arm goto <left|right> <ท่า>        พาแขนเดียวไปท่าเดียว (ใช้ตอนแก้ท่า: goto -> ปรับใน MoveIt -> teach ชื่อเดิม)
-   arm stop                           หยุดโปรแกรมกลางคัน (ทุกแขน)
-   arm hand <ท่า> [left|right]        ลองท่ามือตรงๆ (ต้องเปิด arm player อยู่) เช่น arm hand rock
-   arm tray [marker_size:=0.12]       กล้อง + หาตำแหน่งกล่อง (ป้าย id 1 บนพื้นกล่อง) ดูภาพ /tray/image/compressed
-   arm tray-teach [left|right]        สอนหยิบกล่อง: แตะ 4-6 ครั้งข้อมือมุมเดิม + จับจริง g (เปิด arm start + arm tray ก่อน)
-   arm tray-pick [left|right]         หยิบกล่องตามกล้อง (Enter ดูแผน -> y หยิบ · r วางคืน) เปิด arm start + player + tray ก่อน
-   arm hand-side [left|right]         ดูว่ามือ/บอร์ดไหนอยู่แขนไหน (hand_boards.yaml) · มือข้างเดียว: ตั้งชุดมือ
-   arm hand-scan                      เช็กบอร์ดมือ: เซอร์โวตอบไหม baud ไหน ไฟเท่าไหร่ (ไม่ขยับ)
-   arm hand-teach [left|right]        จัดท่ามือเอง (1-4 เลือกนิ้ว +/- กำแบ l/r เอียง free ดัดด้วยมือ) save <ชื่อ>
-                                      ชื่อซ้ำท่าในตัว (rock paper scissors ...) = ใช้แทน · ปิด arm player ก่อน
-
- เกมเป่ายิ้งฉุบ (คู่มือ docs/RPS_GAME.md — สอนท่าตั้งก่อน: arm teach left rps_ready)
-   arm rps [camera|random] [nohand]   เปิดเกม (เปิดค้าง แทน arm player) ดูมือผู้เล่นจากกล้อง / สุ่มแทน
-                                      ปรับระยะง้าง: arm rps camera pump_deg:=4 (ค่าเริ่ม 5°)
-   arm rps play                       เล่นตาแรก: J1 ขึ้นลง 3 ครั้ง → มือออกท่า → แขนไปท่าโชว์ → หุ่นแพ้ชูโป้ง ชนะชู 2 นิ้ว
-                                      ตาต่อไป: ผู้เล่นชูนิ้วชี้ค้างไว้ = เล่นใหม่ (วนได้เรื่อยๆ)
-                                      ท่าโชว์ (ไม่บังคับ): arm teach left victory_pose / arm teach left lose_pose
-   arm rps stop                       หยุดเกมกลางคัน
-   arm hand-calibrate [left|right]    ตั้งค่ากลางนิ้วของมือทีละนิ้ว (ปิดเกมก่อน) — เกมใช้ค่าใหม่ตอนเปิดครั้งถัดไป
-
- ปิด
-   arm off                            ปิดทุกอย่างของแขน (รวมเกม)
-
- ไม่มีการเช็คการชนตอน arm run/goto (รวมสองแขนชนกันเอง) — ทดสอบโปรแกรมใหม่ด้วย speed ต่ำก่อนเสมอ
-EOF
+  *)
+    echo "✗ ไม่รู้จักคำสั่ง 'arm $cmd'"
+    if [[ "$cmd" =~ ^[a-z][a-z-]+$ ]]; then  # คำสั่งที่ขึ้นต้นเหมือนกัน
+      hits=$(help_text | grep -E "^   arm ${cmd:0:3}" || true)
+      [ -n "$hits" ] && { echo "ชื่อคล้ายกัน:"; echo "$hits"; }
+    fi
+    echo "ดูทั้งหมด: arm help · ทีละหมวด: arm help <หมวด> ($HELP_TOPICS)"
+    exit 1
     ;;
 esac
