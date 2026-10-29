@@ -11,3 +11,8 @@ relay_bridge:
     encoder_map: [3, 1, 2, 0]  # ล้อ FL FR RL RR ใช้ E1-E4 ตัวไหน (0 = E1)
     encoder_signs: [1, 1, 1, 1]  # 1 / -1 ให้ล้อเดินหน้านับเป็นบวก
     publish_odom_tf: false     # TF odom->base_footprint จากล้อ — rf2o (real_slam) ส่งอยู่แล้ว อย่าเปิดคู่กัน
+    guard:                     # กันชน lidar ชั้น Mega: ทิศที่มีของขวาง Mega ไม่ขับ (ทั้งรีโมทและ ROS) — humanoi_base/guard.py
+      enabled: true            # false = ไม่กัน (arm base noguard ปิดให้ชั่วคราว) · เปิดอยู่แต่ไม่มี lidar = ล้อไม่หมุนทุกทิศ
+      stop_dist: 0.30          # m ของในทางใกล้กว่านี้จากขอบตัวหุ่น = ห้ามไปทางนั้น (arm drive หยุดรอเองที่ 0.35 ก่อน)
+      rot_margin: 0.05         # m ห้ามหมุนเมื่อของห่างวงกวาดมุมตัวหุ่นไม่ถึงเท่านี้
+      footprint: [0.265, 0.265, 0.2125, 0.2125]  # m กลางฐานถึงขอบ หน้า หลัง ซ้าย ขวา — แขนพับแล้วยื่นเลยฐาน ให้ขยายตรงนี้

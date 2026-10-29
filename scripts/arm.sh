@@ -25,6 +25,17 @@ ros() { docker exec "$C" /entrypoint.sh "$@"; }          # คำสั่งส
 ros_tty() { docker exec -it "$C" /entrypoint.sh "$@"; }  # คำสั่งที่เปิดค้าง กด Ctrl+C ได้
 is_running() { docker exec "$C" pgrep -f "$1" >/dev/null 2>&1; }
 
+# กันชน lidar ชั้น Mega (relay_bridge บอก Mega ทิศที่มีของขวาง) — $1 = noguard หรือว่าง
+guard_note() {
+  if [ "${1:-}" = noguard ]; then
+    echo "! กันชน lidar ปิด (noguard) — รีโมทและ ROS วิ่งชนของได้ ใช้ตอนยกล้อจูน/ทดสอบเท่านั้น"
+  else
+    echo "กันชน lidar: Mega ไม่ขับเข้าหาของ (ทั้งรีโมทและ ROS) — ต้องเปิด arm lidar ด้วย ไม่งั้นล้อไม่หมุนทุกทิศ"
+    echo "  ไม่ใช้ lidar (ยกล้อจูน/ทดสอบ): Ctrl+C แล้วเปิดใหม่โดยเติม noguard เช่น arm base noguard"
+    is_running "ldlidar" || echo "  ! lidar ยังไม่เปิด — เปิดอีกหน้าต่าง: arm lidar"
+  fi
+}
+
 need_container() {
   if ! docker ps --format '{{.Names}}' | grep -qx "$C"; then
     echo "✗ container $C ไม่ได้เปิดอยู่ — สั่ง: cd ~/Humanoi && docker compose up -d"
@@ -328,7 +339,8 @@ EOF
 
   remote)
     # SWB โยกลง = เล่นโปรแกรม, SWD โยกลง = หยุดแขน (ดู humanoi_base/rc_arm_trigger.py)
-    prog="${1:-1}"
+    prog=1; noguard=""
+    for a in "$@"; do if [ "$a" = noguard ]; then noguard=noguard; else prog="$a"; fi; done
     if is_running "lib/humanoi_base/rc_arm_trigger"; then
       echo "✗ ตัวรับสวิตช์รีโมทเปิดอยู่แล้ว"; exit 1
     fi
@@ -340,8 +352,10 @@ EOF
       ros_tty ros2 run humanoi_base rc_arm_trigger --ros-args -p program_swb:="$prog"
     else
       [ -e "$MEGA" ] || { echo "✗ ไม่เจอ Mega ($MEGA) — เสียบ USB ของ Mega เข้า Pi"; exit 1; }
+      guard_note "$noguard"
+      gp=""; [ -n "$noguard" ] && gp="-p guard.enabled:=false"
       # เปิด relay_bridge (คุยกับ Mega) คู่กันไปด้วย Ctrl+C ปิดทั้งคู่
-      ros_tty bash -c "ros2 run humanoi_base relay_bridge --ros-args --params-file $BASE_PARAMS -p port:=$MEGA & \
+      ros_tty bash -c "ros2 run humanoi_base relay_bridge --ros-args --params-file $BASE_PARAMS -p port:=$MEGA $gp & \
         ros2 run humanoi_base rc_arm_trigger --ros-args -p program_swb:=$prog; kill %1 2>/dev/null"
     fi
     ;;
@@ -351,9 +365,11 @@ EOF
       echo "✗ relay_bridge เปิดอยู่แล้ว (arm base หรือ arm remote) — ใช้ตัวนั้นได้เลย"; exit 1
     fi
     [ -e "$MEGA" ] || { echo "✗ ไม่เจอ Mega ($MEGA) — เสียบ USB ของ Mega เข้า Pi"; exit 1; }
+    guard_args=(); [ "${1:-}" = noguard ] && guard_args=(-p guard.enabled:=false)
     echo "เปิดฐานล้อ (relay_bridge) — ปล่อยหน้าต่างนี้เปิดไว้ ปิดด้วย Ctrl+C"
     echo "ROS ขับล้อได้เมื่อรีโมทเปิด + SWA ลง + ปล่อยคันโยก · ขยับคันโยก = รีโมทแย่งคุมทันที"
-    ros_tty ros2 run humanoi_base relay_bridge --ros-args --params-file "$BASE_PARAMS" -p port:="$MEGA"
+    guard_note "${1:-}"
+    ros_tty ros2 run humanoi_base relay_bridge --ros-args --params-file "$BASE_PARAMS" -p port:="$MEGA" "${guard_args[@]}"
     ;;
 
   lidar)  # lidar STL-19P (/scan) + TF base_footprint -> laser_link (โมเดลแขนไม่มีฐาน จึงส่ง TF เอง)
@@ -404,6 +420,10 @@ EOF
   wheel-check|wheel-tune)  # เช็ก encoder ทีละล้อ / จูนลูกบิดความเร็ว 4 ล้อ — humanoi_base/wheel_tune.py
     if ! is_running "lib/humanoi_base/relay_bridge"; then
       echo "✗ เปิดฐานล้อก่อน: arm base (อีกหน้าต่าง)"; exit 1
+    fi
+    if ! is_running "guard.enabled:=false" && ! is_running "ldlidar"; then
+      echo "✗ กันชน lidar เปิดอยู่แต่ไม่มี lidar — Mega ห้ามล้อทุกทิศ"
+      echo "  ยกล้อลอย: ปิด arm base แล้วเปิด arm base noguard · บนพื้น: เปิด arm lidar อีกหน้าต่าง"; exit 1
     fi
     if [ "$cmd" = wheel-check ]; then
       ros_tty ros2 run humanoi_base wheel_tune check
@@ -653,10 +673,12 @@ arm — คำสั่งลัดแขน AR4 สองตัว (รัน�
    arm player [speed] [nohand] เปิดตัวเล่นโปรแกรม + ตัวคุมมือ (หน้าต่าง 2 — เปิดค้าง) ค่าเริ่ม 0.19
                                nohand = ไม่ต่อมือจริง · ห้ามเปิดพร้อม arm rps
    arm moveit                  MoveIt + RViz สองแขน บนจอ Pi — Planning Group เลือก left_arm/right_arm/both_arms
-   arm remote [โปรแกรม]         สั่งจากรีโมท: SWB โยกลง = เล่นโปรแกรม (ค่าเริ่ม 1), SWD โยกลง = หยุด (เปิดค้าง)
+   arm remote [โปรแกรม] [noguard]  สั่งจากรีโมท: SWB โยกลง = เล่นโปรแกรม (ค่าเริ่ม 1), SWD โยกลง = หยุด (เปิดค้าง)
 
  ฐานล้อ (Mega: relay 8 ตัว + encoder 4 ล้อ — ต่อสาย/ขั้นตอน: docs/wiring_encoders.md)
-   arm base                    เปิดฐานล้อ relay_bridge (เปิดค้าง) — /cmd_vel, /wheel_states, /wheel_odom
+   arm base [noguard]          เปิดฐานล้อ relay_bridge (เปิดค้าง) — /cmd_vel, /wheel_states, /wheel_odom
+                               + กันชน lidar: Mega ไม่ขับเข้าหาของ ทั้งรีโมทและ ROS (ต้องเปิด arm lidar)
+                               noguard = ไม่กัน (ยกล้อจูน/ทดสอบ) · lidar/Pi ดับกลางทาง = ห้ามทุกทิศ จนโยก SWA ขึ้น-ลง
    arm wheel-check             หมุนทีละล้อ เช็กว่า encoder ต่อถูกล้อ/นับถูกทิศ แล้วบันทึกค่า (ยกล้อลอยก่อน)
    arm wheel-tune [back] [rpm] [3s]  หมุน 4 ล้อ แสดง rpm ทุกล้อ บอกลูกบิดไหนต้องเพิ่ม/ลด (Ctrl+C หยุด · 3s = หยุดเองใน 3 วิ ใช้บนพื้น)
    arm wheel-tune both [rpm] [3s]    วัดเดินหน้า+ถอยครั้งเดียว แล้วหมุนเดินหน้าค้าง จูนตามเป้าแยกล้อที่ชดเชยทิศถอย

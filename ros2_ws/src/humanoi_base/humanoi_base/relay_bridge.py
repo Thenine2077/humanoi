@@ -24,6 +24,10 @@ encoder (firmware/humanoi_base_mega ส่ง "ENC t c1 c2 c3 c4 e1 e2 e3 e4" �
 /wheel_cmd (std_msgs/String "W F S S S") สั่งทิศ 4 ล้อตรงๆ ข้าม mixing — ไว้จูน/เช็กล้อ (ชนะ /cmd_vel
   ตอนที่ยังส่งมาไม่เกิน cmd_timeout)
 
+กันชน lidar (mecanum4, guard.enabled — ดู guard.py): ฟัง /scan คิดว่าทิศไหนมีของขวาง แล้วส่ง "G <บิต>" ให้ Mega
+  ทุกรอบพร้อมคำสั่งล้อ — Mega ไม่ขับไปทิศนั้นทั้งตอนรีโมทและ ROS คุม · ไม่มี /scan = ห้ามทุกทิศ
+  /base_guard (std_msgs/UInt8) บิตที่ห้ามตอนนี้ · guard.enabled false = ส่ง "G OFF" (Mega ไม่กัน)
+
 พารามิเตอร์
   port            (str)   /dev/ttyACM0   ("none" = dry-run ไม่เปิด serial ทดสอบ mixing)
   baudrate        (int)   115200
@@ -41,6 +45,7 @@ encoder (firmware/humanoi_base_mega ส่ง "ENC t c1 c2 c3 c4 e1 e2 e3 e4" �
   encoder_signs   (int[]) [1, 1, 1, 1]  1 / -1 ให้ล้อเดินหน้า = ค่าบวก
   odom_frame / base_frame (str) odom / base_footprint
   publish_odom_tf (bool)  false   true = ส่ง TF odom->base_frame จากล้อ (อย่าเปิดคู่กับ rf2o)
+  guard.*                 กันชน lidar — ค่าและความหมายดู guard.DEFAULTS
 
 ไม่มี pyserial / เปิดพอร์ตไม่ได้ = log warn แต่โหนดยังรันต่อ (ดูคำสั่งที่ /motor_command)
 """
@@ -53,8 +58,11 @@ from geometry_msgs.msg import TransformStamped, Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64MultiArray, Int64MultiArray, String
+from std_msgs.msg import Float64MultiArray, Int64MultiArray, String, UInt8
 from tf2_ros import TransformBroadcaster
+
+from humanoi_base.guard import DEFAULTS as GUARD_DEFAULTS
+from humanoi_base.guard import LidarGuard, mask_text
 
 try:
     import serial
@@ -96,6 +104,7 @@ class RelayBridge(Node):
         self.declare_parameter("odom_frame", "odom")
         self.declare_parameter("base_frame", "base_footprint")
         self.declare_parameter("publish_odom_tf", False)
+        guard_cfg = {k: self.declare_parameter("guard." + k, v).value for k, v in GUARD_DEFAULTS.items()}
 
         self.port = str(self.get_parameter("port").value).strip()
         # ค่าเหล่านี้ = โหมด dry-run (ไม่เปิด serial) สำหรับทดสอบ mixing ฝั่ง ROS
@@ -148,6 +157,17 @@ class RelayBridge(Node):
         self.odom_pub = self.create_publisher(Odometry, "wheel_odom", 10)
         self.raw_pub = self.create_publisher(Int64MultiArray, "encoder_raw", 10)
         self.tf_pub = TransformBroadcaster(self) if self.odom_tf else None
+
+        self.guard = None
+        self.guard_mask = None
+        if self.protocol == "mecanum4":
+            self.guard_pub = self.create_publisher(UInt8, "base_guard", 10)
+            if guard_cfg["enabled"]:
+                self.guard = LidarGuard(self, self.base_frame, guard_cfg)
+                self.get_logger().info(f"กันชน lidar เปิด: Mega ไม่ขับเข้าหาของใกล้กว่า {guard_cfg['stop_dist']:.2f} m "
+                                       f"(ทั้งรีโมทและ ROS) — ไม่มี {guard_cfg['scan_topic']} = ห้ามทุกทิศ")
+            else:
+                self.get_logger().warn("กันชน lidar ปิด (guard.enabled false) — รีโมทและ ROS วิ่งชนของได้")
 
         self._open_serial()
         self.timer = self.create_timer(1.0 / rate, self.tick)
@@ -226,7 +246,28 @@ class RelayBridge(Node):
 
         self.cmd_pub.publish(String(data=line))
         self._write(line)
+        self._send_guard(now)
         self._read_lines()
+
+    def _send_guard(self, now):
+        """บอก Mega ทุกรอบว่าทิศไหนห้าม ("G <บิต>") — Mega ไม่ได้ยินเกิน 0.5 วิ = ห้ามทุกทิศเอง"""
+        if self.protocol != "mecanum4":
+            return
+        if self.guard is None:
+            self._write("G OFF")
+            return
+        mask, fresh = self.guard.mask(now)
+        self._write(f"G {mask}")
+        self.guard_pub.publish(UInt8(data=mask))
+        if mask == self.guard_mask:
+            return
+        self.guard_mask = mask
+        if not fresh:
+            self.get_logger().warn("กันชน: ไม่มีค่า lidar — Mega ห้ามล้อทุกทิศ (เปิด arm lidar หรือ arm base noguard)")
+        elif mask:
+            self.get_logger().info(f"กันชน: ห้าม {mask_text(mask)} (F หน้า B หลัง L ซ้าย R ขวา T หมุน)")
+        else:
+            self.get_logger().info("กันชน: โล่งทุกทิศ")
 
     def _write(self, line: str):
         if self.ser is None:
@@ -252,9 +293,9 @@ class RelayBridge(Node):
                     self.prev_enc = None  # Mega รีเซ็ต ค่านับเริ่ม 0 ใหม่
                     self._check_enc_mode(line)
                 self.state_pub.publish(String(data=line))
-                if line.startswith("WARN"):
+                if line.startswith("WARN") or line == "GUARD:LOST":
                     self.get_logger().warn(f"[MEGA] {line}")
-                elif line.startswith("READY"):
+                elif line.startswith(("READY", "GUARD:HOLD", "GUARD:FREE", "GUARD:OFF")):
                     self.get_logger().info(f"[MEGA] {line}")
                 else:
                     self.get_logger().debug(f"[MEGA] {line}")

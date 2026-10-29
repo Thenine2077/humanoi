@@ -384,7 +384,8 @@ def print_warnings(rpm, errs, mode):
     if mode not in (None, "ROS", "?"):
         print(f"        ! Mega อยู่โหมด {mode} — ROS ไม่ได้คุมล้อ")
     if all(abs(v) < 1.0 for v in rpm):
-        print("        ! ไม่มีล้อหมุน — รีโมทเปิด SWA ลง ปล่อยคันโยก? ไฟมอเตอร์เปิด?")
+        print("        ! ไม่มีล้อหมุน — รีโมทเปิด SWA ลง ปล่อยคันโยก? ไฟมอเตอร์เปิด? "
+              "กันชน lidar ห้ามอยู่? (ยกล้อ: arm base noguard)")
 
 
 def main():

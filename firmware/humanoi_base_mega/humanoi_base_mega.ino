@@ -12,9 +12,8 @@
  *       E1 A8/A9   E2 A10/A11   E3 A12/A13   E4 A14/A15   (ตั้งใจให้ E1-E4 = FL FR RL RR
  *       ENC_B_WIRED = false (ตอนนี้): ต่อแค่สาย A -> A8 A10 A12 A14 ผ่าน opto 4 ช่อง ไม่ต้องต่อสายขาว
  *       ต่อผิดล้อ/นับกลับด้านไม่ต้องย้ายสาย — relay_bridge มี encoder_map / encoder_signs, หาค่าด้วย arm wheel-check)
- *       ไฟ encoder 24V จากบัส (ป้าย 8-24V) · GND ร่วมกับ Mega
- *       สัญญาณ 24V ผ่านตัวแบ่งแรงดัน 10k/2.2k ต่อเส้น (open collector ต่อตรงได้)
- *       ห้ามผ่าน step-down — ดู docs/wiring_encoders.md
+ *       ไฟ encoder 12V จาก XL4016 · สัญญาณผ่านบอร์ด opto PC817 4 ช่อง (OUT -> ขา A, ใช้ pull-up ใน Mega)
+ *       ดู docs/wiring_encoders.md
  *   USB ของ Mega -> Raspberry Pi (ใน container เห็นเป็น /dev/ttyACM0)
  *   pin 13 = LED: กะพริบเร็ว = ไม่มีสัญญาณรีโมท, กะพริบช้า = ไม่ ARM,
  *                 ติดค้าง = รีโมทคุม, ติดแล้วดับแวบทุก 1 วิ = ROS คุม
@@ -29,6 +28,8 @@
  * โปรโตคอล serial (115200, บรรทัดละคำสั่ง — เข้ากับ relay_bridge เดิม):
  *   PC -> MEGA : "W f f f f"  ตั้งทิศ 4 ล้อ f = F|B|S ลำดับ FL FR RL RR ("WFBSF" ก็ได้)
  *                "S" หยุดทุกล้อ | "P" ping -> "OK" | "Z" ล้างค่านับ encoder -> "OK"
+ *                "G n"  กันชน lidar: n = บิตทิศที่ห้าม 1 หน้า 2 หลัง 4 ซ้าย 8 ขวา 16 หมุน (0 = โล่ง, 31 = ห้ามหมด)
+ *                       relay_bridge ส่งทุก 50 ms · "G OFF" = ไม่ใช้กันชน (arm base noguard) — ดู guard.h
  *   MEGA -> PC : "READY humanoi_base_mega enc=a2"  วิธีนับ encoder: a2 = สาย A อย่างเดียว ทิศจากคำสั่ง relay (720 ต่อรอบ)
  *                                                 x4 = A+B ทุกขอบ (1440) · x2 = A+B นับขอบ A (720)
  *                "ENC t c1 c2 c3 c4 e1 e2 e3 e4"  ทุก ENC_MS — t = millis() ตอนอ่าน, c = ค่านับสะสมของ E1-E4
@@ -41,6 +42,8 @@
  *                "SW:BxDy"  ตำแหน่งสวิตช์ SWB/SWD  x,y = U (ขึ้น) | D (ลง) | - (ไม่รู้/ไม่มีสัญญาณ)
  *                           ส่งทันทีที่เปลี่ยน + ทุก PRINT_MS — Mega แค่รายงาน ไม่ตัดสินใจเอง
  *                           ฝั่ง Pi (rc_arm_trigger) จับจังหวะโยกแล้วสั่งแขนเล่นโปรแกรม/หยุด
+ *                "GUARD:ON F---T" / "GUARD:OFF" / "GUARD:LOST"  สถานะกันชนเปลี่ยน (ตัวอักษร = ทิศที่ห้าม FBLRT)
+ *                "GUARD:HOLD F----" / "GUARD:FREE"  เริ่ม/เลิกหยุดล้อเพราะคำสั่งพาไปทิศที่ห้าม
  *
  * ความปลอดภัย:
  *   1) ต้องเห็น SWA ขึ้นก่อนหนึ่งครั้ง หลังเปิดเครื่องหรือหลังสัญญาณหาย ถึงจะ ARM ได้
@@ -50,7 +53,13 @@
  *   3) ROS ไม่ส่ง W/S เกิน CMD_TIMEOUT -> ล้อที่ ROS สั่งหยุด
  *   4) กลับทางต้องหยุดค้าง REVERSE_DELAY ก่อน (รวมตอนสลับผู้คุมด้วย)
  *   5) relay ถูกสั่ง "ปิด" ก่อนตั้งขาเป็น OUTPUT จะได้ไม่กระตุกตอนบูต
+ *   6) กันชน lidar (guard.h): ทิศที่ Pi ห้าม = ไม่ขับ ทั้งรีโมทและ ROS — ของเข้ามาในทางตอนวิ่ง = หยุดทันทีที่ได้ "G"
+ *      บูตแล้วยังไม่ได้ยิน Pi = ไม่กัน (ขับด้วยรีโมทอย่างเดียวได้เหมือนเดิม)
+ *      เคยได้ยินแล้วเงียบเกิน GUARD_TIMEOUT (Pi/lidar/relay_bridge ดับ) = ห้ามทุกทิศ
+ *      -> จะขับต่อโดยไม่มี lidar: โยก SWA ขึ้นแล้วลงหนึ่งครั้ง
  */
+
+#include "guard.h"
 
 // ---------------- ค่าที่อาจต้องปรับ ----------------
 const uint8_t PIN_CH1 = 2;  // สไลด์ข้าง
@@ -94,6 +103,10 @@ const bool ENC_B_WIRED = false;
 // เฉพาะตอนต่อสาย B: 4 = จับทุกขอบของ A และ B (1440) · 2 = จับแค่ขอบ A (720 — ใช้ถ้า e ขึ้นตอนหมุนเร็ว)
 const uint8_t ENC_EDGES = 4;
 const unsigned long ENC_MS = 50;  // ส่งค่านับทุก 50 ms (ช้ากว่านี้ได้ตอนรอพัลส์รีโมท — t บอกเวลาจริง)
+
+const unsigned long GUARD_TIMEOUT = 500;  // Pi ไม่ส่ง "G" เกินนี้ (ms) = กันชนหาย
+// true = กันชนหายแล้วห้ามทุกทิศ จนกว่าโยก SWA ขึ้น-ลง · false = กันชนหายแล้วขับได้เหมือนไม่มี lidar
+const bool GUARD_LOST_STOPS = true;
 // ---------------------------------------------------
 
 enum Dir : int8_t { D_REV = -1, D_STOP = 0, D_FWD = 1 };
@@ -118,6 +131,10 @@ uint8_t loopCount = 0;
 
 Mode mode = M_NO_SIGNAL;
 bool modeReported = false;
+
+Guard guard;
+uint8_t guardHeld = 0;      // ทิศของคำสั่งที่กำลังถูกกันชนหยุดไว้ (0 = ไม่ได้หยุด)
+bool swaPrevDown = false;   // ไว้จับจังหวะโยก SWA ขึ้น (ปลดกันชนตอน LOST)
 
 char buf[24];
 uint8_t bufLen = 0;
@@ -232,6 +249,58 @@ void reportMode(Mode m) {
   }
 }
 
+// ---------- กันชน lidar ----------
+void printGuardDirs(uint8_t m) {
+  const char letters[] = "FBLRT";
+  for (uint8_t b = 0; b < 5; b++) Serial.print((m & (1 << b)) ? letters[b] : '-');
+}
+
+void reportGuard() {
+  Serial.print(F("GUARD:"));
+  if (guard.state == GUARD_ON) {
+    Serial.print(F("ON "));
+    printGuardDirs(guard.mask);
+    Serial.println();
+  } else {
+    Serial.println(guard.state == GUARD_LOST ? F("LOST") : F("OFF"));
+  }
+}
+
+void reportHold(uint8_t held) {
+  if (held) {
+    Serial.print(F("GUARD:HOLD "));
+    printGuardDirs(held);
+    Serial.println();
+  } else {
+    Serial.println(F("GUARD:FREE"));
+  }
+}
+
+// ล้อที่หมุนอยู่พาไปทิศที่เพิ่งถูกห้าม -> หยุดทันที ไม่รอรอบ loop (ที่อาจรอพัลส์รีโมทอยู่หลายสิบ ms)
+void guardStopNow() {
+  if (!guard.blocks((const int8_t *)current)) return;
+  for (uint8_t i = 0; i < NUM_WHEELS; i++) {
+    if (current[i] != D_STOP) applyWheel(i, D_STOP);
+  }
+}
+
+// "G 5" / "G5" / "G OFF" — ค่าแปลกทิ้งทั้งบรรทัด
+void handleGuardLine(char *s, uint8_t n) {
+  uint8_t k = 1;
+  while (k < n && s[k] == ' ') k++;
+  int v = 0;
+  if (k < n && (s[k] == 'O' || s[k] == 'o')) {
+    v = -1;
+  } else {
+    uint8_t digits = 0;
+    while (k < n && s[k] >= '0' && s[k] <= '9' && digits < 3) v = v * 10 + (s[k++] - '0'), digits++;
+    while (k < n && s[k] == ' ') k++;
+    if (digits == 0 || k != n || v > G_ALL) return;
+  }
+  if (guard.onMessage(v, millis())) reportGuard();
+  guardStopNow();
+}
+
 // ---------- คำสั่งจาก ROS ----------
 Dir parseDir(char c) {
   if (c == 'F' || c == 'f') return D_FWD;
@@ -251,6 +320,10 @@ void handleLine(char *s, uint8_t n) {
     for (uint8_t i = 0; i < NUM_WHEELS; i++) encCount[i] = encErr[i] = 0;
     interrupts();
     Serial.println(F("OK"));
+    return;
+  }
+  if (s[0] == 'G' || s[0] == 'g') {
+    handleGuardLine(s, n);
     return;
   }
   if (s[0] == 'S' || s[0] == 's') {
@@ -356,6 +429,9 @@ void printStatus() {
     Serial.print(' ');
     Serial.print(dirChar(current[i]));
   }
+  Serial.print(F(" G:"));
+  if (guard.state == GUARD_ON) printGuardDirs(guard.mask);
+  else Serial.print(guard.state == GUARD_LOST ? F("LOST") : F("off"));
   Serial.println();
 }
 
@@ -423,9 +499,13 @@ void loop() {
   if (!signal) {
     armed = false;
     sawDisarmed = false;  // สัญญาณกลับมาแล้วต้องยก SWA ขึ้นก่อนหนึ่งครั้ง
+    swaPrevDown = false;
   } else if (ok) {
     bool swaDown = ch5 <= SWA_DOWN_MAX;
     if (!swaDown) sawDisarmed = true;
+    // กันชนหาย (LOST): โยก SWA ลง -> ขึ้น = ยืนยันขับต่อโดยไม่มี lidar
+    if (!swaDown && swaPrevDown && guard.release()) reportGuard();
+    swaPrevDown = swaDown;
     armed = swaDown && sawDisarmed;
   }
 
@@ -468,6 +548,20 @@ void loop() {
     if (mode == M_RC) target[i] = toDir(mix[i], current[i]);
     else if (mode == M_ROS) target[i] = rosTarget[i];
     else target[i] = D_STOP;
+  }
+
+  // ---------- กันชน lidar: คำสั่ง (รีโมทหรือ ROS) ที่พาไปทิศที่ห้าม = หยุดทุกล้อ ----------
+  if (guard.tick(now, GUARD_TIMEOUT, GUARD_LOST_STOPS)) reportGuard();
+  uint8_t held = guard.blocks((const int8_t *)target);
+  if (held) {
+    for (uint8_t i = 0; i < NUM_WHEELS; i++) target[i] = D_STOP;
+  }
+  if (held != guardHeld) {
+    guardHeld = held;
+    reportHold(held);
+  }
+
+  for (uint8_t i = 0; i < NUM_WHEELS; i++) {
     if (hardStop && current[i] != D_STOP) applyWheel(i, D_STOP);  // ปลด ARM = หยุดทันที
     updateWheel(i, now);
   }

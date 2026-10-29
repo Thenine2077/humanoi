@@ -64,6 +64,19 @@ def wrap(a):
     return math.atan2(math.sin(a), math.cos(a))
 
 
+def scan_to_points(msg, tx, ty, tyaw):
+    """จุดจาก LaserScan -> [(x, y)] ในเฟรมฐาน (lidar อยู่ที่ tx, ty หันไป tyaw)"""
+    c, s = math.cos(tyaw), math.sin(tyaw)
+    pts = []
+    a = msg.angle_min
+    for rng in msg.ranges:
+        if math.isfinite(rng) and msg.range_min <= rng <= msg.range_max:
+            lx, ly = rng * math.cos(a), rng * math.sin(a)
+            pts.append((tx + c * lx - s * ly, ty + s * lx + c * ly))
+        a += msg.angle_increment
+    return pts
+
+
 def obstacle_gap(points, kind, footprint, side_margin, rot_margin):
     """ระยะจากขอบตัวหุ่นถึงจุดใกล้สุดที่อยู่ในทางของการวิ่งแบบ kind (m) — ไม่มีจุดในทาง = None
     points = [(x, y)] ในเฟรมฐาน · จุดในกรอบตัวหุ่นเอง (เสา แขน สาย) ไม่นับ
@@ -143,15 +156,7 @@ class BaseMotion:
                 self.node.get_logger().warn(f"ไม่มี TF {self.cfg['base_frame']} -> {msg.header.frame_id} "
                                             "— ถือว่า lidar อยู่หน้าฐาน 0.16 m หันหน้าตรง")
             tx, ty, tyaw = 0.16, 0.0, 0.0
-        c, s = math.cos(tyaw), math.sin(tyaw)
-        pts = []
-        a = msg.angle_min
-        for rng in msg.ranges:
-            if math.isfinite(rng) and msg.range_min <= rng <= msg.range_max:
-                lx, ly = rng * math.cos(a), rng * math.sin(a)
-                pts.append((tx + c * lx - s * ly, ty + s * lx + c * ly))
-            a += msg.angle_increment
-        return pts
+        return scan_to_points(msg, tx, ty, tyaw)
 
     def gap(self, kind):
         """(ระยะของขวางในทาง หรือ None, lidar สดไหม)"""
