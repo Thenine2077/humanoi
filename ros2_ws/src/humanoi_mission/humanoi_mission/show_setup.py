@@ -103,6 +103,7 @@ class Setup(Node):
     def gap_now(self):
         """ข้างหน้าห่างเท่าไหร่ (m) — ไม่มี lidar / ไม่เห็นอะไร = None"""
         try:
+            self.motion.wait_ready()  # เพิ่งเปิดโปรแกรม scan แรกอาจยังไม่มา
             return self.motion.front_gap(0.5)
         except MoveError:
             return None
