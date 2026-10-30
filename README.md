@@ -211,4 +211,4 @@ arm rps                                  # เกมเป่ายิงฉุ�
 | [`docs/PI_DOCKER.md`](docs/PI_DOCKER.md) | ROS 2 บน Raspberry Pi (Docker) |
 | [`docs/plan.md`](docs/plan.md) · [`docs/roadmap.html`](docs/roadmap.html) | แผนงาน / roadmap |
 | [`docs/power_budget.xlsx`](docs/power_budget.xlsx) · [`docs/wiring_relay_motor_4wd.md`](docs/wiring_relay_motor_4wd.md) | งบไฟ / วงจรฐาน |
-| [`docs/SYSTEM_WIRING.pdf`](docs/SYSTEM_WIRING.pdf) · [`.png`](docs/SYSTEM_WIRING.png) | ผังเดินสายทั้งระบบ: Pi 5 + USB hub, แขน, มือ, กล้อง, lidar, Mega, รีโมท, relay, มอเตอร์, encoder, ไฟ 24 V |
+| [`docs/SYSTEM_WIRING.pdf`](docs/SYSTEM_WIRING.pdf) · [`.png`](docs/SYSTEM_WIRING.png) | ผังเดินสายทั้งระบบ: Pi 5 + USB hub, แขน, มือ, กล้อง, lidar, Mega, รีโมท, relay, มอเตอร์, encoder, ไฟ 5 V (มือ) / 24 V (ฐาน) |
