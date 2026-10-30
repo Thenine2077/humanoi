@@ -126,7 +126,7 @@ rps_result() {  # อ่าน "<หุ่น>:<ผู้เล่น>:<ผล>"
 
 # ---------- arm help ----------
 # บรรทัด "## <หมวด> <ชื่อเรียกอื่น...> | <หัวข้อ>" = หัวหมวด · "   arm ..." = คำสั่ง · "   ! ..." = คำเตือน
-HELP_TOPICS="setup arm teach play log hand tray base lidar mission rps"
+HELP_TOPICS="setup arm teach play log hand tray base lidar mission show rps"
 help_text() {
   cat <<'EOF'
 ## setup ตั้งค่า | ตั้งค่าบอร์ดแขน (ครั้งแรก / หลังเปลี่ยนบอร์ด — หาพอร์ตจากชื่อในบอร์ด ย้ายสาย USB ได้)
@@ -155,7 +155,7 @@ help_text() {
    arm program <ชื่อ> <ขั้น...>          แต่ละขั้น <แขนซ้าย>/<แขนขวา>[/<มือซ้าย>[/<มือขวา>]] - = ไม่ขยับ, wait=วินาที
                                      เช่น arm program pick2 act1/act1 act2/- act3/act2 -/act3
                                      ท่ามือ: rock paper scissors point like windup victory nonono relax
-   arm show <ชื่อ>                     ดูโปรแกรมเป็นตาราง ขั้น | แขนซ้าย | แขนขวา
+   arm show <โปรแกรม>                  ดูโปรแกรมเป็นตาราง ขั้น | แขนซ้าย | แขนขวา (ชื่อโชว์ = เปิดโชว์ ดู arm help show)
    arm list                          ดูท่าทุกแขนและโปรแกรมทั้งหมด
    arm delete <left|right> <ท่า>      ลบท่า (ต้องไม่มีโปรแกรมไหนใช้อยู่)
    arm delete-program <ชื่อ>           ลบโปรแกรม (ท่าในโปรแกรมยังอยู่)
@@ -214,6 +214,25 @@ help_text() {
    arm mission                       ดูรายชื่อภารกิจ
    arm mission <ชื่อ>                  เล่น (เปิดค้าง) · เช็กท่า/โปรแกรมก่อนเริ่ม · ฐานวิ่งเฉพาะตอนแขนพับ
                                      รอยืนยัน = โยก SWB · SWD / Ctrl+C = หยุดฐาน + แขน + จบภารกิจ
+
+## show โชว์ | โชว์ทีละรอบ หยิบกล่อง A → B (docs/SHOW.md — config/shows.yaml, routes.yaml)
+   arm show                          ดูรายชื่อโชว์ เส้นทาง ระยะจอด
+   arm show check <โชว์>              เช็กท่า เส้นทาง ระยะจอด ระบบที่ต้องเปิด (ไม่ขยับ)
+   arm show <โชว์>                     เปิดโชว์ (เปิดค้าง) รอคนคุมสั่งทีละรอบ — เช่น arm show ab
+                                     SWB / Enter = เริ่มรอบ · ยืนยัน · ทำต่อ  SWD / s = หยุด (อีกครั้ง = จบรอบ)  q = ออก
+   arm show route-record <A_to_B>    สอนเส้นทาง: ขับรีโมททีละขา (ตรง / หมุนอยู่กับที่) Enter = บันทึก u = ลบขา
+                                     ได้ขากลับ B_to_A ให้เอง · จบเส้นทางห่างโต๊ะ 0.45–0.7 m แล้วให้ dock เข้าไปเอง
+   arm show route-set <ชื่อ> "forward 1.2, turn 90"  พิมพ์เส้นทางเอง (m / องศา บวก = ซ้าย)
+   arm show dock-save <B>            จอดหุ่นหน้าโต๊ะตรงที่ใช่ แล้วจดระยะที่ lidar เห็น (เปิด base + lidar)
+   arm show dock-set <B> <m>         ตั้งระยะจอดเอง (m จากขอบหน้าตัวหุ่น)
+   arm show verify [left]            เช็กกล้อง: แขนไปค้างเหนือที่จับกล่อง (ไม่จับ) แล้วกลับ
+   arm show test                     ทดสอบตัวคุมโชว์แบบจำลองทั้งชุด (ไม่ขยับของจริง ~8 นาที)
+   arm up [left] [โชว์]              เปิดทั้งชุดใน tmux: lidar base แขน player กล้อง โชว์ (ค่าเริ่ม left ab)
+                                     none = ยังไม่เปิดโชว์ (ตั้งหน้างาน) · สั่งซ้ำพร้อมชื่อโชว์ = เติมหน้าต่างโชว์
+                                     SSH / เน็ตหลุด โชว์ไม่ตาย คุมรีโมทต่อได้ · ดูจอ: tmux attach -t humanoi
+   arm down                          ปิดชุดที่เปิดด้วย arm up (แขนค้างท่า ไม่ตัดไฟ)
+   ! ก่อนเปิดโชว์: arm start left + arm player + arm tray + arm base + arm lidar · ฐานวิ่งเฉพาะตอนแขนพับ
+   ! งานโชว์ใช้ arm up เสมอ — เปิดในหน้าต่าง SSH ธรรมดา เน็ตหลุด = หน้าต่างตาย คุมต่อไม่ได้
 
 ## rps เกม game | เกมเป่ายิ้งฉุบ (docs/RPS_GAME.md — สอนท่าตั้งก่อน: arm teach left rps_ready)
    arm rps [camera|random] [nohand]  เปิดเกม (เปิดค้าง แทน arm player) ดูมือผู้เล่นจากกล้อง / สุ่ม
@@ -277,6 +296,9 @@ case "$cmd" in
     show "lib/humanoi_games/rps_game" "เกมเป่ายิ้งฉุบ      (arm rps)"
     show "lib/humanoi_games/amazinghand_node" "ตัวคุมมือ           (arm player / arm rps)"
     show "lib/humanoi_base/relay_bridge" "relay_bridge (Mega)"
+    show "lib/humanoi_mission/show run" "โชว์               (arm show / arm up)"
+    command -v tmux >/dev/null && tmux has-session -t humanoi 2>/dev/null \
+      && echo "  ✓ ชุดโชว์ใน tmux 'humanoi' ($(tmux list-windows -t humanoi -F '#W' | tr '\n' ' ')) — tmux attach -t humanoi"
     if is_running ros2_control_node; then
       echo "ตัวควบคุม:"
       for a in left right; do  # แยกแขนละตัว (ระบบแบบเก่าใช้ /controller_manager ตัวเดียว)
@@ -733,9 +755,51 @@ EOF
     ros ros2 run ar_program teach --list
     ;;
 
-  show)
-    [ $# -ge 1 ] || { echo "ใช้: arm show <ชื่อโปรแกรม>   (ดูเป็นตาราง ขั้น | แขนซ้าย | แขนขวา)"; exit 1; }
-    ros ros2 run ar_program teach --show "$1"
+  show)  # โชว์ทีละรอบ (humanoi_mission show / show_setup — config/shows.yaml, routes.yaml) · ชื่อโปรแกรม = ตารางโปรแกรม (เดิม)
+    sub="${1:-}"
+    case "$sub" in
+      "")
+        ros ros2 run humanoi_mission show list
+        echo "ดูตารางโปรแกรมแขน: arm show <ชื่อโปรแกรม> · คำสั่งทั้งหมด: arm help show"
+        ;;
+      check)
+        [ $# -ge 2 ] || { echo "ใช้: arm show check <ชื่อโชว์>"; exit 1; }
+        ros ros2 run humanoi_mission show check "$2"
+        ;;
+      route-record|route-set|dock-save|dock-set|verify)
+        case "$sub" in
+          route-record|dock-save)
+            is_running "lib/humanoi_base/relay_bridge" || { echo "✗ เปิดฐานล้อก่อน: arm base (อีกหน้าต่าง)"; exit 1; } ;;
+        esac
+        if [ "$sub" = dock-save ] && ! is_running "ldlidar"; then
+          echo "✗ เปิด lidar ก่อน: arm lidar (อีกหน้าต่าง)"; exit 1
+        fi
+        ros_tty ros2 run humanoi_mission show_setup "$@"
+        docker exec "$C" chown 1000:1000 /humanoi_ws/src/humanoi_mission/config/routes.yaml 2>/dev/null
+        ;;
+      test)  # ทดสอบตัวคุมโชว์แบบจำลองทั้งชุด (ROS_DOMAIN_ID แยก ไม่กวนระบบจริง) — tools/show_sim
+        [ -d "$HOME/Humanoi/tools/show_sim" ] || { echo "✗ ไม่มี ~/Humanoi/tools/show_sim"; exit 1; }
+        docker exec "$C" rm -rf /tmp/show_sim && docker cp "$HOME/Humanoi/tools/show_sim" "$C:/tmp/show_sim" >/dev/null \
+          && ros_tty bash /tmp/show_sim/run_show_tests.sh
+        ;;
+      *)
+        if docker exec "$C" python3 -c 'import sys, yaml
+d = yaml.safe_load(open(sys.argv[1])) or {}
+sys.exit(0 if sys.argv[2] in (d.get("shows") or {}) else 1)' \
+             /humanoi_ws/src/humanoi_mission/config/shows.yaml "$sub" 2>/dev/null; then
+          if is_running "lib/humanoi_base/rc_arm_trigger"; then
+            echo "✗ arm remote เปิดอยู่ (SWB จะสั่งโปรแกรมซ้อน) — ปิดหน้าต่างนั้นก่อน"; exit 1
+          fi
+          if is_running "lib/humanoi_mission/show run" || is_running "lib/humanoi_mission/mission"; then
+            echo "✗ โชว์ / ภารกิจเปิดอยู่อีกหน้าต่าง — ปิดก่อน (q หรือ Ctrl+C)"; exit 1
+          fi
+          ros_tty ros2 run humanoi_mission show run "$sub"
+          docker exec "$C" chown -R 1000:1000 /humanoi_ws/arm_logs 2>/dev/null
+        else
+          ros ros2 run ar_program teach --show "$sub"  # ไม่ใช่ชื่อโชว์ = ดูโปรแกรมเป็นตาราง (คำสั่งเดิม)
+        fi
+        ;;
+    esac
     ;;
 
   teach)
@@ -797,6 +861,68 @@ EOF
              lib/joint_state_publisher/joint_state_publisher; do
       docker exec "$C" pkill -9 -f "$p" 2>/dev/null
     done
+    bash "$0" status
+    ;;
+
+  up)  # เปิดชุดโชว์ใน tmux (lidar base แขน player กล้อง โชว์) — เน็ต / SSH หลุด โปรแกรมไม่ตาย คุมด้วยรีโมทต่อได้
+    command -v tmux >/dev/null || { echo "✗ ยังไม่มี tmux — ติดตั้งครั้งเดียว (ต้องมีเน็ต): sudo apt install tmux"; exit 1; }
+    S=humanoi
+    arm=$(arm_name "${1:-left}"); show_name="${2:-ab}"
+    [ -n "$arm" ] || { echo "ใช้: arm up [left|right] [ชื่อโชว์ | none]   (ค่าเริ่ม: left ab · none = ยังไม่เปิดโชว์)"; exit 1; }
+    me="bash $(realpath "$0")"
+    win() {  # win <ชื่อ> <คำสั่ง arm...> — จบ/พังแล้วหน้าต่างค้างไว้ให้อ่าน
+      local name=$1; shift
+      local cmdline="$me $*; echo; read -r -p '[$name] จบแล้ว — Enter = ปิดหน้าต่างนี้' _"
+      if tmux has-session -t "$S" 2>/dev/null; then tmux new-window -t "$S" -n "$name" "$cmdline"
+      else tmux new-session -d -s "$S" -n "$name" "$cmdline"; fi
+    }
+    wait_for() {  # wait_for <pattern> <ชื่อ> <วินาที>
+      for _ in $(seq 1 "$3"); do is_running "$1" && return 0; sleep 1; done
+      echo "✗ $2 ไม่ขึ้นใน $3 วินาที — ดูหน้าต่างนั้น: tmux attach -t $S"; return 1
+    }
+    if tmux has-session -t "$S" 2>/dev/null; then  # เปิดอยู่แล้ว (เช่น arm up left none ตอนตั้งหน้างาน) -> เติมโชว์
+      if [ "$show_name" != none ] && ! tmux list-windows -t "$S" -F '#W' | grep -qx show; then
+        win show show "$show_name"
+        tmux select-window -t "$S:show"
+        echo "✓ เพิ่มหน้าต่างโชว์ $show_name — รอ SWB · ดู: tmux attach -t $S"
+      else
+        echo "ชุดโชว์เปิดอยู่แล้ว — ดู: tmux attach -t $S · ปิด: arm down"
+      fi
+      exit 0
+    fi
+    cat <<EOF
+เปิดชุดโชว์ใน tmux '$S' (แขน$([ "$arm" = left ] && echo ซ้าย || echo ขวา) · โชว์ $show_name):
+  lidar → base → arm start $arm → player → tray$([ "$show_name" != none ] && echo " → show $show_name")
+ • แขนต้อง calibrate แล้ว (ไฟแขนไม่ได้ดับหลัง calibrate) · กล่องวางที่ A · หุ่นจอดหน้าโต๊ะ A
+ • เปิดเสร็จ คุมด้วยรีโมทได้เลย (SWB เริ่ม/ยืนยัน · SWD หยุด) ไม่ต้องมีโน้ตบุ๊ก
+ • ดูหน้าจอ: tmux attach -t $S (Ctrl+B แล้ว n = หน้าต่างถัดไป · Ctrl+B แล้ว d = ออกโดยไม่ปิด)
+EOF
+    read -r -p "พร้อมแล้วกด Enter (ยกเลิก Ctrl+C) " _
+    win lidar lidar;  wait_for ldlidar "lidar" 20 || exit 1
+    win base base;    wait_for "lib/humanoi_base/relay_bridge" "ฐานล้อ" 20 || exit 1
+    win arms start "$arm"; wait_for "__node:=${arm}_controller_manager" "ระบบแขน" 40 || exit 1
+    sleep 8  # ตัวคุมแขนโหลด controller
+    win player player; wait_for "lib/ar_program/arm_program" "ตัวเล่นโปรแกรม" 30 || exit 1
+    win tray tray;    wait_for "lib/humanoi_vision/tray_detector" "กล้อง/ตัวหากล่อง" 40 || exit 1
+    if [ "$show_name" = none ]; then
+      echo "✓ เปิดครบ (ยังไม่เปิดโชว์) — ตั้งหน้างานต่อได้ · เปิดโชว์ทีหลัง: arm up $arm <ชื่อโชว์>"; exit 0
+    fi
+    sleep 5
+    win show show "$show_name"
+    tmux select-window -t "$S:show"
+    echo "✓ เปิดครบแล้ว — โชว์รอ SWB · ดู: tmux attach -t $S · ปิดทั้งชุด: arm down"
+    ;;
+
+  down)  # ปิดชุดโชว์ที่เปิดด้วย arm up (Ctrl+C ทีละหน้าต่าง ย้อนลำดับ) — แขนค้างท่าเดิม ไม่ตัดไฟ
+    S=humanoi
+    command -v tmux >/dev/null && tmux has-session -t "$S" 2>/dev/null || { echo "ไม่มีชุดโชว์เปิดอยู่ (arm up)"; exit 0; }
+    for w in show tray player arms base lidar; do
+      tmux list-windows -t "$S" -F '#W' | grep -qx "$w" || continue
+      echo "ปิด $w ..."
+      tmux send-keys -t "$S:$w" C-c
+      sleep 3
+    done
+    tmux kill-session -t "$S" 2>/dev/null
     bash "$0" status
     ;;
 

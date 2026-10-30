@@ -1,0 +1,26 @@
+# โชว์ทดสอบของ tools/show_sim (ใช้ท่าใน programs_test.yaml) — โครงเดียวกับโชว์ ab จริง
+stow:
+  left: [move_readyP1]
+  right: [zero_R]
+stow_tolerance_deg: 5
+
+shows:
+  test_ab:
+    title: ทดสอบ A → B → A
+    round:
+      - say: "ทดสอบหยิบกล่อง"
+      - pick: left
+        prep: "@left:move_readyP2"
+        retry: 1
+      - program: "@left:move_readyP1"
+      - confirm: "ทางไป B"
+      - undock: A
+      - route: A_to_B
+      - dock: B
+      - hand: {left: paper}
+      - program: show_missing
+        optional: true
+      - confirm: "ทางกลับ A"
+      - undock: B
+      - route: B_to_A
+      - dock: A

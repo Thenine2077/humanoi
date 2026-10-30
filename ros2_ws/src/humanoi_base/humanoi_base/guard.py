@@ -7,11 +7,14 @@ base_motion (arm drive / mission) มีกันชนของตัวเอ�
 ห้าม: ของในทางที่ไป ใกล้กว่า stop_dist จากขอบตัวหุ่น · หมุน: ของในวงกวาดมุมตัวหุ่น + rot_margin
 ปลด: ไกลเกิน stop_dist + release_margin ต่อเนื่อง clear_time (กัน relay กระพริบตอนของอยู่ตรงขอบ)
 ไม่มี lidar (/scan เงียบเกิน scan_timeout หรือยังไม่เคยมา) = ห้ามทุกทิศ
+เข้าจอดหน้าโต๊ะ (base_motion.approach / arm show dock): ส่ง /base_guard/dock (Float32 m) ซ้ำๆ = ระยะห้ามเดินหน้า
+  ลดลงเหลือค่านั้นชั่วคราว (ไม่ต่ำกว่า DOCK_MIN) — ทิศอื่นไม่เปลี่ยน · หยุดส่งเกิน DOCK_HOLD = กลับ stop_dist เอง
 """
 import time
 
 from rclpy.time import Time
 from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Float32
 from tf2_ros import Buffer, TransformException, TransformListener
 
 from humanoi_base import lidar_mount
@@ -20,6 +23,8 @@ from humanoi_base.base_motion import obstacle_gap, scan_to_points, yaw_of
 FWD, BACK, LEFT, RIGHT, TURN = 1, 2, 4, 8, 16
 ALL = FWD | BACK | LEFT | RIGHT | TURN
 BITS = (("forward", FWD), ("back", BACK), ("left", LEFT), ("right", RIGHT), ("turn", TURN))
+DOCK_MIN = 0.05    # m ระยะห้ามเดินหน้าตอนจอด ต่ำสุดที่ยอม
+DOCK_HOLD = 1.0    # s คำสั่งจอดหนึ่งครั้งใช้ได้นานเท่านี้ (ต้องส่งซ้ำ)
 
 DEFAULTS = {
     "enabled": True,                 # false = ส่ง "G OFF" (Mega ไม่กัน) — arm base noguard
@@ -46,6 +51,22 @@ class GuardLogic:
         self.cfg = dict(DEFAULTS, **(cfg or {}))
         self.mask = ALL          # ยังไม่เห็น lidar = ห้ามหมด
         self.clear_since = {}    # บิต -> เวลาที่เริ่มโล่งพอจะปลด
+        self.dock = (None, 0.0)  # (ระยะห้ามเดินหน้าตอนจอด, ใช้ได้ถึงเวลา)
+
+    def set_dock(self, dist, now, hold=DOCK_HOLD):
+        """เข้าจอด: ห้ามเดินหน้าเมื่อใกล้กว่า dist แทน stop_dist ช่วง hold วินาที (ไม่เกิน stop_dist ไม่ต่ำกว่า DOCK_MIN)"""
+        self.dock = (max(DOCK_MIN, min(float(dist), self.cfg["stop_dist"])), now + hold)
+
+    def docking(self, now):
+        return self.dock[0] is not None and now < self.dock[1]
+
+    def limit(self, kind, now):
+        """ระยะห้ามของทิศนี้ตอนนี้ (หมุน = 0 เพราะ gap หัก rot_margin แล้ว)"""
+        if kind == "turn":
+            return 0.0
+        if kind == "forward" and self.docking(now):
+            return self.dock[0]
+        return self.cfg["stop_dist"]
 
     def gaps(self, points):
         """ระยะของขวางแต่ละทิศ {kind: m | None} จากจุดในเฟรมฐาน"""
@@ -58,7 +79,7 @@ class GuardLogic:
         mask = 0
         for kind, bit in BITS:
             g = gaps.get(kind)
-            limit = 0.0 if kind == "turn" else self.cfg["stop_dist"]  # gap ตอนหมุนหัก rot_margin แล้ว
+            limit = self.limit(kind, now)
             if g is not None and g < limit:
                 self.clear_since.pop(bit, None)
                 mask |= bit
@@ -94,6 +115,14 @@ class LidarGuard:
         self.tf_listener = TransformListener(self.tf, node)
         self._tf_warned = False
         node.create_subscription(LaserScan, self.cfg["scan_topic"], self.on_scan, 5)
+        node.create_subscription(Float32, "/base_guard/dock", self.on_dock, 10)
+
+    def on_dock(self, msg):
+        was = self.logic.docking(time.monotonic())
+        self.logic.set_dock(msg.data, time.monotonic())
+        if not was:
+            self.node.get_logger().info(f"กันชน: เข้าจอด — ห้ามเดินหน้าเมื่อใกล้กว่า {self.logic.dock[0]:.2f} m "
+                                        f"(ปกติ {self.cfg['stop_dist']:.2f} m) จนกว่าคำสั่งจอดจะหยุด")
 
     def lidar_pose(self, frame):
         try:

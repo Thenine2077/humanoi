@@ -23,6 +23,9 @@ setup(
     entry_points={
         "console_scripts": [
             "mission = humanoi_mission.mission:main",
+            "show = humanoi_mission.show:main",
+            "show_setup = humanoi_mission.show_setup:main",
+            "show_mock = humanoi_mission.show_mock:main",
         ],
     },
 )

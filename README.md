@@ -206,6 +206,7 @@ arm rps                                  # เกมเป่ายิงฉุ�
 | [`docs/AR4_ARM_MANUAL.pdf`](docs/AR4_ARM_MANUAL.pdf) · [`AR4_ARM_COMMANDS.md`](docs/AR4_ARM_COMMANDS.md) | คู่มือแขน: คำสั่ง `arm`, MoveIt, รีโมท, calibrate, แก้ปัญหา |
 | [`docs/ARM_TRAY_PICK.md`](docs/ARM_TRAY_PICK.md) | ค่าชดเชยศูนย์ข้อต่อ, สอนและหยิบกล่อง, ผลที่วัดได้ |
 | [`docs/RPS_GAME.md`](docs/RPS_GAME.md) | เกมเป่ายิงฉุบ |
+| [`docs/SHOW.md`](docs/SHOW.md) · [`docs/MISSION.md`](docs/MISSION.md) | โชว์หยิบกล่อง A → B ทีละรอบ (`arm show`, `arm up`) · ตั้งหน้างาน · เครือข่ายในงาน |
 | [`docs/AMAZINGHAND.md`](docs/AMAZINGHAND.md) | มือ AmazingHand |
 | [`docs/PI_DOCKER.md`](docs/PI_DOCKER.md) | ROS 2 บน Raspberry Pi (Docker) |
 | [`docs/plan.md`](docs/plan.md) · [`docs/roadmap.html`](docs/roadmap.html) | แผนงาน / roadmap |

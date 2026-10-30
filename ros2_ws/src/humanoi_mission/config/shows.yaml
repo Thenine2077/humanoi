@@ -1,0 +1,69 @@
+# โชว์ของหุ่น — arm show <ชื่อ> (คนคุมสั่งเริ่มทีละรอบด้วย SWB) · ขั้นและตัวเลือกดูหัวไฟล์ humanoi_mission/show.py
+# แก้ไฟล์นี้แล้วรอบถัดไปใช้ค่าใหม่เลย ไม่ต้อง build · เส้นทาง / ระยะจอดอยู่ใน routes.yaml (ตั้งหน้างาน: docs/SHOW.md)
+#
+# ท่าที่ต้องสอนก่อน (แขนซ้าย = แขนที่ calibrate กล้องแล้ว):
+#   arm teach left pick_ready_L   แขนยกสูงเหนือกล่อง — ก่อนหยิบทุกครั้ง (ทางไปจุดรอไม่กวาดโดนกล่อง)
+#   arm teach left carry_L        ถือกล่องแนบตัว ศูนย์ถ่วงต่ำ ไม่ยื่นนอกฐาน (ฐานวิ่งท่านี้ได้)
+#   arm teach left place_B        วางกล่องบนโต๊ะ B (จอดฐานที่ B ด้วย dock ก่อนแล้วจัดท่า)
+#   arm teach left stow_L         แขนพับ มือว่าง (ฐานวิ่งท่านี้ได้)
+#   ท่าโชว์หลังวาง: โปรแกรม show_B (arm program show_B ...) — ยังไม่มีก็เล่นได้ (optional = ข้าม)
+# เช็ก: arm j1-load left — ท่าที่ใช้บ่อยควรไม่เกิน 100%
+
+# ฐานวิ่งได้เฉพาะตอนแขนอยู่ท่าใดท่าหนึ่งในนี้ (ห่างไม่เกิน stow_tolerance_deg ทุกข้อ)
+stow:
+  left: [carry_L, stow_L]
+  right: skip          # แขนขวาซ่อมอยู่ — พับ / รองไว้เอง · ซ่อมเสร็จแล้วสอน stow_R แล้วเปลี่ยนเป็น [stow_R]
+stow_tolerance_deg: 5
+
+shows:
+  # เริ่มรอบ: ฐานจอดหน้าโต๊ะ A (dock A) กล่องวางให้กล้องเห็นป้าย · จบรอบ: กลับมาจอดที่ A กล่องอยู่ที่ B
+  # (คนยกกล่องกลับ A ก่อนรอบถัดไป — ถ้าซ้อมแล้วพลาดน้อย ค่อยทำโชว์ ab_return ให้หุ่นหยิบกลับเอง)
+  ab:
+    title: หยิบกล่องที่ A → วางที่ B → กลับ A
+    round:
+      - say: "หุ่นจะหยิบกล่องที่โต๊ะ A แล้วนำไปวางที่โต๊ะ B"
+      - pick: left
+        prep: "@left:pick_ready_L"
+        retry: 1
+      - program: "@left:carry_L"
+      - confirm: "ทางไป B โล่งแล้ว — ฐานจะวิ่ง"
+      - undock: A
+      - route: A_to_B
+      - dock: B
+      - program: "@left:place_B"
+      - hand: {left: tray_grip0}
+      - program: "@left:stow_L"
+      - say: "วางกล่องเรียบร้อย"
+      - program: show_B
+        optional: true
+      - program: "@left:stow_L"
+      - confirm: "ทางกลับ A โล่งแล้ว — ฐานจะวิ่ง"
+      - undock: B
+      - route: B_to_A
+      - dock: A
+      - say: "กลับถึงจุดเริ่มแล้ว ขอบคุณครับ"
+
+  # ซ้อมหยิบอย่างเดียว ไม่ใช้ฐาน (กล่องที่ A)
+  pick_only:
+    title: ซ้อมหยิบ-วางคืนที่ A
+    round:
+      - pick: left
+        prep: "@left:pick_ready_L"
+        retry: 1
+      - wait: 2
+      - place_back: left
+      - program: "@left:pick_ready_L"
+
+  # ซ้อมฐานไป-กลับ แขนพับ ไม่หยิบ
+  drive_only:
+    title: ซ้อมฐาน A → B → A
+    round:
+      - program: "@left:stow_L"
+      - confirm: "ทางโล่ง — ฐานจะวิ่ง"
+      - undock: A
+      - route: A_to_B
+      - dock: B
+      - wait: 2
+      - undock: B
+      - route: B_to_A
+      - dock: A

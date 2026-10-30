@@ -1,0 +1,6 @@
+# เส้นทางและระยะจอดของโชว์ — เขียนโดย arm show route-record / route-set / dock-save (แก้มือได้)
+# routes: ชื่อ -> ขาต่อกัน {forward|back|left|right: m} หรือ {turn: องศา บวก = ซ้าย}
+# docks:  ชื่อ -> ระยะ m จากขอบหน้าตัวหุ่นถึงสิ่งที่ lidar เห็นตอนจอดถูกที่ (ขั้น dock: <ชื่อ>)
+# ตั้งที่หน้างาน (ขนาดบูทยังไม่รู้) — ขั้นตอนใน docs/SHOW.md
+routes: {}
+docks: {}

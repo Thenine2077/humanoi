@@ -86,8 +86,8 @@ def describe(kind, val):
 
 
 class Mission(Node):
-    def __init__(self):
-        super().__init__("mission")
+    def __init__(self, name="mission"):
+        super().__init__(name)
         self.declare_parameter("missions_file", "")
         self.file = self.get_parameter("missions_file").value or missions_file()
         self.motion = BaseMotion(self, declare(self))
@@ -198,7 +198,7 @@ class Mission(Node):
                     out.append(f"{where}: ใช้ left หรือ right")
                 elif kind == "pick":
                     picked.add(val)
-                    if not os.path.exists(os.path.join(CONFIG, f"tray_grasp_{val}.yaml")):
+                    if not self.grasp_ok(val, CONFIG):
                         out.append(f"{where}: แขน{ARM_TH[val]}ยังไม่ได้สอนท่าจับกล่อง (arm tray-teach)")
                 elif val not in picked:
                     out.append(f"{where}: ยังไม่ได้หยิบด้วยแขน{ARM_TH[val]}ก่อนหน้านี้")
@@ -216,9 +216,15 @@ class Mission(Node):
                 out.append("มีขั้น move แต่ยังไม่ได้ตั้ง stow ของทั้งสองแขน (ท่าพับที่ยอมให้ฐานวิ่ง)")
             for arm, poses in stow.items():
                 for pose in ([poses] if isinstance(poses, str) else poses or []):
+                    if pose == "skip":  # แขนนี้ไม่เช็ก (เช่นซ่อมอยู่ พับ/รองไว้เอง)
+                        continue
                     if arm in data["poses"] and pose not in data["poses"][arm]:
                         out.append(f"stow: แขน{ARM_TH.get(arm, arm)}ไม่มีท่า '{pose}' — สอน: arm teach {arm} {pose}")
         return out
+
+    def grasp_ok(self, arm, config_dir):
+        """แขนนี้สอนท่าจับกล่องแล้ว (arm tray-teach) — show แบบจำลองแทนที่ด้วย True"""
+        return os.path.exists(os.path.join(config_dir, f"tray_grasp_{arm}.yaml"))
 
     def check_running(self, steps):
         """โปรแกรมที่ภารกิจนี้ต้องใช้ เปิดอยู่ครบไหม"""
@@ -337,6 +343,8 @@ class Mission(Node):
         with self.lock:
             js = dict(self.joints)
         for arm, poses in cfg["stow"].items():
+            if poses == "skip" or poses == ["skip"]:
+                continue
             names = programs.joint_names(arm)
             if any(n not in js for n in names):
                 raise StepError(f"ไม่มี joint_states ของแขน{ARM_TH[arm]} — ฐานไม่วิ่ง (arm start เปิดอยู่ไหม)")
