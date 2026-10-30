@@ -47,6 +47,12 @@
 </svg>
 <figcaption>อุปกรณ์ทั้งหมดต่อเข้า Pi ทาง USB · Mega คุมฐานและอ่านรีโมทเอง</figcaption></figure>
 
+<p>รูปถัดไปเป็นผังเดินสายของทั้งระบบ ได้แก่ สาย USB จาก Pi ผ่าน USB hub ไปยังแขน มือ กล้อง lidar และ Mega แหล่งจ่าย 24 V และสายสัญญาณของ Mega ไปยังตัวรับรีโมท บอร์ด relay ตัวปรับความเร็ว มอเตอร์ และบอร์ดอ่าน encoder ถ้าต้องซูมดูขาต่อ เปิดไฟล์ขนาดเต็ม <code>docs/SYSTEM_WIRING.pdf</code> ใน repo</p>
+
+<figure class="ph" data-kind="diagram"><img src="img/system-wiring.png" alt=""><figcaption>ผังเดินสายทั้งระบบ</figcaption><div class="ph-note">ส่งออกจาก docs/SYSTEM_WIRING.pdf (วาดใน VectorCraft) · แก้ผังแล้วส่งออกใหม่ทับชื่อเดิม</div></figure>
+
+<div class="warn"><b>ระวัง</b> ในผัง สายไฟของบอร์ดมือลากมาจากแหล่งจ่าย 24 V แต่ servo มือห้ามรับไฟเกิน 7.4 V ห้ามต่อ 24 V เข้าบอร์ดมือตรงๆ ต้องผ่านตัวลดแรงดันก่อน และเช็กด้วย <code>arm hand-scan</code> ทุกครั้งที่ต่อไฟใหม่ <span class="todo">ต้องเช็ก: บนหุ่นจริง บอร์ดมือรับไฟผ่านตัวลดแรงดันตัวไหน (เอกสาร POWER_SYSTEM วางแผนไว้เป็น DC-DC 6 V รุ่น XL4016) แล้ววาดเพิ่มลงในผัง</span></div>
+
 <h2>โปรแกรมทำงานอยู่ที่ไหน</h2>
 <p>งานจริงทั้งหมดรันบน Pi ใน container ชื่อ <code>humanoi_ros</code> ส่วน PC ใช้เขียนโค้ด รันซิม (Gazebo) และดูภาพ/แผนที่ผ่าน
 Foxglove คำสั่ง <code>arm</code> รันบน Pi <b>นอก container</b> แล้วสั่งงานเข้าไปใน container ให้เอง จึงไม่ต้องจำคำสั่ง ROS ยาวๆ</p>
